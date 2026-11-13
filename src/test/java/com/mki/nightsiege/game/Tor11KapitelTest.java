@@ -328,4 +328,129 @@ class Tor11KapitelTest {
         assertEquals(0, Chapters.flowPool(own, 0));                                      // world level 1: everything waits
         assertEquals(added, own.xpPool);
     }
+
+    /** Pruefer 13.11.: a veteran of "Belagerung starten" keeps the lent profile while the round runs, then it goes back. */
+    @Test
+    void siegeRoundVeteranKeepsTheLoanUntilTheRoundEnds() {
+        String vet = java.util.UUID.randomUUID().toString();
+        String other = java.util.UUID.randomUUID().toString();
+        Map<String, String> loans = new HashMap<>(Map.of(vet, "lent", other, "lent"));
+        Chapters.Round round = new Chapters.Round();
+        round.starter = vet;
+        round.picks.put(vet, 0);
+        for (int cycle = 0; cycle < 5; cycle++) {   // sweepLoans every 2 s: ready round, then the night
+            round.night = cycle >= 2;
+            Set<String> keep = Chapters.loanHolders(round, List.of(), List.of(), null);
+            loans.keySet().removeIf(id -> !keep.contains(id));
+            assertTrue(loans.containsKey(vet), "cycle " + cycle);
+            assertFalse(loans.containsKey(other));
+        }
+        Set<String> keep = Chapters.loanHolders(null, List.of(), List.of(), null);   // the round is over
+        loans.keySet().removeIf(id -> !keep.contains(id));
+        assertTrue(loans.isEmpty());
+        java.util.UUID b = java.util.UUID.randomUUID();
+        java.util.UUID w = java.util.UUID.randomUUID();
+        java.util.UUID n = java.util.UUID.randomUUID();
+        assertEquals(Set.of(b.toString(), w.toString(), n.toString()), Chapters.loanHolders(null, List.of(b), List.of(w), Set.of(n)));
+    }
+
+    /** Pruefer 13.11.: the pool and its fraction go to the new character; the veteran keeps none (rule 7). */
+    @Test
+    void advanceMovesThePoolToTheNewCharacter() {
+        Chapters.Progress p = new Chapters.Progress();
+        PlayerSkills own = character(SkillClass.WARRIOR, 400);
+        own.xpPool = 37;
+        own.xpPoolFraction = 0.4;
+        Map<String, PlayerSkills> skills = new HashMap<>(Map.of("a", own));
+        Chapters.advance(p, 20, 19, skills, List.of("a"), Set.of("a"), s -> "", (u, s) -> 20, "x");
+        PlayerSkills fresh = skills.get("a");
+        assertNotSame(own, fresh);
+        assertEquals(37, fresh.xpPool);
+        assertEquals(0.4, fresh.xpPoolFraction, 1e-9);
+        assertEquals(0, p.veteransOf("a").get(0).skills.xpPool);
+        assertEquals(0.0, p.veteransOf("a").get(0).skills.xpPoolFraction, 1e-9);
+    }
+
+    /**
+     * Pruefer 13.11., rule 10: a migrated world past night 20 (chapter 1, finale not won, nightBase 0) keeps boss
+     * nights every 4th night and gets its finale at the next 20th rhythm night (27 → 40, 45 → 60); a lost finale
+     * comes again, a won one opens chapter 2 at night 1. The late rhythm is gone.
+     */
+    @Test
+    void migratedWorldPastNightTwentyGetsBossNightsAndAFinale() {
+        SiegeConfig c = cfg();
+        Chapters.Progress p = new Chapters.Progress();
+        for (int start : new int[] {27, 45}) {
+            int finale = -1;
+            for (int night = start; night < start + 20; night++) {
+                BossPlan.NightKind kind = Chapters.nightKind(Chapters.nightIn(night, p), c);
+                assertTrue(kind != BossPlan.NightKind.LATE, "night " + night);
+                assertEquals(night % 4 == 0 ? (night % 20 == 0 ? BossPlan.NightKind.GROUP : BossPlan.NightKind.BOSS)
+                        : BossPlan.NightKind.NORMAL, kind, "night " + night);
+                if (kind == BossPlan.NightKind.GROUP && finale < 0) {
+                    finale = night;
+                }
+            }
+            assertEquals(start == 27 ? 40 : 60, finale);
+            int rhythm = finale - 1;   // the rhythm counts a night at its end: the coming one is rhythm + 1
+            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false));   // lost: the finale again
+            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true);
+            Chapters.Progress won = new Chapters.Progress();
+            Chapters.advance(won, after, 30, new HashMap<>(), List.of(), Set.of(), s -> "", (u, s) -> 1, "x");
+            assertEquals(2, won.chapter);
+            assertEquals(1, Chapters.nightIn(after + 1, won));
+        }
+    }
+
+    /** Pruefer 13.11.: a finale reward waits in the save (also over a restart) and comes exactly once. */
+    @Test
+    void finaleRewardComesExactlyOnceAfterARestart() {
+        Chapters.Progress p = new Chapters.Progress();
+        Chapters.claimFinale(p, "a", "WARRIOR", 1);
+        Chapters.claimFinale(p, "a", "WARRIOR", 1);   // a second close of the same finale adds nothing
+        Gson gson = new Gson();
+        Chapters.Progress loaded = gson.fromJson(gson.toJson(p), Chapters.Progress.class);   // the server went down
+        assertEquals(List.of("WARRIOR:1"), Chapters.takeFinaleClaims(loaded, "a"));
+        assertTrue(Chapters.takeFinaleClaims(loaded, "a").isEmpty());
+        assertTrue(Chapters.takeFinaleClaims(loaded, "b").isEmpty());
+        Chapters.Progress old = gson.fromJson("{\"chapter\":1}", Chapters.Progress.class);   // an old save
+        assertTrue(Chapters.takeFinaleClaims(old, "a").isEmpty());
+        Chapters.claimFinale(old, "a", "ARCHER", 2);
+        assertEquals(List.of("ARCHER:2"), Chapters.takeFinaleClaims(old, "a"));
+    }
+
+    /** Pruefer 13.11.: the player's counters go to the new character, the class's stay with the veteran. */
+    @Test
+    void advanceMovesThePlayersCountersAndKeepsTheClasss() {
+        Chapters.Progress p = new Chapters.Progress();
+        PlayerSkills own = character(SkillClass.WARRIOR, 400);
+        own.waveCredit = 3;
+        own.pointFraction = 0.25;
+        own.catchUpPool = 9;
+        own.catchUpFraction = 0.5;
+        own.donated = 40;
+        own.lost = 7;
+        own.keptSouls = 2;
+        own.unlocksFree = 1;
+        own.profileVersion = PlayerSkills.PROFILE_VERSION;
+        own.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
+        Map<String, PlayerSkills> skills = new HashMap<>(Map.of("a", own));
+        Chapters.advance(p, 20, 19, skills, List.of("a"), Set.of("a"), s -> "", (u, s) -> 20, "x");
+        PlayerSkills fresh = skills.get("a");
+        assertEquals(3, fresh.waveCredit);
+        assertEquals(0.25, fresh.pointFraction, 1e-9);
+        assertEquals(9, fresh.catchUpPool);
+        assertEquals(0.5, fresh.catchUpFraction, 1e-9);
+        assertEquals(PlayerSkills.PROFILE_VERSION, fresh.profileVersion);
+        assertEquals(PlayerSkills.FREE_SUBCLASS_VERSION, fresh.freeSubclassVersion);
+        assertEquals(0, fresh.earned + fresh.donated + fresh.lost + fresh.keptSouls + fresh.unlocksFree);
+        PlayerSkills vet = p.veteransOf("a").get(0).skills;
+        assertEquals(0, vet.waveCredit + vet.catchUpPool);
+        assertEquals(0.0, vet.pointFraction + vet.catchUpFraction, 1e-9);
+        assertEquals(400, vet.earned);
+        assertEquals(40, vet.donated);
+        assertEquals(7, vet.lost);
+        assertEquals(2, vet.keptSouls);
+        assertEquals(1, vet.unlocksFree);
+    }
 }

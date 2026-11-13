@@ -150,8 +150,11 @@ final class KapitelScenes {
             var save = m.save();
             save.bossNights = 20;
             save.siegesWon = 20;
-            m.closeChapter(player.level().getServer(), Set.of(player.getUUID()), 20);
+            save.chapters().closing = List.of(uuid);   // Pruefer 13.11.: as saved by the won finale, finished as after a restart
+            save.chapters().closingLevel = 20;
+            m.finishChapterChange(player.level().getServer());
             Chapters.Progress p = save.chapters();
+            check(p.closing == null, "the pending chapter change is done (closing cleared)");
             check(p.chapter == 2, "chapter 2 started (" + p.chapter + ")");
             check(m.chapterNight() == 1, "it starts at night 1 (" + m.chapterNight() + ")");
             check(m.currentLevel() == 1, "world level 1 again (" + m.currentLevel() + ")");

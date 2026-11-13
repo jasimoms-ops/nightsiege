@@ -322,7 +322,7 @@ public final class WarLeader {
     /** Kriegsführer 3 (K1): the monster's squad has the leader's orders. */
     public boolean commanded(Mob mob) {
         Squad s = mob == null || phase != Phase.ROUND ? null : memberOf.get(mob.getUUID());
-        return s != null && s.commanded;
+        return BossService.followsOrder(phase == Phase.ROUND, s != null && s.commanded);
     }
 
     /** The boss bar of the round for the defenders. */
@@ -1762,12 +1762,12 @@ public final class WarLeader {
             }
             case "cam" -> {
                 if (phase == Phase.ROUND && p.length >= 3) {
-                    try {
-                        camX = Double.parseDouble(p[1]);
-                        camZ = Double.parseDouble(p[2]);
+                    double x = parseD(p[1]);
+                    double z = parseD(p[2]);
+                    if (Double.isFinite(x) && Double.isFinite(z)) {   // a broken report (also NaN, Infinity) changes nothing
+                        camX = x;
+                        camZ = z;
                         moveBody(player, false);
-                    } catch (NumberFormatException ignored) {
-                        // a broken report changes nothing
                     }
                 }
             }
@@ -1829,9 +1829,27 @@ public final class WarLeader {
         }
     }
 
-    private static double parseD(String s) {
+    /** Monsters of a squad sent as dots per sync (Pruefer 13.11.: the packet's 262144 characters stay far off). */
+    static final int SYNC_UNITS = 24;
+
+    /** At most max of the list, spread evenly over it (first and last kept), so a click still finds the whole squad. */
+    static <T> List<T> spread(List<T> all, int max) {
+        int n = all.size();
+        if (n <= max || max <= 0) {
+            return max <= 0 ? List.of() : all;
+        }
+        List<T> out = new ArrayList<>(max);
+        for (int i = 0; i < max; i++) {
+            out.add(all.get(max == 1 ? 0 : (int) ((long) i * (n - 1) / (max - 1))));
+        }
+        return out;
+    }
+
+    /** A number from a client command; NaN (= none) when broken or not finite (Pruefer 13.11.: no NaN/Infinity). */
+    static double parseD(String s) {
         try {
-            return Double.parseDouble(s.trim());
+            double v = Double.parseDouble(s.trim());
+            return Double.isFinite(v) ? v : Double.NaN;
         } catch (NumberFormatException e) {
             return Double.NaN;
         }
@@ -2581,16 +2599,20 @@ public final class WarLeader {
             q.special = WarOrders.specialOf(s.item).id();
             q.specialWait = (int) ((WarOrders.cooldownLeft(s.specialUsed, now) + 19) / 20);
             if (s.spawned) {
+                List<LivingEntity> living = new ArrayList<>();
                 for (UUID id : s.members) {
                     if (world.getEntity(id) instanceof LivingEntity l && l.isAlive()) {
-                        WarLeaderData.Unit u = new WarLeaderData.Unit();
-                        u.x = l.getX();
-                        u.y = l.getY();
-                        u.z = l.getZ();
-                        q.units.add(u);
+                        living.add(l);
                         q.health += l.getHealth();
                         q.maxHealth += l.getMaxHealth();
                     }
+                }
+                for (LivingEntity l : spread(living, SYNC_UNITS)) {   // Pruefer 13.11.: the packet stays small
+                    WarLeaderData.Unit u = new WarLeaderData.Unit();
+                    u.x = l.getX();
+                    u.y = l.getY();
+                    u.z = l.getZ();
+                    q.units.add(u);
                 }
             }
             q.seconds = !s.spawned ? (int) Math.max(0, (s.spawnAt - now + 19) / 20)

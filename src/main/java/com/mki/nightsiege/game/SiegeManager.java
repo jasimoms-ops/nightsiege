@@ -640,12 +640,8 @@ public final class SiegeManager {
 
     /** Lent profiles of players in no fun round any more go back (a log-out, a round that ended without us). */
     private void sweepLoans(MinecraftServer server) {
-        Set<UUID> keep = new HashSet<>();
-        keep.addAll(bastion.roundMembers());
-        keep.addAll(warLeader.roundMembers());
-        if (active && (warRound || bastionRound)) {
-            keep.addAll(participants);
-        }
+        Set<String> keep = com.mki.nightsiege.core.Chapters.loanHolders(roundNow(), bastion.roundMembers(),
+                warLeader.roundMembers(), active && (warRound || bastionRound) ? participants : null);
         for (String id : new ArrayList<>(save.loans.keySet())) {
             UUID uuid;
             try {
@@ -654,7 +650,7 @@ public final class SiegeManager {
                 save.endLoan(id);
                 continue;
             }
-            if (!keep.contains(uuid)) {
+            if (!keep.contains(id)) {
                 NightSiegeMod.LOGGER.info("[Night Siege] Spaßmodus: Leihprofil von {} zurück (in keiner Runde mehr)", id);
                 endFun(server, uuid);
             }
@@ -1169,6 +1165,7 @@ public final class SiegeManager {
             safe("Reparatur nach Absturz", () -> NightDamage.recover(server));   // a night that crashed: its damage on disk is mended now (31.10.)
         }
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
+        safe("Kapitel", () -> finishChapterChange(server));   // Pruefer 13.11.: down between won finale and chapter change
         safe("Ruhmeshalle", () -> HallService.importOnce(this, server));   // the nights before it, once (31.10.)
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
@@ -5221,6 +5218,12 @@ public final class SiegeManager {
             if (won && bossDown) {
                 endSeason(server);
                 chapterWon = true;   // Tor 11: the finale closes the chapter (below, once the night's rewards are out)
+                List<String> closing = new ArrayList<>();
+                for (UUID id : participants) {
+                    closing.add(id.toString());
+                }
+                save.chapters().closing = closing;   // saved with the won finale: a restart finishes the chapter change
+                save.chapters().closingLevel = siegeLevel;
             }
         } else if (bosses.planned() && bossDown && won) {
             save.lastBoss = bossKind == null ? null : bossKind.id();
@@ -5321,6 +5324,24 @@ public final class SiegeManager {
         }
     }
 
+    /** Pruefer 13.11.: a won finale whose chapter change did not run (the server went down in between) finishes now. */
+    public void finishChapterChange(MinecraftServer server) {
+        List<String> closing = save.chapters().closing;
+        if (closing == null) {
+            return;
+        }
+        Set<UUID> team = new HashSet<>();
+        for (String id : closing) {
+            try {
+                team.add(UUID.fromString(id));
+            } catch (IllegalArgumentException ignored) {
+                // a broken entry: no finale defender
+            }
+        }
+        NightSiegeMod.LOGGER.warn("[Night Siege] Finale gewonnen, Kapitelwechsel fehlte: wird nachgeholt ({} Verteidiger)", team.size());
+        closeChapter(server, team, save.chapters().closingLevel);
+    }
+
     /**
      * Tor 11: the finale is won. Every registered character becomes a veteran (with its level; those of the finale
      * at its level), the finale's defenders get the chest with infernite and the banner of their class, the world
@@ -5341,6 +5362,7 @@ public final class SiegeManager {
             PlayerSkills own = save.realSkillsOf(uuid);
             if (own.hasClass() && own.clazz() != null) {
                 finaleClass.put(uuid, own.clazz());
+                com.mki.nightsiege.core.Chapters.claimFinale(progress, uuid, own.clazz().name(), closed);   // saved with the chapter
             }
         }
         if (save.registered == null) {
@@ -5351,6 +5373,7 @@ public final class SiegeManager {
         List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
                 everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
                 (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
+        progress.closing = null;   // the chapter changed: saved together with it below
         save.bossBag = new ArrayList<>();   // the next chapter's bosses
         save.nextBoss = null;
         save.groupBosses.clear();
@@ -5369,10 +5392,7 @@ public final class SiegeManager {
                 .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             String uuid = player.getUUID().toString();
-            SkillClass rewardClass = finaleClass.get(uuid);
-            if (rewardClass != null) {
-                giveFinaleReward(player, rewardClass, closed);
-            }
+            deliverFinaleClaims(player, false);   // the defenders online now; the others at their next login
             if (frozen.contains(uuid)) {
                 SkillService.clear(player);
                 ClassTags.update(server, player, save.skillsOf(uuid), "");
@@ -5380,19 +5400,37 @@ public final class SiegeManager {
                         .withStyle(ChatFormatting.AQUA));
             }
         }
-        // Defenders of the finale who are offline: the banner waits for them (the chest only comes in person).
-        for (String uuid : team) {
-            if (server.getPlayerList().getPlayer(UUID.fromString(uuid)) == null && finaleClass.containsKey(uuid)) {
-                if (save.pendingBanners == null) {
-                    save.pendingBanners = new HashMap<>();
-                }
-                List<String> mine = save.pendingBanners.computeIfAbsent(uuid, k -> new ArrayList<>());
-                if (!mine.contains(finaleClass.get(uuid).name())) {
-                    mine.add(finaleClass.get(uuid).name());
-                }
+        persist();
+    }
+
+    /**
+     * Pruefer 13.11.: hands out the player's waiting finale rewards (chest and banner), each exactly once. At a login
+     * or respawn they wait while the kit, a playtest or death would take them along.
+     */
+    private void deliverFinaleClaims(ServerPlayer player, boolean careful) {
+        if (careful && (player.isDeadOrDying() || kits.hasStash(player) || playtest.takesPart(player.getUUID()))) {
+            return;
+        }
+        List<String> claims = com.mki.nightsiege.core.Chapters.takeFinaleClaims(save.chapters(), player.getUUID().toString());
+        for (String claim : claims) {
+            int cut = claim.lastIndexOf(':');
+            SkillClass clazz = SkillClass.byName(cut < 0 ? claim : claim.substring(0, cut));
+            int chapter = cut < 0 ? 1 : parseIntOr(claim.substring(cut + 1), 1);
+            if (clazz != null) {
+                giveFinaleReward(player, clazz, chapter);
             }
         }
-        persist();
+        if (!claims.isEmpty()) {
+            persist();
+        }
+    }
+
+    private static int parseIntOr(String s, int fallback) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     // ------------------------------------------------------------------ Tor 11 Teil 2: "Belagerung starten"
@@ -5992,6 +6030,7 @@ public final class SiegeManager {
         playtest.afterRespawn(player);
         crates.deliverPending(player);
         safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
+        safe("Finale-Belohnung", () -> deliverFinaleClaims(player, true));
     }
 
     /** True while tonight's kit belongs on this player: the night runs with them standing, or it is coming for them. */
@@ -6584,6 +6623,7 @@ public final class SiegeManager {
         }
         crates.deliverPending(player);
         safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
+        safe("Finale-Belohnung", () -> deliverFinaleClaims(player, true));   // Pruefer 13.11.: offline at the finale or its restart
         playtest.onJoin(player);   // things back after a playtest that ended while away
         safe("Kriegsführer", () -> warLeader.onJoin(player));   // a war leader back on the ground (or back above it)
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden

@@ -48,6 +48,17 @@ public final class Chapters {
          * null when none runs).
          */
         public Round round;
+        /**
+         * Pruefer 13.11.: a won finale whose chapter change has not run yet (the finale's team, null when none).
+         * The night's end saves before the change; a server that went down in between finishes it at the start.
+         */
+        public List<String> closing;
+        public int closingLevel;
+        /**
+         * Pruefer 13.11.: finale rewards (chest and banner) not handed out yet, player uuid → "CLASS:chapter". Saved
+         * with the new chapter, handed out (and taken off) when the player is online: each exactly once.
+         */
+        public Map<String, List<String>> finaleClaims = new LinkedHashMap<>();
 
         public List<Veteran> veteransOf(String uuid) {
             if (veterans == null) {
@@ -119,6 +130,47 @@ public final class Chapters {
         }
         r.picks.put(uuid, pick);
         return null;
+    }
+
+    /**
+     * Who may play a lent profile now (Pruefer 13.11.), the one place for every round that lends one: the ready
+     * rounds of the bastion and the war leader, the night of such a round, and the "Belagerung starten" round (its
+     * ready round and its night). sweepLoans takes back every other loan, so a new round with lent profiles goes here.
+     */
+    public static Set<String> loanHolders(Round siegeRound, Collection<java.util.UUID> bastionRound,
+                                          Collection<java.util.UUID> warRound, Collection<java.util.UUID> funNight) {
+        Set<String> out = new java.util.HashSet<>();
+        for (Collection<java.util.UUID> ids : List.of(nn(bastionRound), nn(warRound), nn(funNight))) {
+            for (java.util.UUID id : ids) {
+                out.add(id.toString());
+            }
+        }
+        if (siegeRound != null && siegeRound.picks != null) {
+            out.addAll(siegeRound.picks.keySet());
+        }
+        return out;
+    }
+
+    private static Collection<java.util.UUID> nn(Collection<java.util.UUID> ids) {
+        return ids == null ? List.of() : ids;
+    }
+
+    /** Notes a finale reward (chest and banner of the class) for a defender; the same one only once. */
+    public static void claimFinale(Progress p, String uuid, String clazz, int chapter) {
+        if (p.finaleClaims == null) {
+            p.finaleClaims = new LinkedHashMap<>();
+        }
+        List<String> mine = p.finaleClaims.computeIfAbsent(uuid, k -> new ArrayList<>());
+        String claim = clazz + ":" + chapter;
+        if (!mine.contains(claim)) {
+            mine.add(claim);
+        }
+    }
+
+    /** Takes a player's waiting finale rewards off ("CLASS:chapter"); a second call finds none. */
+    public static List<String> takeFinaleClaims(Progress p, String uuid) {
+        List<String> mine = p == null || p.finaleClaims == null ? null : p.finaleClaims.remove(uuid);
+        return mine == null ? List.of() : mine;
     }
 
     /** Who plays when the night starts: those who pressed ready and still stand near the core (nobody else). */
@@ -438,6 +490,23 @@ public final class Chapters {
                 PlayerSkills fresh = new PlayerSkills();
                 fresh.lastNight = own.lastNight;   // the latecomer count goes on
                 fresh.templateGiven = own.templateGiven;
+                // Rule 7: the pool belongs to the current character, so it goes along (Pruefer 13.11.); the veteran keeps none.
+                fresh.xpPool = Math.max(0, own.xpPool);
+                fresh.xpPoolFraction = Math.max(0.0, own.xpPoolFraction);
+                own.xpPool = 0;
+                own.xpPoolFraction = 0.0;
+                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point, the
+                // latecomer pool (capped again at the next join); the veteran keeps none. Migration marks: as set.
+                fresh.waveCredit = Math.max(0, own.waveCredit);
+                fresh.pointFraction = Math.max(0.0, own.pointFraction);
+                fresh.catchUpPool = Math.max(0, own.catchUpPool);
+                fresh.catchUpFraction = Math.max(0.0, own.catchUpFraction);
+                own.waveCredit = 0;
+                own.pointFraction = 0.0;
+                own.catchUpPool = 0;
+                own.catchUpFraction = 0.0;
+                fresh.profileVersion = own.profileVersion;
+                fresh.freeSubclassVersion = own.freeSubclassVersion;
                 skills.put(uuid, fresh);
                 frozen.add(uuid);
             }
