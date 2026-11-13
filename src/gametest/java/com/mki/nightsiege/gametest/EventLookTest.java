@@ -128,6 +128,9 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("warleader") || want.contains("krieg")) {
                     warLeaderScene(context, game);   // the war leader's round (29 October 2026)
                 }
+                if (want.contains("fadenkreuz")) {
+                    WarCursorScenes.run(context, game);   // Tor 10 / K2: the war leader's ground cross
+                }
                 if (want.contains("warden")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     wardenScene(context, game);   // the eight dungeon wardens (29 October 2026)
@@ -488,6 +491,7 @@ public class EventLookTest implements FabricClientGameTest {
                 context.takeScreenshot("shader_%d_00_normal".formatted(n));
                 series(context, game, "shader_" + n);
                 FxLastScenes.shaderShots(context, game, "shader_" + n);   // Z4: the new ability effects seen through the shader
+                WarCursorScenes.shaderShots(context, game, "shader_" + n);   // Tor 10 / K2: the war leader's ground cross
             }
         }
     }
