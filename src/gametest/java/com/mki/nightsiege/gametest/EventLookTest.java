@@ -11124,6 +11124,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.warLeader().requestSandbox(player, 6);
         });
         context.waitTicks(20);
+        KriegsBefehleScenes.sandboxBuy(context);   // Kriegsführer 3, K1: every unit type with a job of its own (before the room is full)
         final int[] machineSquad = {-1};
         onServer(context, (player, manager) -> {
             net.minecraft.server.MinecraftServer server = player.level().getServer();
@@ -11150,7 +11151,6 @@ public class EventLookTest implements FabricClientGameTest {
                     + " boss2=" + manager.warLeader().testBuy(server, boss, 3)
                     + " gold=" + manager.warLeader().testGold() + " squads=" + manager.warLeader().testSquads());
         });
-        KriegsBefehleScenes.sandboxBuy(context);   // Kriegsführer 3, K1: every unit type with a job of its own
         context.waitTicks(420);   // 15 s build-up, the squads 3 s after their flare
         onServer(context, (player, manager) -> {
             net.minecraft.server.MinecraftServer server = player.level().getServer();

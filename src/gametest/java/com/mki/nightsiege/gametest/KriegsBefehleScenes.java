@@ -129,7 +129,8 @@ final class KriegsBefehleScenes {
     static void main(ClientGameTestContext context, BlockPos core, int[] points) {
         FAILS.clear();
         checks = 0;
-        final int[] id = {-1, -1};   // zombies at point 1, skeletons at point 2
+        final int[] id = {-1, -1};   // zombies (bought now), skeletons (now or from the build-up)
+        final int[] home = new int[2];   // the skeletons' gathering point
         final String[] foe = {""};
         server(context, "buy", (player, m) -> {
             MinecraftServer server = player.level().getServer();
@@ -147,6 +148,12 @@ final class KriegsBefehleScenes {
         server(context, "came", (player, m) -> {
             id[0] = m.warLeader().testSquadOf("zombies");
             id[1] = m.warLeader().testSquadOf("skelette");
+            for (WarLeaderData.Squad q : m.warLeader().testData(player.level().getServer()).squads) {
+                if (q.id == id[1] && q.point >= 0 && q.point < m.warLeader().testPoints().size()) {
+                    home[0] = m.warLeader().testPoints().get(q.point).getX();
+                    home[1] = m.warLeader().testPoints().get(q.point).getZ();
+                }
+            }
             check(id[0] >= 0 && id[1] >= 0 && !m.warLeader().testMobs(id[0]).isEmpty() && !m.warLeader().testMobs(id[1]).isEmpty(),
                     "squads came: zombies #" + id[0] + " skelette #" + id[1] + " defender=" + foe[0] + " " + m.warLeader().testSquads());
         });
@@ -329,13 +336,13 @@ final class KriegsBefehleScenes {
                 }
             }
             int calm = 0;
-            int home = 0;
+            int back = 0;
             for (Mob mob : mobs) {
                 calm += mob.getTarget() == null && (bot == null || !m.warLeader().mayTarget(mob, bot)) ? 1 : 0;
-                home += headsFor(mob, points[3] + 0.5, points[5] + 0.5, 6.0) ? 1 : 0;
+                back += headsFor(mob, home[0] + 0.5, home[1] + 0.5, 6.0) ? 1 : 0;
             }
-            check(!mobs.isEmpty() && calm == mobs.size() && home == mobs.size() && (order(m, id[1]).startsWith("retreat/") || order(m, id[1]).startsWith("idle/")),
-                    "retreat: " + calm + "/" + mobs.size() + " fight nobody, " + home + " head for point 2, order=" + order(m, id[1]));
+            check(!mobs.isEmpty() && calm == mobs.size() && back == mobs.size() && (order(m, id[1]).startsWith("retreat/") || order(m, id[1]).startsWith("idle/")),
+                    "retreat: " + calm + "/" + mobs.size() + " fight nobody, " + back + " head for their point, order=" + order(m, id[1]));
             // 6. Attack the gate (a building: the raid's way in).
             m.warLeader().testCommand(player, String.format(Locale.ROOT, "cmd:%d:attack:%.1f:%.1f:0", id[0], core.getX() + 0.5, core.getZ() - 16.5));
         });
@@ -349,6 +356,7 @@ final class KriegsBefehleScenes {
             check(!mobs.isEmpty() && going == mobs.size() && order(m, id[0]).startsWith("attack/"),
                     "attack the gate: " + going + "/" + mobs.size() + " on their way (raid " + m.raid().states() + "), order=" + order(m, id[0]));
         });
+        context.waitTicks(5);   // the check above runs on the server first, then the key
         // 7. Hold with H (the client's way), then V (stance), then G (the old ways again).
         view(context, "hold", w -> {
             key(w, GLFW.GLFW_KEY_1, 0);
@@ -384,11 +392,11 @@ final class KriegsBefehleScenes {
     static void sandboxBuy(ClientGameTestContext context) {
         server(context, "sandbox buy", (player, m) -> {
             MinecraftServer server = player.level().getServer();
-            log("sandbox buy: leiter=" + m.warLeader().testBuy(server, "leitertraeger", 0)
-                    + " spreng=" + m.warLeader().testBuy(server, "sprengmeister", 0)
+            log("sandbox buy: haken=" + m.warLeader().testBuy(server, "enterhaken", 1)
+                    + " standarte=" + m.warLeader().testBuy(server, "standarte", 2)
                     + " tunnel=" + m.warLeader().testBuy(server, "tunnelgraeber", 1)
-                    + " haken=" + m.warLeader().testBuy(server, "enterhaken", 1)
-                    + " standarte=" + m.warLeader().testBuy(server, "standarte", 2));
+                    + " spreng=" + m.warLeader().testBuy(server, "sprengmeister", 0)
+                    + " leiter=" + m.warLeader().testBuy(server, "leitertraeger", 0));
         });
     }
 

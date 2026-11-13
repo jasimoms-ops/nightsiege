@@ -316,6 +316,12 @@ public final class WarLeader {
         return dx * dx + dz * dz <= GATHER_LEASH * GATHER_LEASH;
     }
 
+    /** Kriegsführer 3 (K1): the monster's squad has the leader's orders. */
+    public boolean commanded(Mob mob) {
+        Squad s = mob == null || phase != Phase.ROUND ? null : memberOf.get(mob.getUUID());
+        return s != null && s.commanded;
+    }
+
     /** The boss bar of the round for the defenders. */
     Component barTitle() {
         SiegeConfig cfg = m.config();
