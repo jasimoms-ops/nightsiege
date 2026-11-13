@@ -125,6 +125,12 @@ public final class SiegeManager {
         return INSTANCE;
     }
 
+    static {
+        // Tor 11: the chapter stars on the name tags come from the save's veterans
+        ClassTags.stars = uuid -> INSTANCE == null ? 0
+                : com.mki.nightsiege.core.Chapters.stars(INSTANCE.save.chapters().veteransOf(uuid));
+    }
+
     private SiegeConfig config = new SiegeConfig();
     private SiegeSave save = new SiegeSave();
     /** Trap wear is saved in batches, not on every spike hit. */
@@ -833,7 +839,7 @@ public final class SiegeManager {
                 return playtestLevel;   // camp, dungeon and kits of a playtest go by its level
             }
         }
-        return active ? siegeLevel : SiegeMath.level(save.siegesWon, lastKnownDay, config);
+        return active ? siegeLevel : SiegeMath.level(chapterWins(), lastKnownDay, config);
     }
 
     public int secondsLeft() {
@@ -2578,7 +2584,7 @@ public final class SiegeManager {
         Curses.begin(config.cursesEnabled && !warRound && !bastionRound ? Curses.chosen(save) : List.of());   // none in a war round or the bastion
         nightCurses = Curses.count();
         siegeLevel = testRun ? Math.min(config.maxLevel, forcedLevel)
-                : SiegeMath.level(save.siegesWon, SiegeMath.dayOf(server.overworld().getGameTime()), config);
+                : SiegeMath.level(chapterWins(), SiegeMath.dayOf(server.overworld().getGameTime()), config);
         totalTicks = warRound ? warLeader.totalTicks(config)
                 : bastionRound ? 20 * 60 * 120   // the bastion has no clock: two hours that never run down
                 : SiegeMath.durationSeconds(siegeLevel, config) * 20;
@@ -2634,7 +2640,7 @@ public final class SiegeManager {
         }
         if (finale) {
             finaleNight = true;
-            finaleQueue.addAll(com.mki.nightsiege.core.BossPlan.groupBosses(save.groupBosses, 4, random));
+            finaleQueue.addAll(com.mki.nightsiege.core.Chapters.finaleBosses(chapter(), save.groupBosses));   // Tor 11
         } else if (kind == com.mki.nightsiege.core.BossPlan.NightKind.LATE) {
             lateNight = true;
             finaleQueue.addAll(com.mki.nightsiege.core.BossPlan.lateBosses(config.bossLateCount, random));
@@ -2757,6 +2763,10 @@ public final class SiegeManager {
         }
 
         if (!warRound && !bastionRound) {
+            Component chapterLine = chapterLabel();   // Tor 11
+            if (chapterLine != null) {
+                broadcast(server, chapterLine.copy().withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            }
             broadcast(server, Component.translatable("nightsiege.msg.start", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
@@ -2812,11 +2822,16 @@ public final class SiegeManager {
         if (Curses.count() > 0) {
             title = Component.empty().append(title).append(Curses.barMark());   // a cursed night: ☠ and the number of curses
         }
+        Component chapterLine = chapterLabel();   // Tor 11: "Kapitel 2 · Nacht 1 · …"
+        if (chapterLine != null) {
+            title = Component.empty().append(chapterLine).append(" · ").append(title);
+        }
         if (finaleNight) {
             // The Vierer-Nacht: no clock, the bosses are the goal.
             int total = finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
-            return Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total)
-                    .withStyle(ChatFormatting.GOLD);
+            Component group = Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total);
+            return (chapterLine == null ? group : Component.empty().append(chapterLine).append(" · ").append(group))
+                    .copy().withStyle(ChatFormatting.GOLD);
         }
         if (lateNight) {
             // A late boss night: the clock and the bosses (coming, or how many still stand).
@@ -3201,7 +3216,51 @@ public final class SiegeManager {
         if (inPlaytest()) {
             return com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;   // the playtest brings its own boss
         }
-        return com.mki.nightsiege.core.BossPlan.nightKind(bossNights() + 1, config);
+        return com.mki.nightsiege.core.Chapters.nightKind(chapterNight(), config);   // Tor 11: the chapter's rhythm, no late rhythm
+    }
+
+    /** Won nights of this chapter (Tor 11): the world level counts from them, level 1 again after a won finale. */
+    public int chapterWins() {
+        return Math.max(0, save.siegesWon - Math.max(0, save.chapters().wonBase));
+    }
+
+    /** The chapter now played (Tor 11). */
+    public int chapter() {
+        return save.chapters().chapter;
+    }
+
+    /** The coming (or running) real night within its chapter, from 1 (Tor 11). */
+    public int chapterNight() {
+        return com.mki.nightsiege.core.Chapters.nightIn(bossNights() + 1, save.chapters());   // the rhythm counts a night at its end
+    }
+
+    /** Scenes and the team sim: the chapter a test night plays (0: none, no chapter step on test nights). */
+    public int simChapter;
+    /** Scenes: test nights show the chapter bar like a real night. */
+    public static boolean chapterBarInTests;
+
+    /**
+     * Tor 11: life and damage factor of the normal monsters by chapter (chapterScaling; chapters 1 and 2: 1). Real
+     * nights only; a test night only with a chapter set by the team sim or a scene.
+     */
+    public double chapterFactor() {
+        if (!active || inPlaytest()) {
+            return 1.0;
+        }
+        if (testRun) {
+            return simChapter > 0 ? com.mki.nightsiege.core.Chapters.scaling(simChapter, config) : 1.0;
+        }
+        return com.mki.nightsiege.core.Chapters.scaling(chapter(), config);
+    }
+
+    /** "Kapitel 2 · Nacht 1" for the bar and the chat, or null on test, playtest, war and bastion nights. */
+    private Component chapterLabel() {
+        if (warRound || bastionRound || inPlaytest() || (testRun && !chapterBarInTests)) {
+            return null;
+        }
+        int night = chapterNight();
+        return Component.translatable(night % com.mki.nightsiege.core.Chapters.LENGTH == 0 ? "nightsiege.chapter.finale" : "nightsiege.chapter.night",
+                chapter(), night);
     }
 
     /** Ticks into a late boss night at which its bosses come (a test night: 15 s; at most half the night). */
@@ -3589,7 +3648,7 @@ public final class SiegeManager {
             if (save.bossBag == null) {
                 save.bossBag = new ArrayList<>();
             }
-            kind = com.mki.nightsiege.core.BossPlan.draw(save.bossBag, save.lastBoss, random);
+            kind = com.mki.nightsiege.core.Chapters.drawBoss(save.bossBag, save.lastBoss, chapter(), random);   // Tor 11
             save.nextBoss = kind == null ? null : kind.id();
         }
         return kind;
@@ -5117,10 +5176,12 @@ public final class SiegeManager {
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
+        boolean chapterWon = false;
         if (finale) {
             // The Vierer-Nacht: won, a crown for every defender.
             if (won && bossDown) {
                 endSeason(server);
+                chapterWon = true;   // Tor 11: the finale closes the chapter (below, once the night's rewards are out)
             }
         } else if (bosses.planned() && bossDown && won) {
             save.lastBoss = bossKind == null ? null : bossKind.id();
@@ -5161,7 +5222,7 @@ public final class SiegeManager {
             if (wardenDown) {
                 awardWardenPoints(server, wardenKind);
             }
-            int next = SiegeMath.level(save.siegesWon, lastKnownDay, config);
+            int next = SiegeMath.level(chapterWins(), lastKnownDay, config);
             if (required > 0) {
                 broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
                         .withStyle(ChatFormatting.GREEN));
@@ -5211,8 +5272,121 @@ public final class SiegeManager {
         }
         scheduleNextAfterNight(server);
         safe("Kundschafter", () -> expeditions.afterNight(server));   // the morning after: maybe a dungeon
+        Set<UUID> finaleTeam = new HashSet<>(participants);
+        int finaleLevel = siegeLevel;
         persist();
         clearSiegeState();
+        if (chapterWon) {
+            safe("Kapitel", () -> closeChapter(server, finaleTeam, finaleLevel));
+        }
+    }
+
+    /**
+     * Tor 11: the finale is won. Every registered character becomes a veteran (with its level; those of the finale
+     * at its level), the finale's defenders get the chest with infernite and the banner of their class, the world
+     * level goes back to 1 and the next chapter starts at night 1 with a new character for everyone.
+     */
+    public void closeChapter(MinecraftServer server, Set<UUID> finaleTeam, int finaleLevel) {
+        com.mki.nightsiege.core.Chapters.Progress progress = save.chapters();
+        int closed = progress.chapter;
+        String date = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        Set<String> team = new HashSet<>();
+        for (UUID id : finaleTeam) {
+            team.add(id.toString());
+        }
+        int worldLevel = Math.max(1, finaleLevel);
+        // The finale's defenders get their reward with the class they stood in (before the character is frozen).
+        Map<String, SkillClass> finaleClass = new HashMap<>();
+        for (String uuid : team) {
+            PlayerSkills own = save.realSkillsOf(uuid);
+            if (own.hasClass() && own.clazz() != null) {
+                finaleClass.put(uuid, own.clazz());
+            }
+        }
+        if (save.registered == null) {
+            save.registered = new ArrayList<>();
+        }
+        Set<String> everyone = new java.util.LinkedHashSet<>(save.registered);
+        everyone.addAll(team);
+        List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
+                everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
+                (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
+        save.bossBag = new ArrayList<>();   // the next chapter's bosses
+        save.nextBoss = null;
+        save.groupBosses.clear();
+        for (String uuid : frozen) {
+            List<com.mki.nightsiege.core.Chapters.Veteran> list = progress.veteransOf(uuid);
+            com.mki.nightsiege.core.Chapters.Veteran v = list.isEmpty() ? null : list.get(list.size() - 1);
+            if (v != null) {
+                HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
+            }
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Kapitel {} gewonnen: {} Veteranen, Kapitel {} beginnt (Nacht 1, Stufe 1)",
+                closed, frozen.size(), progress.chapter);
+        persist();
+        broadcast(server, Component.translatable("nightsiege.chapter.won", closed, progress.chapter)
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            String uuid = player.getUUID().toString();
+            SkillClass rewardClass = finaleClass.get(uuid);
+            if (rewardClass != null) {
+                giveFinaleReward(player, rewardClass, closed);
+            }
+            if (frozen.contains(uuid)) {
+                SkillService.clear(player);
+                ClassTags.update(server, player, save.skillsOf(uuid), "");
+                player.sendSystemMessage(Component.translatable("nightsiege.chapter.new_character", closed)
+                        .withStyle(ChatFormatting.AQUA));
+            }
+        }
+        // Defenders of the finale who are offline: the banner waits for them (the chest only comes in person).
+        for (String uuid : team) {
+            if (server.getPlayerList().getPlayer(UUID.fromString(uuid)) == null && finaleClass.containsKey(uuid)) {
+                if (save.pendingBanners == null) {
+                    save.pendingBanners = new HashMap<>();
+                }
+                List<String> mine = save.pendingBanners.computeIfAbsent(uuid, k -> new ArrayList<>());
+                if (!mine.contains(finaleClass.get(uuid).name())) {
+                    mine.add(finaleClass.get(uuid).name());
+                }
+            }
+        }
+        persist();
+    }
+
+    /** A character's level: the highest one (up to the world's) whose points it has earned (a test kit's sum). */
+    private int characterLevel(PlayerSkills own, int worldLevel) {
+        int level = 1;
+        for (int l = 2; l <= worldLevel; l++) {
+            if (own.earned >= TestKit.pointsBefore(l, config)) {
+                level = l;
+            }
+        }
+        return level;
+    }
+
+    /** The finale's reward (Tor 11): a chest with infernite and the banner of the class finished, named for the chapter. */
+    private void giveFinaleReward(ServerPlayer player, SkillClass clazz, int closed) {
+        List<net.minecraft.world.item.ItemStack> inside = new ArrayList<>();
+        int ingots = Math.max(0, config.chapterFinaleInfernite);
+        if (InferniteContent.INGOT != null && ingots > 0) {
+            inside.add(new net.minecraft.world.item.ItemStack(InferniteContent.INGOT, ingots));
+        }
+        net.minecraft.world.item.ItemStack chest = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.CHEST);
+        chest.set(net.minecraft.core.component.DataComponents.CONTAINER,
+                net.minecraft.world.item.component.ItemContainerContents.fromItems(inside));
+        chest.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.translatable("nightsiege.chapter.chest", closed).withStyle(ChatFormatting.GOLD));
+        player.getInventory().placeItemBackInInventory(chest);
+        net.minecraft.world.item.ItemStack banner = ClassBanners.create(clazz, player.level().registryAccess());
+        if (!banner.isEmpty()) {
+            banner.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    Component.translatable("nightsiege.chapter.banner", Component.translatable(clazz.translationKey()), closed)
+                            .withStyle(ChatFormatting.GOLD));
+            player.getInventory().placeItemBackInInventory(banner);
+        }
+        player.sendSystemMessage(Component.translatable("nightsiege.chapter.reward", ingots,
+                Component.translatable(clazz.translationKey())).withStyle(ChatFormatting.GOLD));
     }
 
     /** After a real night (won, lost or broken off) the next invitation comes a few days later. */
@@ -7028,6 +7202,28 @@ public final class SiegeManager {
     }
 
     /**
+     * Tor 11: the classes this player's new character may not take (done veterans), unless every class they may
+     * choose is done. Empty in the playtest's planning.
+     */
+    public java.util.Set<SkillClass> veteranLocks(ServerPlayer player) {
+        if (player == null || config.testToolsForEveryone) {
+            return java.util.EnumSet.noneOf(SkillClass.class);
+        }
+        List<SkillClass> choosable = new ArrayList<>();
+        for (SkillClass c : com.mki.nightsiege.core.Chapters.playable()) {
+            if (mayChoose(player, c)) {
+                choosable.add(c);
+            }
+        }
+        return com.mki.nightsiege.core.Chapters.lockedClasses(save.chapters().veteransOf(player.getUUID().toString()), choosable);
+    }
+
+    /** True when the class is locked for this player's new character (Tor 11). */
+    public boolean veteranLocked(ServerPlayer player, SkillClass c) {
+        return c != null && veteranLocks(player).contains(c);
+    }
+
+    /**
      * The reset at the core is there until the first unlock is earned (an ultimate at
      * its top level, Simon 26 October 2026). In a playtest
      * (testToolsForEveryone) every player may change the class as often as they like.
@@ -7151,6 +7347,12 @@ public final class SiegeManager {
             player.sendSystemMessage(Component.translatable("nightsiege.msg.class_admin_only")
                     .withStyle(ChatFormatting.RED));
             return;
+        }
+        if (veteranLocked(player, chosen)) {
+            player.sendSystemMessage(Component.translatable("nightsiege.chapter.class_locked",
+                    Component.translatable(chosen.translationKey())).withStyle(ChatFormatting.RED));
+            openCoreWindow(player);
+            return;   // Tor 11: a class done as a veteran waits until every class is done
         }
         if (!own.hasClass()) {
             // The first class: its profile is opened for the subclass picked at the armour stands.

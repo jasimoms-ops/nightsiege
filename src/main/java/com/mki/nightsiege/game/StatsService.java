@@ -221,6 +221,11 @@ public final class StatsService {
             stats.unlockSubclasses.addAll(manager.unlockSubclasses(viewer, skills));
         }
         stats.nextClassOpen = manager.mayUnlock(viewer, skills);
+        java.util.Set<com.mki.nightsiege.core.SkillClass> veteranLocks = manager.veteranLocks(viewer);   // Tor 11
+        stats.chapter = manager.chapter();
+        stats.chapterNight = manager.chapterNight();
+        stats.firstFinaleWon = save.chapters().firstFinaleWon;
+        stats.chapterStars = com.mki.nightsiege.core.Chapters.stars(save.chapters().veteransOf(viewer.getUUID().toString()));
         for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
             if (c.isShared() || !manager.mayChoose(viewer, c)) {
                 continue;
@@ -234,6 +239,7 @@ public final class StatsService {
             line.ultDone = line.unlocked && tree.ultimateMaxed(skills, c);
             line.subclass = tree.chosenSubclass(skills, c);
             line.bannerToday = line.unlocked && ClassBanners.takenToday(manager, viewer, c);
+            line.veteranLock = !line.unlocked && veteranLocks.contains(c);
             if (line.unlocked) {
                 String fixedWay = "";
                 com.mki.nightsiege.core.SkillTree.SubclassInfo fixed =

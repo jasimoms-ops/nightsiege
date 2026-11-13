@@ -557,6 +557,7 @@ final class HallPages {
         ry = sourcesCard(gui, font, hero, rcx, ry, colW) + 6;
         ry = foesCard(gui, font, hero, rcx, ry, colW, mouseX, mouseY) + 6;
         ry = subsCard(gui, font, hero, rcx, ry, colW);
+        ry = veteransCard(gui, font, hero, rcx, ry + 6, colW);   // Tor 11
         int below = (two ? Math.max(leftEnd, ry) : ry) + 6;
         int end = recentCard(gui, font, hero, rx, below, rw, mouseX, mouseY);
         endScroll(gui, end - yy, bottom - top);
@@ -716,6 +717,26 @@ final class HallPages {
             String val = tr("nightsiege.hall.sub_line", s.nights, s.held, num(s.kills), num(s.dealt));
             int vw = Math.min(font.width(val), w - 60);
             gui.text(font, font.plainSubstrByWidth(subName(e.getKey()), w - 14 - vw), x + 5, ly, classColor(s.clazz), true);
+            gui.text(font, font.plainSubstrByWidth(val, vw), x + w - 5 - vw, ly, PurpleUi.LIGHT, true);
+            ly += 10;
+        }
+        return ly + 4;
+    }
+
+    /** Tor 11: the hero's veterans, one line each: class, chapter, date, level; a star for a won finale. */
+    private static int veteransCard(GuiGraphicsExtractor gui, Font font, HallOfFame.Hero h, int x, int y, int w) {
+        List<HallOfFame.VeteranLine> vets = h.veterans == null ? List.of() : h.veterans;
+        if (vets.isEmpty()) {
+            return y - 6;
+        }
+        int ly = cardTop(gui, font, tr("nightsiege.hall.card.veterans"), x, y, w, vets.size(), 10);
+        for (HallOfFame.VeteranLine v : vets) {
+            com.mki.nightsiege.core.SkillClass c = com.mki.nightsiege.core.SkillClass.byName(v.clazz);
+            String name = (v.finale ? "\u2605 " : "") + (v.sub != null && !v.sub.isEmpty() ? subName(v.sub)
+                    : c == null ? "?" : tr(c.translationKey()));
+            String val = tr("nightsiege.hall.veteran_line", v.chapter, v.date, v.level);
+            int vw = Math.min(font.width(val), w - 60);
+            gui.text(font, font.plainSubstrByWidth(name, w - 14 - vw), x + 5, ly, classColor(v.clazz), true);
             gui.text(font, font.plainSubstrByWidth(val, vw), x + w - 5 - vw, ly, PurpleUi.LIGHT, true);
             ly += 10;
         }

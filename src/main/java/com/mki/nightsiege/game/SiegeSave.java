@@ -629,6 +629,21 @@ public class SiegeSave {
     public int bossNights = -1;
     /** The bosses of the boss nights since the last Vierer-Nacht (its four). */
     public List<String> groupBosses = new ArrayList<>();
+    /**
+     * Chapters (Tor 11): the chapter, where its nights and the world level count from, the Welt-Merker "erstes
+     * Finale gewonnen" and the veterans. An older save loads as chapter 1 with its nights counted on.
+     */
+    public com.mki.nightsiege.core.Chapters.Progress chapters = new com.mki.nightsiege.core.Chapters.Progress();
+
+    public com.mki.nightsiege.core.Chapters.Progress chapters() {
+        if (chapters == null) {
+            chapters = new com.mki.nightsiege.core.Chapters.Progress();
+        }
+        if (chapters.chapter <= 0) {
+            chapters.chapter = 1;
+        }
+        return chapters;
+    }
     /** Version of the balancing the points below were earned under. */
     public int balanceVersion;
     public static final int BALANCE_VERSION = 1;

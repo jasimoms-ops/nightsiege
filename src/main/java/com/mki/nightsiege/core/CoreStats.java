@@ -308,8 +308,15 @@ public class CoreStats {
         public int total;
         /** The class banner was fetched today already (update 6: one a Minecraft day). */
         public boolean bannerToday;
+        /** Tor 11: done as a veteran, the new character may not take it (until every class is done). */
+        public boolean veteranLock;
     }
     public List<ClassLine> classLines = new ArrayList<>();
+    /** Tor 11: the chapter, the coming night in it, the Welt-Merker and this player's chapter stars. */
+    public int chapter = 1;
+    public int chapterNight = 1;
+    public boolean firstFinaleWon;
+    public int chapterStars;
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
     /** Per class: the gain abilities on the gain keys, key by key (balance update 2). */

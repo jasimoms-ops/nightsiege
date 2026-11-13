@@ -540,6 +540,7 @@ public final class TeamSim {
         Run run = queue.get(index);
         applyConfig(m, common);
         applyConfig(m, variants.getOrDefault(run.variant(), Map.of()));
+        m.simChapter = simChapter(run.variant());   // Tor 11: "kapitel=3" plays the chapter's step and boss group
         clearField(m);
         // The bots: as many as the group, "Bot01" to "BotNN" every time, the NN-th playing the NN-th subclass.
         // Picked by name, not by place in the list (31.10.): a bot that died after the night was missing from
@@ -630,7 +631,9 @@ public final class TeamSim {
             maxTicks = 40 * 60 * 20;
         } else if (bossMode) {
             // A boss night, the eight in turn by the run (Bosse 2 with the guard, 07.11.).
-            com.mki.nightsiege.core.BossKind[] all = com.mki.nightsiege.core.BossKind.values();
+            com.mki.nightsiege.core.BossKind[] all = m.simChapter > 0   // Tor 11: the chapter's four
+                    ? com.mki.nightsiege.core.Chapters.bossGroup(m.simChapter).toArray(new com.mki.nightsiege.core.BossKind[0])
+                    : com.mki.nightsiege.core.BossKind.values();
             com.mki.nightsiege.core.BossKind boss = all[Math.floorMod(run.index() + run.level() * 3 + run.group() * 5
                     + run.mix().hashCode(), all.length)];
             ok = m.prepareTest(server, world, core, run.level(), SiegeEvent.NONE, boss);
@@ -978,12 +981,26 @@ public final class TeamSim {
         return fallback;
     }
 
+    /**
+     * Tor 11: the chapter a run plays ("kapitel=<n>", the variant's before the common one; 0 = none): the normal
+     * monsters get chapterScaling of it, a boss run draws from its boss group. With chapterScaling=0/0/0.1/0.2/0.3
+     * as a variant value the step itself can be tried.
+     */
+    static int simChapter(String variant) {
+        String v = variants.getOrDefault(variant, Map.of()).getOrDefault("kapitel", common.get("kapitel"));
+        try {
+            return v == null ? 0 : Math.max(0, Integer.parseInt(v.trim()));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     private static void applyConfig(SiegeManager m, Map<String, String> over) {
         SiegeConfig cfg = m.config();
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur")) {
+            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur") || key.equals("kapitel")) {
                 continue;   // the bots' knobs, not config values
             }
             try {

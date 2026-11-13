@@ -177,6 +177,9 @@ public final class MobFactory {
             if (!elite) {
                 healthMul *= sm.outerLoopFactor();   // the outer loop on the normal monsters, real nights only (Tor 6.6)
             }
+            double chapter = sm.chapterFactor();   // Tor 11: chapter 3 +10 %, 4 +20 %, from 5 +30 % (life and damage)
+            healthMul *= chapter;
+            damageMul *= chapter;
         }
 
         AttributeInstance health = mob.getAttribute(Attributes.MAX_HEALTH);

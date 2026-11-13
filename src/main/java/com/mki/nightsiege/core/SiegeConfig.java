@@ -297,6 +297,11 @@ public class SiegeConfig {
     public int bossLateFrom = 40;
     public int bossLateEvery = 2;
     public int bossLateCount = 2;
+    // --- chapters (Tor 11, Simon 13.11.) ---
+    /** Extra life and damage of the normal monsters per chapter (index 0 = chapter 1; the last entry for later ones). */
+    public List<Double> chapterScaling = new ArrayList<>(List.of(0.0, 0.0, 0.10, 0.20, 0.30));
+    /** Infernite ingots in the chest every defender of a won finale gets. */
+    public int chapterFinaleInfernite = 3;
     /** Seconds into a late boss night before its bosses come (at most half the night). */
     public int bossLateSeconds = 300;
     /** Health of each boss of a Vierer-Nacht and of a late boss night, as a share of a boss night's. */
@@ -1519,7 +1524,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 28;
+    public static final int SETTINGS_VERSION = 30;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1869,6 +1874,11 @@ public class SiegeConfig {
         lichShieldMaxSeconds = clamp(lichShieldMaxSeconds, 0, 1800);
         bossGroupEvery = clamp(bossGroupEvery, 0, 1000);
         bossLateFrom = clamp(bossLateFrom, 0, 10000);
+        if (chapterScaling == null || chapterScaling.isEmpty()) {
+            chapterScaling = new ArrayList<>(List.of(0.0, 0.0, 0.10, 0.20, 0.30));
+        }
+        chapterScaling.replaceAll(v -> v == null || !Double.isFinite(v) ? 0.0 : Math.min(5.0, Math.max(0.0, v)));
+        chapterFinaleInfernite = clamp(chapterFinaleInfernite, 0, 64);
         bossLateEvery = clamp(bossLateEvery, 0, 100);
         bossLateCount = clamp(bossLateCount <= 0 ? 2 : bossLateCount, 1, 4);
         bossLateSeconds = clamp(bossLateSeconds, 0, 1800);
@@ -2252,6 +2262,15 @@ public class SiegeConfig {
                 bossPreWaveFactor = BOSS_PRE_WAVE;
             }
             settingsVersion = 28;
+        }
+        // 29 = Tor 10 warLevel (Branch tor10/klassenwahl; the lead merges it here).
+        if (settingsVersion < 30) {
+            // Tor 11 (Simon 13.11.): chapters instead of level 21+. chapterScaling and chapterFinaleInfernite are new
+            // fields with their defaults (chapters 1 and 2 as before); no value moves.
+            if (chapterScaling == null || chapterScaling.isEmpty()) {
+                chapterScaling = new ArrayList<>(List.of(0.0, 0.0, 0.10, 0.20, 0.30));
+            }
+            settingsVersion = 30;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
