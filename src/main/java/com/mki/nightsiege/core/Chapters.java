@@ -73,14 +73,116 @@ public final class Chapters {
         public int treeVersion;
     }
 
-    /** A running "Belagerung starten" round (Teil 2): who plays which character, curses and fragment laid in. */
+    /**
+     * A "Belagerung starten" round (Teil 2). The rule (Chef 13.11.): only who stands at most 48 blocks from the core
+     * and presses ready takes part (alone too); everyone picks their own character when pressing ready (the current
+     * one or one of their veterans, mixed is fine). The starter's pick decides the night: a veteran → night 20 as a
+     * normal night at the veteran's level; the current character → a night of its own level.
+     */
     public static class Round {
-        /** Player uuid → the veteran played (index into their list), -1 for the current character. */
+        /** Who pressed ready: player uuid → the veteran played (index into their list), -1 for the current character. */
         public Map<String, Integer> picks = new LinkedHashMap<>();
-        /** Curse stones and the night fragment laid in for it (each +10 % for veterans). */
+        public String starter = "";
+        /** Curse stones and the night fragment used up by it (each +10 % for veterans), counted when the night starts. */
         public int extras;
+        public int curses;
+        /** The night fragment used (given back when the round is broken off, as in a real night), or null. */
+        public String fragment;
         public int level = 1;
         public String started = "";
+        /** True once the night runs (before: the ready round). */
+        public boolean night;
+    }
+
+    /** The night of the round follows the starter: the veterans' loop (night 20) when they picked a veteran. */
+    public static boolean veteranLoop(Round r) {
+        return r != null && r.picks.getOrDefault(r.starter, CURRENT) != CURRENT;
+    }
+
+    /**
+     * Someone presses ready with a character: null when it counts, else why not. A veteran needs the first finale
+     * (or the playtest/an operator) and must exist.
+     */
+    public static String join(Round r, String uuid, int pick, boolean veteransOpen, int veteranCount, boolean hasClass) {
+        if (r == null || r.night) {
+            return "nightsiege.round.block_busy";
+        }
+        if (pick != CURRENT) {
+            if (!veteransOpen) {
+                return "nightsiege.chapter.lock_finale";
+            }
+            if (pick < 0 || pick >= veteranCount) {
+                return "nightsiege.round.no_veteran";
+            }
+        } else if (!hasClass) {
+            return "nightsiege.round.no_class";
+        }
+        r.picks.put(uuid, pick);
+        return null;
+    }
+
+    /** Who plays when the night starts: those who pressed ready and still stand near the core (nobody else). */
+    public static List<String> roster(Round r, Collection<String> nearCore) {
+        List<String> out = new ArrayList<>();
+        if (r != null && nearCore != null) {
+            for (String uuid : r.picks.keySet()) {
+                if (nearCore.contains(uuid)) {
+                    out.add(uuid);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The night starts (Simon 13.11.: the rules of a real night): the curse stones on the altar and the night fragment
+     * set into the core are used by it. Counts them for the veterans' share; returns the fragment taken (or null).
+     */
+    public static String useExtras(Round r, List<String> altar, String fragment) {
+        r.curses = altar == null ? 0 : altar.size();
+        r.fragment = fragment;
+        r.extras = r.curses + (fragment != null ? 1 : 0);
+        r.night = true;
+        return fragment;
+    }
+
+    /**
+     * The round is over: played to the end, the stones on the altar are gone (as after a real night); broken off,
+     * they stay and the fragment comes back. Returns the fragment to set into the core again, or null.
+     */
+    public static String afterExtras(Round r, List<String> altar, boolean playedOut) {
+        if (r == null) {
+            return null;
+        }
+        if (playedOut) {
+            if (altar != null && r.curses > 0) {
+                altar.clear();
+            }
+            return null;
+        }
+        return r.fragment;
+    }
+
+    /**
+     * The experience of the round's night per player, counted the way a real night pays it (WaveXp per wave held,
+     * the night's points when it is won, the curse points), on a scratch character: the share and the cap come after.
+     */
+    public static final class NightXp {
+        private final PlayerSkills scratch = new PlayerSkills();
+
+        /** A wave held: {@link WaveXp#survive} as in SiegeManager.waveSurvived. */
+        public int wave(int weight, int wavesPerPoint, double multiplier) {
+            return WaveXp.survive(scratch, weight, wavesPerPoint, multiplier);
+        }
+
+        /** The night was won: its points (as awardSkillPoints and awardCursePoints). */
+        public void won(int points) {
+            scratch.award(points);
+        }
+
+        public int points() {
+            return scratch.earned;
+        }
     }
 
     /** Index for "the current character" in {@link Round#picks}. */
@@ -145,6 +247,11 @@ public final class Chapters {
         List<String> out = new ArrayList<>(p.round.picks.keySet());
         p.round = null;
         return out;
+    }
+
+    /** The fragment a crashed round had used (it comes back into the core, as after a broken-off night), or null. */
+    public static String recoverFragment(Progress p) {
+        return p == null || p.round == null ? null : p.round.fragment;
     }
 
     /** The chapter of a night counted from the first (a world without a won finale in between): 1–20 → 1, 21–40 → 2. */

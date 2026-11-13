@@ -319,6 +319,8 @@ public class CoreStats {
     public int chapterStars;
     /** Teil 2, "Belagerung starten": why it is grey (empty: open), for the current character and for the veterans. */
     public String roundBlock = "";
+    /** Who opened the ready round of "Belagerung starten" now running (empty: none; pressing starts one). */
+    public String roundOpenBy = "";
     public String roundVeteranBlock = "";
     /** The level the current character would play, curses and fragment laid in (+10 % each for veterans). */
     public int roundLevel = 1;

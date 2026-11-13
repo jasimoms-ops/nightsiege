@@ -261,4 +261,71 @@ class Tor11KapitelTest {
         assertEquals(300, loaded.veteransOf("a").get(0).skills.earned);
         assertEquals(0, skills.get("a").xpPool);
     }
+
+    // ------------------------------------------------------------------ Teil 2, Nachbesserung (Chef 13.11.)
+
+    @Test
+    void onlyWhoPressedReadyAtTheCorePlays() {
+        Chapters.Round r = new Chapters.Round();
+        r.starter = "a";
+        assertEquals(null, Chapters.join(r, "a", Chapters.CURRENT, false, 0, true));
+        assertEquals(List.of("a"), Chapters.roster(r, List.of("a")));               // alone works
+        assertEquals(null, Chapters.join(r, "b", Chapters.CURRENT, false, 0, true));
+        assertEquals(List.of("a"), Chapters.roster(r, List.of("a", "c")));          // b left the core, c never pressed
+        assertEquals(List.of("a", "b"), Chapters.roster(r, List.of("a", "b", "c")));
+        r.night = true;
+        assertEquals("nightsiege.round.block_busy", Chapters.join(r, "c", Chapters.CURRENT, true, 0, true));   // too late
+    }
+
+    @Test
+    void everyonePicksTheirOwnCharacterTheStarterDecidesTheNight() {
+        Chapters.Round r = new Chapters.Round();
+        r.starter = "a";
+        assertEquals(null, Chapters.join(r, "a", 0, true, 1, true));                 // the starter as a veteran
+        assertTrue(Chapters.veteranLoop(r));                                         // → night 20
+        assertEquals(null, Chapters.join(r, "b", Chapters.CURRENT, true, 0, true));  // mixed is fine
+        assertEquals("nightsiege.chapter.lock_finale", Chapters.join(r, "c", 0, false, 1, true));
+        assertEquals("nightsiege.round.no_veteran", Chapters.join(r, "c", 2, true, 1, true));
+        assertEquals("nightsiege.round.no_class", Chapters.join(r, "c", Chapters.CURRENT, true, 0, false));
+        assertEquals(null, Chapters.join(r, "a", Chapters.CURRENT, true, 1, true));  // changed their mind
+        assertFalse(Chapters.veteranLoop(r));
+    }
+
+    @Test
+    void cursesAndTheFragmentAreUsedUpLikeInARealNight() {
+        Chapters.Round r = new Chapters.Round();
+        List<String> altar = new ArrayList<>(List.of("zaeh", "blutdurst"));
+        assertEquals("blutmond", Chapters.useExtras(r, altar, "blutmond"));
+        assertEquals(3, r.extras);
+        assertEquals(0.8, Chapters.xpShare(true, r.extras), 1e-9);
+        assertEquals(null, Chapters.afterExtras(r, altar, true));                    // played out: stones gone
+        assertTrue(altar.isEmpty());
+        Chapters.Round broken = new Chapters.Round();
+        List<String> altar2 = new ArrayList<>(List.of("zaeh"));
+        Chapters.useExtras(broken, altar2, "blutmond");
+        assertEquals("blutmond", Chapters.afterExtras(broken, altar2, false));      // broken off: the fragment back
+        assertEquals(List.of("zaeh"), altar2);                                      // the stone stays
+        Chapters.Progress p = new Chapters.Progress();
+        p.round = broken;
+        assertEquals("blutmond", Chapters.recoverFragment(p));                      // a crash gives it back too
+    }
+
+    @Test
+    void roundExperienceIsTheRealNightsThenShareAndCap() {
+        SiegeConfig c = cfg();
+        PlayerSkills steady = new PlayerSkills();   // a real night: WaveXp per wave held, on the character itself
+        Chapters.NightXp round = new Chapters.NightXp();
+        for (int w = 0; w < 7; w++) {
+            com.mki.nightsiege.core.WaveXp.survive(steady, 1, c.wavesPerPoint, c.pointGainMultiplier);
+            round.wave(1, c.wavesPerPoint, c.pointGainMultiplier);
+        }
+        steady.award(4);   // the won night's points
+        round.won(4);
+        assertEquals(steady.earned, round.points());
+        PlayerSkills own = new PlayerSkills();
+        int added = Chapters.addToPool(own, round.points(), Chapters.xpShare(true, 1));   // a veteran with one curse: 60 %
+        assertEquals((int) Math.floor(round.points() * 0.6 + 1e-9), added);
+        assertEquals(0, Chapters.flowPool(own, 0));                                      // world level 1: everything waits
+        assertEquals(added, own.xpPool);
+    }
 }

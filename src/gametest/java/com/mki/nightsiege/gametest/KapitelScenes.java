@@ -274,6 +274,7 @@ final class KapitelScenes {
                     "the veteran plays, the archer waits");
             check(m.currentLevel() == 20, "night 20 of the veteran (level " + m.currentLevel() + ")");
             check(m.roundBlock(player.level().getServer(), player, -1) != null, "no second round meanwhile");
+            check(m.isNightPlayer(player), "who pressed ready plays");
         });
         context.waitTicks(40);
         shot(context, "kapitel_belagerung");
@@ -286,7 +287,8 @@ final class KapitelScenes {
             double want = 20 * m.config().pointGainMultiplier / Math.max(1, m.config().wavesPerPoint) * 0.6;   // 50 % + 10 % (one curse)
             log("pool " + own.xpPool + " (want ~" + want + "), earned " + earnedBefore + " -> " + own.earned + ", cap " + m.poolCap());
             check(!m.isActive() && !m.inSiegeRound(), "the round is over");
-            check(Math.abs(own.xpPool + own.earned - earnedBefore - Math.floor(want + 1e-9)) <= 1, "50 % + 10 % for the curse into the pool");
+            check(own.xpPool + own.earned - earnedBefore >= Math.floor(want + 1e-9), "50 % + 10 % for the curse into the pool (waves and the won night)");
+            check(save.curses == null || save.curses.isEmpty(), "the curse stone is used up, as in a real night");
             check(own.earned <= Math.max(earnedBefore, m.poolCap()), "it flows only up to the world level");
             check(own.xpPool > 0, "the rest waits in the pool");
             check(save.skillsOf(player.getUUID().toString()).clazz() == SkillClass.ARCHER, "the veteran went back");

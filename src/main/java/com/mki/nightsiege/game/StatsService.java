@@ -236,6 +236,7 @@ public final class StatsService {
         // Teil 2: "Belagerung starten", the pool, the veterans to pick
         String roundBlock = manager.roundBlock(server, viewer, com.mki.nightsiege.core.Chapters.CURRENT);
         stats.roundBlock = roundBlock == null ? "" : roundBlock;
+        stats.roundOpenBy = manager.roundStarterName();
         String vetBlock = manager.roundBlock(server, viewer, 0);
         stats.roundVeteranBlock = vetBlock == null || "nightsiege.round.no_veteran".equals(vetBlock) ? "" : vetBlock;
         PlayerSkills realOwn = save.realSkillsOf(viewer.getUUID().toString());

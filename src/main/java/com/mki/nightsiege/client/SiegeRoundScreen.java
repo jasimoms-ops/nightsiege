@@ -20,6 +20,8 @@ import net.minecraft.network.chat.Component;
 public class SiegeRoundScreen extends Screen {
 
     private static final int ROW = 20;
+    /** Title, what it is, the rule (two lines), who started, the pool. */
+    private static final int HEAD = 84;
 
     private final CoreStats stats;
     private final Screen back;
@@ -48,10 +50,10 @@ public class SiegeRoundScreen extends Screen {
     protected void init() {
         int rows = 1 + stats.veterans.size();
         W = Math.max(260, Math.min(360, this.width - 10));
-        H = Math.max(140, Math.min(70 + rows * ROW + 34, this.height - 8));
+        H = Math.max(170, Math.min(HEAD + 18 + rows * ROW + 34, this.height - 8));
         left = (this.width - W) / 2;
         top = (this.height - H) / 2;
-        int y = top + 52;
+        int y = top + HEAD;
         Button current = Button.builder(Component.translatable("nightsiege.round.current", stats.roundLevel), b -> start(-1))
                 .bounds(left + 12, y, W - 24, 18)
                 .tooltip(Tooltip.create(stats.roundBlock.isEmpty() ? Component.translatable("nightsiege.round.current_hint")
@@ -93,10 +95,18 @@ public class SiegeRoundScreen extends Screen {
         gui.text(font, Component.translatable("nightsiege.round.title").getString(), left + 12, top + 8, 0xFFFFD86B, true);
         gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.round.intro").getString(), W - 24),
                 left + 12, top + 22, 0xFFB8B0C8, false);
+        // The rule (Chef 13.11.): who plays, who picks what, what the night is.
+        gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.round.rule1").getString(), W - 24),
+                left + 12, top + 34, 0xFFE8E0C8, false);
+        gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.round.rule2").getString(), W - 24),
+                left + 12, top + 44, 0xFFE8E0C8, false);
+        String by = stats.roundOpenBy.isEmpty() ? Component.translatable("nightsiege.round.you_start").getString()
+                : Component.translatable("nightsiege.round.open_by", stats.roundOpenBy).getString();
+        gui.text(font, font.plainSubstrByWidth(by, W - 24), left + 12, top + 56, 0xFFFFD86B, false);
         gui.text(font, Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel).getString(),
-                left + 12, top + 36, 0xFF7FD8FF, true);
+                left + 12, top + 68, 0xFF7FD8FF, true);
         if (stats.veterans.isEmpty()) {
-            gui.text(font, Component.translatable("nightsiege.round.no_veterans").getString(), left + 12, top + 52 + ROW + 4,
+            gui.text(font, Component.translatable("nightsiege.round.no_veterans").getString(), left + 12, top + HEAD + ROW + 4,
                     0xFF8A8494, false);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
