@@ -7954,6 +7954,9 @@ public final class SiegeManager {
         if (m == null || !m.active || !(target instanceof ServerPlayer archer) || !m.isDefending(archer)) {
             return target;
         }
+        if (m.warLeader.commanded(mob)) {
+            return target;   // Kriegsführer 3: the leader named this defender
+        }
         PlayerSkills skills = m.save.skillsOf(archer.getUUID().toString());
         if (skills.clazz() != com.mki.nightsiege.core.SkillClass.ARCHER || archer.level().getServer() == null) {
             return target;

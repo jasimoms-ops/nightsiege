@@ -370,6 +370,11 @@ public final class BossService {
         }
     }
 
+    /** Kriegsführer 3 (K1): the leader calls the boss's ability on E. False: no boss or none to call. */
+    public boolean commandAbility(long now) {
+        return spawned && !fallen && brain != null && brain.commandAbility(now);
+    }
+
     /** For the tests: what the boss's abilities did so far (Bosse 2). */
     public String brainStats() {
         return brain == null ? "-" : brain.stats();

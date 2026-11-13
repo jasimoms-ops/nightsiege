@@ -11049,6 +11049,7 @@ public class EventLookTest implements FabricClientGameTest {
             killer.discard();
         });
         context.waitTicks(10);
+        KriegsBefehleScenes.main(context, core, points[0]);   // Kriegsführer 3, K1: picking and orders
         // 3. The leader wins: both defenders fall.
         onServer(context, (player, manager) -> {
             for (net.minecraft.server.level.ServerPlayer bot : com.mki.nightsiege.game.SimBots.all()) {
@@ -11127,6 +11128,7 @@ public class EventLookTest implements FabricClientGameTest {
             manager.warLeader().requestSandbox(player, 6);
         });
         context.waitTicks(20);
+        KriegsBefehleScenes.sandboxBuy(context);   // Kriegsführer 3, K1: every unit type with a job of its own (before the room is full)
         final int[] machineSquad = {-1};
         onServer(context, (player, manager) -> {
             net.minecraft.server.MinecraftServer server = player.level().getServer();
@@ -11185,6 +11187,7 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> System.out.println("[Night Siege test] war sandbox picked=" + machineSquad[0] + " screen="
                 + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testSquad() : -2)));
         context.takeScreenshot("war_09_sandbox");
+        KriegsBefehleScenes.sandbox(context, core);   // Kriegsführer 3, K1: special orders, the boss steered
         onServer(context, (player, manager) -> {
             System.out.println("[Night Siege test] war sandbox later: round=" + manager.isWarRound() + " active=" + manager.isActive()
                     + " squads=" + manager.warLeader().testSquads() + " breaches=" + manager.besiegerBreaches() + " bar=" + manager.bossBarText());

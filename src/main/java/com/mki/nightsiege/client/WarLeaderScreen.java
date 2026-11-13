@@ -1,6 +1,8 @@
 package com.mki.nightsiege.client;
 
 import com.mki.nightsiege.core.WarLeaderData;
+import com.mki.nightsiege.core.WarOrders;
+import com.mki.nightsiege.core.WarSelection;
 import com.mki.nightsiege.game.CoreNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -99,6 +101,24 @@ public class WarLeaderScreen extends Screen {
     /** The frame's partial tick (the icons sit where the camera is this frame). */
     private float partial;
 
+    // Kriegsführer 3 (K1): picking like in a strategy game, orders by key and right click.
+    private final WarSelection sel = new WarSelection();
+    /** The order key waiting for a click (M, A, E); null: a right click gives the order by what is under the pointer. */
+    private WarOrders.Kind armed;
+    /** The left button went down in the picture here (NaN: not); dragged further than a few pixels it is a frame. */
+    private double dragX = Double.NaN;
+    private double dragY;
+    private double dragToX;
+    private double dragToY;
+    private boolean dragging;
+    private boolean dragDouble;
+    private boolean shiftNow;
+    /** The order markers: where, which colour, since when (ms). */
+    private record Marker(double x, double z, int color, long at) {
+    }
+    private final List<Marker> markers = new ArrayList<>();
+    private static final long MARKER_MS = 900;
+
     public WarLeaderScreen(WarLeaderData data) {
         super(Component.translatable("nightsiege.war.title"));
         this.data = data;
@@ -167,9 +187,12 @@ public class WarLeaderScreen extends Screen {
         if (point >= fresh.points.size()) {
             point = 0;
         }
-        if (squad >= 0 && fresh.squads.stream().noneMatch(s -> s.id == squad)) {
-            squad = -1;
+        List<Integer> alive = new ArrayList<>();
+        for (WarLeaderData.Squad q : fresh.squads) {
+            alive.add(q.id);
         }
+        sel.retain(alive);
+        syncPick();
     }
 
     /** The bird's-eye view is on: the build-up and the waves. */
@@ -322,7 +345,7 @@ public class WarLeaderScreen extends Screen {
             if (down(client, client.options.keyDown) || key(client, GLFW.GLFW_KEY_DOWN)) {
                 camZ += step;
             }
-            if (down(client, client.options.keyLeft) || key(client, GLFW.GLFW_KEY_LEFT)) {
+            if ((down(client, client.options.keyLeft) && !(armedKeyA(client))) || key(client, GLFW.GLFW_KEY_LEFT)) {
                 camX -= step;
             }
             if (down(client, client.options.keyRight) || key(client, GLFW.GLFW_KEY_RIGHT)) {
@@ -348,6 +371,19 @@ public class WarLeaderScreen extends Screen {
             InputConstants.Key bound = InputConstants.getKey(mapping.saveString());
             return bound.getType() == InputConstants.Type.KEYSYM && bound.getValue() >= 0
                     && InputConstants.isKeyDown(client.getWindow(), bound.getValue());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** With squads picked, A is the attack key: it does not move the camera then (the arrow keys do). */
+    private boolean armedKeyA(Minecraft client) {
+        if (sel.isEmpty()) {
+            return false;
+        }
+        try {
+            InputConstants.Key bound = InputConstants.getKey(client.options.keyLeft.saveString());
+            return bound.getType() == InputConstants.Type.KEYSYM && bound.getValue() == GLFW.GLFW_KEY_A;
         } catch (RuntimeException e) {
             return false;
         }
@@ -384,6 +420,10 @@ public class WarLeaderScreen extends Screen {
             return super.keyPressed(event);
         }
         if (k == GLFW.GLFW_KEY_ESCAPE) {
+            if (armed != null && !menu) {
+                armed = null;   // the order key waits no more
+                return true;
+            }
             menu = !menu;
             confirmGiveUp = false;
             return true;
@@ -391,14 +431,7 @@ public class WarLeaderScreen extends Screen {
         if (menu) {
             return true;
         }
-        if (k == GLFW.GLFW_KEY_SPACE) {
-            send("war:storm");
-            click(0.8f);
-            return true;
-        }
-        if (k == GLFW.GLFW_KEY_G && squad >= 0) {
-            send("war:order:" + squad + ":gather");
-            click(1.0f);
+        if (orderKey(k, event.hasControlDown(), event.hasShiftDown())) {
             return true;
         }
         if (k == GLFW.GLFW_KEY_TAB) {
@@ -407,14 +440,15 @@ public class WarLeaderScreen extends Screen {
             shopFirst = 0;
             return true;
         }
-        if (k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_9 && k - GLFW.GLFW_KEY_1 < data.points.size()) {
-            point = k - GLFW.GLFW_KEY_1;
+        if (k >= GLFW.GLFW_KEY_F1 && k <= GLFW.GLFW_KEY_F8 && k - GLFW.GLFW_KEY_F1 < data.points.size()) {
+            // The gathering points on F1-F8 (1-9 are the groups since Kriegsführer 3).
+            point = k - GLFW.GLFW_KEY_F1;
             WarLeaderData.Point p = data.points.get(point);
             camX = p.x + 0.5;
             camZ = p.z + 0.5;
             return true;
         }
-        if (k == GLFW.GLFW_KEY_H) {
+        if (k == GLFW.GLFW_KEY_HOME || (k == GLFW.GLFW_KEY_H && sel.isEmpty())) {
             camX = data.centerX + 0.5;
             camZ = data.centerZ + 0.5;
             return true;
@@ -434,8 +468,18 @@ public class WarLeaderScreen extends Screen {
             menuClick(x, y);
             return true;
         }
+        shiftNow = event.hasShiftDown();
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+            // Right click: the order by what is under the pointer (or the waiting key's).
+            if (!overPanel(x, y)) {
+                issue(x, y, armed, shiftNow);
+                if (!shiftNow) {
+                    armed = null;
+                }
+            }
+            return true;
+        }
         if (!left) {
-            squad = -1;   // right click: no squad picked
             return true;
         }
         if (shopClick(x, y) || sideClick(x, y)) {
@@ -444,29 +488,65 @@ public class WarLeaderScreen extends Screen {
         if (overPanel(x, y)) {
             return true;
         }
-        // In the picture: a flag, a squad, else the target of the picked squad.
+        if (armed != null) {
+            // M, A or E waits: the click gives that order (Shift: as a way point, the key keeps waiting).
+            issue(x, y, armed, shiftNow);
+            if (!shiftNow) {
+                armed = null;
+            }
+            return true;
+        }
         int[] flag = nearestFlag(x, y);
         if (flag != null) {
             point = flag[0];
             click(1.3f);
             return true;
         }
-        WarCursor.Hover under = WarCursor.hover();   // what the cross shows is what the click takes
-        int picked = under != null && (under.kind() == WarCursor.Kind.SQUAD || under.kind() == WarCursor.Kind.MACHINE)
-                ? under.id() : nearestSquad(x, y);
-        if (picked >= 0) {
-            squad = picked;
-            click(1.2f);
-            return true;
+        // A click picks (on release), dragged it is a frame.
+        dragX = x;
+        dragY = y;
+        dragToX = x;
+        dragToY = y;
+        dragging = false;
+        dragDouble = doubleClick;
+        return true;
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        if (!inView() || Double.isNaN(dragX)) {
+            return super.mouseDragged(event, dx, dy);
         }
-        if (squad >= 0) {
-            BlockPos at = WarCursor.target() != null ? WarCursor.target() : pickBlock(x, y);
-            WarLeaderData.Squad s = squadById(squad);
-            if (at != null && s != null && !s.ownWill) {
-                send("war:order:" + squad + ":target:" + at.getX() + ":" + at.getZ());
-                click(0.9f);
+        dragToX = event.x();
+        dragToY = event.y();
+        if (Math.abs(dragToX - dragX) > 4 || Math.abs(dragToY - dragY) > 4) {
+            dragging = true;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        if (!inView() || Double.isNaN(dragX) || event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            return super.mouseReleased(event);
+        }
+        boolean shift = event.hasShiftDown();
+        if (dragging) {
+            sel.box(inFrame(dragX, dragY, event.x(), event.y()), shift);
+        } else {
+            int picked = cursorSquad(event.x(), event.y());   // what the cross shows is what the click takes
+            if (picked >= 0 && dragDouble) {
+                sel.all(sameKindOnScreen(picked));
+            } else if (picked >= 0) {
+                sel.click(picked, shift);
+            } else if (!shift) {
+                sel.clear();
             }
         }
+        dragX = Double.NaN;
+        dragging = false;
+        syncPick();
+        click(1.2f);
         return true;
     }
 
@@ -482,6 +562,347 @@ public class WarLeaderScreen extends Screen {
             }
         }
         return null;
+    }
+
+    // ------------------------------------------------------------------ Kriegsführer 3 (K1): orders
+
+    /** The first picked squad is the one the hint and the side panel's buttons name. */
+    private void syncPick() {
+        squad = sel.first();
+    }
+
+    /** The order keys; true when the key was one. */
+    private boolean orderKey(int k, boolean ctrl, boolean shift) {
+        if (ctrl && k == GLFW.GLFW_KEY_A) {
+            sel.all(cameIds());
+            syncPick();
+            click(1.2f);
+            return true;
+        }
+        if (k >= GLFW.GLFW_KEY_1 && k <= GLFW.GLFW_KEY_9) {
+            int n = k - GLFW.GLFW_KEY_1 + 1;
+            if (ctrl) {
+                sel.store(n);
+                note(tr("nightsiege.war.group_kept", n));
+                click(1.4f);
+            } else if (sel.recall(n, System.currentTimeMillis(), shift)) {
+                double[] c = groupCentre(n);   // twice: the camera goes there
+                if (c != null) {
+                    camX = c[0];
+                    camZ = c[1];
+                }
+            }
+            syncPick();
+            return true;
+        }
+        if (k == GLFW.GLFW_KEY_SPACE) {
+            if (sel.isEmpty()) {
+                send("war:storm");
+                click(0.8f);
+            } else {
+                order(WarOrders.Kind.STORM, Double.NaN, Double.NaN, "", shift);
+            }
+            return true;
+        }
+        if (sel.isEmpty()) {
+            return false;
+        }
+        switch (k) {
+            case GLFW.GLFW_KEY_G -> {
+                send("war:cmd:" + sel.ids() + ":gather:NaN:NaN:0");
+                click(1.0f);
+            }
+            case GLFW.GLFW_KEY_M -> armed = WarOrders.Kind.MOVE;
+            case GLFW.GLFW_KEY_A -> armed = WarOrders.Kind.ATTACK;
+            case GLFW.GLFW_KEY_H -> order(WarOrders.Kind.HOLD, Double.NaN, Double.NaN, "", shift);
+            case GLFW.GLFW_KEY_R -> order(WarOrders.Kind.RETREAT, Double.NaN, Double.NaN, "", shift);
+            case GLFW.GLFW_KEY_V -> {
+                send("war:stance:" + sel.ids());
+                WarLeaderData.Squad first = squadById(sel.first());
+                if (first != null) {
+                    note(tr("nightsiege.war.stance." + WarOrders.Stance.byId(first.stance).next().id()));
+                }
+                click(1.1f);
+            }
+            case GLFW.GLFW_KEY_E -> {
+                boolean spot = false;
+                boolean now = false;
+                for (int id : sel.picked()) {
+                    WarLeaderData.Squad q = squadById(id);
+                    WarOrders.Special sp = q == null ? WarOrders.Special.NONE : WarOrders.Special.byId(q.special);
+                    spot |= sp.needsSpot();
+                    now |= sp.hasNow();
+                }
+                if (now && (armed == WarOrders.Kind.SPECIAL || !spot)) {
+                    // E twice (the sapper goes off where it is), or the boss's ability at once.
+                    send("war:now:" + sel.ids());
+                    armed = null;
+                    WarLeaderData.Squad first = squadById(sel.first());
+                    if (first != null) {
+                        markers.add(new Marker(first.x, first.z, WarOrders.Kind.SPECIAL.color(), System.currentTimeMillis()));
+                    }
+                    click(0.7f);
+                } else if (spot) {
+                    armed = WarOrders.Kind.SPECIAL;
+                } else {
+                    note(tr("nightsiege.war.special_nothing"));
+                    click(0.5f);
+                }
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** An order to the server for the picked squads, with its marker and its sound (only for the leader). */
+    private void order(WarOrders.Kind kind, double x, double z, String target, boolean queued) {
+        if (sel.isEmpty()) {
+            return;
+        }
+        send(String.format(Locale.ROOT, "war:cmd:%s:%s:%.1f:%.1f:%d%s", sel.ids(), kind.id(), x, z, queued ? 1 : 0,
+                target == null || target.isEmpty() ? "" : ":" + target));
+        if (!Double.isNaN(x) && !Double.isNaN(z)) {
+            markers.add(new Marker(x, z, kind.color(), System.currentTimeMillis()));
+        } else {
+            for (int id : sel.picked()) {
+                WarLeaderData.Squad q = squadById(id);
+                if (q != null && !"coming".equals(q.order)) {
+                    markers.add(new Marker(q.x, q.z, kind.color(), System.currentTimeMillis()));
+                }
+            }
+        }
+        float pitch = switch (kind) {
+            case MOVE, HOLD, RETREAT -> 1.25f;
+            case SPECIAL -> 1.6f;
+            default -> 0.85f;
+        };
+        Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+                net.minecraft.sounds.SoundEvents.NOTE_BLOCK_HAT.value(), pitch, 0.35f));
+    }
+
+    /** A click in the picture gives an order: by the waiting key, else by what is under the pointer. */
+    private void issue(double x, double y, WarOrders.Kind key, boolean queued) {
+        WarOrders.Kind kind = intentAt(x, y, key);
+        if (kind == null) {
+            if (!sel.isEmpty()) {
+                click(0.5f);   // nothing to do there
+            }
+            return;
+        }
+        WarLeaderData.Mate foe = defenderAt(x, y);
+        BlockPos at = spotAt(x, y);
+        if (kind == WarOrders.Kind.ATTACK && foe != null) {
+            order(kind, foe.x, foe.z, foe.name, queued);
+        } else if (at != null) {
+            order(kind, at.getX() + 0.5, at.getZ() + 0.5, "", queued);
+        }
+    }
+
+    /**
+     * What a click at this screen spot gives now (K2's ground cross asks for it): MOVE, ATTACK (or the attack
+     * march ATTACK_MOVE), SPECIAL, or null for nothing (nothing picked, no ground, out of reach, no job for E).
+     */
+    private WarOrders.Kind intentAt(double x, double y, WarOrders.Kind key) {
+        if (data == null || !inView() || menu || sel.isEmpty() || overPanel(x, y)) {
+            return null;
+        }
+        WarLeaderData.Mate foe = defenderAt(x, y);
+        BlockPos at = spotAt(x, y);
+        boolean spot = at != null && inReach(at.getX() + 0.5, at.getZ() + 0.5);
+        boolean onBase = spot && WarOrders.onBase(data.edge, data.centerX + 0.5, data.centerZ + 0.5, at.getX() + 0.5, at.getZ() + 0.5, 1.5);
+        WarOrders.Kind kind = WarOrders.intent(true, key, spot, foe != null, onBase);
+        boolean machines = true;
+        boolean special = false;
+        for (int id : sel.picked()) {
+            WarLeaderData.Squad q = squadById(id);
+            machines &= q != null && q.machine;
+            special |= q != null && WarOrders.Special.byId(q.special).needsSpot();
+        }
+        if (kind == WarOrders.Kind.MOVE && machines) {
+            kind = WarOrders.Kind.ATTACK;   // a machine shoots there
+        }
+        if (kind == WarOrders.Kind.SPECIAL && !special) {
+            kind = null;
+        }
+        return kind;
+    }
+
+    /** What a click under the pointer gives now; null: nothing (for the ground cross, K2's WarCursor). */
+    public WarOrders.Kind currentIntent() {
+        Minecraft mc = Minecraft.getInstance();
+        return intentAt(mc.mouseHandler.getScaledXPos(mc.getWindow()), mc.mouseHandler.getScaledYPos(mc.getWindow()), armed);
+    }
+
+    /** Why there is nothing to do under the pointer ("" when there is): "pick", "spot", "special". */
+    public String currentIntentReason() {
+        if (currentIntent() != null) {
+            return "";
+        }
+        if (sel.isEmpty()) {
+            return "pick";
+        }
+        return armed == WarOrders.Kind.SPECIAL ? "special" : "spot";
+    }
+
+    private boolean inReach(double x, double z) {
+        double dx = x - (data.centerX + 0.5);
+        double dz = z - (data.centerZ + 0.5);
+        return dx * dx + dz * dz <= (data.radius + 8.0) * (data.radius + 8.0);
+    }
+
+    /** The click is where the cross is (not a test's click elsewhere): the cross's spot and unit count. */
+    private static boolean atCross(double x, double y) {
+        return WarCursor.shown() && Math.abs(WarCursor.screenX() - x) < 1.0 && Math.abs(WarCursor.screenY() - y) < 1.0;
+    }
+
+    /** The spot a click there gives: the cross's (snapped) target, else the block under the pointer. */
+    private BlockPos spotAt(double x, double y) {
+        return atCross(x, y) && WarCursor.target() != null ? WarCursor.target() : pickBlock(x, y);
+    }
+
+    /** The squad a click there picks: the one the cross snapped on, else the nearest. */
+    private int cursorSquad(double x, double y) {
+        WarCursor.Hover under = atCross(x, y) ? WarCursor.hover() : null;
+        return under != null && (under.kind() == WarCursor.Kind.SQUAD || under.kind() == WarCursor.Kind.MACHINE)
+                ? under.id() : nearestSquad(x, y);
+    }
+
+    /** K1 into K2's cross: the intent with its reason, the picked machine, the ladder's or blast's preview. */
+    private void feedCursor(double mx, double my) {
+        if (menu || sel.isEmpty()) {
+            WarCursor.clearIntent();
+            WarCursor.clearMachine();
+            WarCursor.clearPreview();
+            return;
+        }
+        WarOrders.Kind k = intentAt(mx, my, armed);
+        WarCursor.Intent intent = k == null ? WarCursor.Intent.INVALID : switch (k) {
+            case SPECIAL -> WarCursor.Intent.SPECIAL;
+            case MOVE, HOLD, RETREAT -> WarCursor.Intent.MOVE;
+            default -> WarCursor.Intent.ATTACK;
+        };
+        String why = k != null ? (k == WarOrders.Kind.ATTACK_MOVE ? tr("nightsiege.war.order.attack_move") : "")
+                : armed == WarOrders.Kind.SPECIAL ? tr("nightsiege.war.special_nothing")
+                : overPanel(mx, my) ? "" : tr("nightsiege.war.cursor.nothing");
+        WarCursor.setIntent(intent, why);
+        WarLeaderData.Squad first = squadById(sel.first());
+        com.mki.nightsiege.core.SiegeMachineKind machine = first != null && first.machine && sel.picked().size() == 1
+                ? com.mki.nightsiege.core.SiegeMachineKind.byId(first.item.substring("machine.".length())) : null;
+        if (machine != null) {
+            WarCursor.setMachine(machine, first.x, groundY(first.x, first.z), first.z);
+        } else {
+            WarCursor.clearMachine();
+        }
+        WarCursor.Preview preview = WarCursor.Preview.NONE;
+        if (armed == WarOrders.Kind.SPECIAL) {
+            for (int id : sel.picked()) {
+                WarLeaderData.Squad q = squadById(id);
+                WarOrders.Special sp = q == null ? WarOrders.Special.NONE : WarOrders.Special.byId(q.special);
+                if (sp == WarOrders.Special.LADDER) {
+                    preview = WarCursor.Preview.LADDER;
+                } else if (sp == WarOrders.Special.BLAST && preview == WarCursor.Preview.NONE) {
+                    preview = WarCursor.Preview.BLAST;
+                }
+            }
+        }
+        BlockPos at = preview == WarCursor.Preview.NONE ? null : spotAt(mx, my);
+        if (at != null) {
+            WarCursor.setPreview(preview, at.getX() + 0.5, at.getY() + 1, at.getZ() + 0.5, preview == WarCursor.Preview.BLAST ? 3.0 : 1.0);
+        } else {
+            WarCursor.clearPreview();
+        }
+    }
+
+    /** The standing defender under the pointer (within 8 pixels), or null. */
+    private WarLeaderData.Mate defenderAt(double x, double y) {
+        WarLeaderData.Mate best = null;
+        double bestD = 8 * 8;
+        for (WarLeaderData.Mate m : data.defenders) {
+            if (m.fallen || (m.x == 0 && m.z == 0)) {
+                continue;
+            }
+            int[] p = project(m.x, m.y, m.z);
+            if (p == null) {
+                continue;
+            }
+            double d = (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y);
+            if (d < bestD) {
+                bestD = d;
+                best = m;
+            }
+        }
+        return best;
+    }
+
+    /** The squads that came (Ctrl+A). */
+    private List<Integer> cameIds() {
+        List<Integer> out = new ArrayList<>();
+        for (WarLeaderData.Squad q : data.squads) {
+            if (!"coming".equals(q.order)) {
+                out.add(q.id);
+            }
+        }
+        return out;
+    }
+
+    /** The squads in a frame on the screen (one of its monsters or its middle in it). */
+    private List<Integer> inFrame(double ax, double ay, double bx, double by) {
+        double x0 = Math.min(ax, bx);
+        double x1 = Math.max(ax, bx);
+        double y0 = Math.min(ay, by);
+        double y1 = Math.max(ay, by);
+        List<Integer> out = new ArrayList<>();
+        for (WarLeaderData.Squad q : data.squads) {
+            if ("coming".equals(q.order)) {
+                continue;
+            }
+            List<double[]> spots = new ArrayList<>();
+            spots.add(new double[]{q.x, groundY(q.x, q.z), q.z});
+            for (WarLeaderData.Unit u : q.units) {
+                spots.add(new double[]{u.x, u.y, u.z});
+            }
+            for (double[] w : spots) {
+                int[] p = project(w[0], w[1], w[2]);
+                if (p != null && p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) {
+                    out.add(q.id);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** A double click: every squad of that kind on the screen. */
+    private List<Integer> sameKindOnScreen(int id) {
+        WarLeaderData.Squad picked = squadById(id);
+        List<Integer> out = new ArrayList<>();
+        out.add(id);
+        if (picked == null) {
+            return out;
+        }
+        for (WarLeaderData.Squad q : data.squads) {
+            if (q.id != id && q.item.equals(picked.item) && !"coming".equals(q.order) && project(q.x, groundY(q.x, q.z), q.z) != null) {
+                out.add(q.id);
+            }
+        }
+        return out;
+    }
+
+    private double[] groupCentre(int n) {
+        double x = 0;
+        double z = 0;
+        int c = 0;
+        for (int id : sel.group(n)) {
+            WarLeaderData.Squad q = squadById(id);
+            if (q != null && !"coming".equals(q.order)) {
+                x += q.x;
+                z += q.z;
+                c++;
+            }
+        }
+        return c == 0 ? null : new double[]{x / c, z / c};
     }
 
     // ------------------------------------------------------------------ the picture
@@ -550,14 +971,21 @@ public class WarLeaderScreen extends Screen {
             if ("coming".equals(s.order)) {
                 continue;
             }
-            int[] p = project(s.x, groundY(s.x, s.z), s.z);
-            if (p == null) {
-                continue;
+            List<double[]> spots = new ArrayList<>();
+            spots.add(new double[]{s.x, groundY(s.x, s.z), s.z});
+            for (WarLeaderData.Unit u : s.units) {
+                spots.add(new double[]{u.x, u.y, u.z});   // a click on one of its monsters picks the squad
             }
-            double d = (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y);
-            if (d < bestD) {
-                bestD = d;
-                best = s.id;
+            for (double[] w : spots) {
+                int[] p = project(w[0], w[1], w[2]);
+                if (p == null) {
+                    continue;
+                }
+                double d = (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y);
+                if (d < bestD) {
+                    bestD = d;
+                    best = s.id;
+                }
             }
         }
         return best;
@@ -668,13 +1096,15 @@ public class WarLeaderScreen extends Screen {
         if (y >= by && y < by + 12) {
             int half = (SIDE_W - 12) / 2;
             if (x < x0 + 4 + half) {
-                if (squad >= 0) {
-                    send("war:order:" + squad + ":gather");
+                if (!sel.isEmpty()) {
+                    send("war:cmd:" + sel.ids() + ":gather:NaN:NaN:0");
                     click(1.0f);
                 }
-            } else {
+            } else if (sel.isEmpty()) {
                 send("war:storm");
                 click(0.8f);
+            } else {
+                order(WarOrders.Kind.STORM, Double.NaN, Double.NaN, "", false);
             }
             return true;
         }
@@ -682,8 +1112,9 @@ public class WarLeaderScreen extends Screen {
         int i = (int) ((y - rowTop) / SQ_H);
         if (y >= rowTop && i >= 0 && i < squadRows() && squadFirst + i < data.squads.size()) {
             WarLeaderData.Squad s = data.squads.get(squadFirst + i);
-            squad = s.id;
-            if (!"coming".equals(s.order)) {
+            sel.click(s.id, shiftNow);
+            syncPick();
+            if (!"coming".equals(s.order) && !shiftNow) {
                 camX = s.x;
                 camZ = s.z;
             }
@@ -822,6 +1253,7 @@ public class WarLeaderScreen extends Screen {
             camYv = targetY();
         }
         // Tor 10 / K2: the ground cross (WarCursor) instead of the mouse; over a panel the small cross as before.
+        feedCursor(mouseX, mouseY);
         double[] at = WarCursor.update(data, squad, mouseX, mouseY, this.width, this.height, delta, menu || overPanel(mouseX, mouseY));
         drawWorld(gui, font);
         WarCursorRender.draw(gui, font);
@@ -944,13 +1376,25 @@ public class WarLeaderScreen extends Screen {
                 continue;
             }
             int color = orderColor(q.order);
-            boolean sel = q.id == squad;
+            boolean sel = this.sel.has(q.id);
+            // Kriegsführer 3: every monster a dot, the picked ones a golden ring at their feet.
+            for (WarLeaderData.Unit u : q.units) {
+                int[] us = project(u.x, u.y, u.z);
+                if (us == null) {
+                    continue;
+                }
+                if (sel) {
+                    ring(gui, us[0], us[1], Math.max(3, (int) Math.round(blockPx(u.x, u.y, u.z) * 0.7)), GOLD);
+                }
+                gui.fill(us[0] - 1, us[1] - 1, us[0] + 1, us[1] + 1, color);
+            }
             gui.fill(s[0] - 3, s[1] - 3, s[0] + 3, s[1] + 3, 0xFF000000);
-            gui.fill(s[0] - 2, s[1] - 2, s[0] + 2, s[1] + 2, color);
+            stanceMark(gui, s[0], s[1], q.stance, color);
             if (sel) {
                 frame(gui, s[0] - 6, s[1] - 6, s[0] + 6, s[1] + 6, GOLD);
             }
-            String label = shortName(q.item) + (q.machine ? "" : " " + q.alive);
+            int group = this.sel.groupOf(q.id);
+            String label = (group > 0 ? "[" + group + "] " : "") + shortName(q.item) + (q.machine ? "" : " " + q.alive);
             small(gui, font, label, s[0] + 5, s[1] - 3, sel ? GOLD : color, 0.55f);
         }
         // Where the machines shoot: a red cross (also when the machine itself is off the screen).
@@ -992,14 +1436,107 @@ public class WarLeaderScreen extends Screen {
             gui.fill(s[0] - 8, s[1] + 5, s[0] - 8 + Math.round(16 * Math.max(0f, Math.min(1f, share))), s[1] + 7, c);
             small(gui, font, m.name, s[0] - (int) (font.width(m.name) * 0.3f), s[1] - 10, 0xFFBFE0FF, 0.6f);
         }
+        drawWays(gui);
+        drawMarkers(gui);
+        if (dragging && !Double.isNaN(dragX)) {
+            // The frame being drawn.
+            int x0 = (int) Math.min(dragX, dragToX);
+            int y0 = (int) Math.min(dragY, dragToY);
+            int x1 = (int) Math.max(dragX, dragToX);
+            int y1 = (int) Math.max(dragY, dragToY);
+            gui.fill(x0, y0, x1, y1, 0x30FFD86B);
+            frame(gui, x0, y0, x1, y1, GOLD);
+        }
+    }
+
+    /** The picked squads' orders in a row: a line from the squad through its way points, a dot at each. */
+    private void drawWays(GuiGraphicsExtractor gui) {
+        for (WarLeaderData.Squad q : data.squads) {
+            if (!sel.has(q.id) || q.ways.isEmpty() || "coming".equals(q.order)) {
+                continue;
+            }
+            int[] from = project(q.x, groundY(q.x, q.z), q.z);
+            for (WarLeaderData.Way w : q.ways) {
+                WarOrders.Kind kind = WarOrders.Kind.byId(w.kind);
+                int color = kind == null ? GREY : kind.color();
+                int[] to = project(w.x, groundY(w.x, w.z), w.z);
+                if (to == null) {
+                    from = null;
+                    continue;
+                }
+                if (from != null) {
+                    int steps = Math.max(2, (int) (Math.hypot(to[0] - from[0], to[1] - from[1]) / 4));
+                    for (int k = 1; k < steps; k++) {
+                        int px = from[0] + (to[0] - from[0]) * k / steps;
+                        int py = from[1] + (to[1] - from[1]) * k / steps;
+                        gui.fill(px, py, px + 2, py + 2, (color & 0x00FFFFFF) | 0xB0000000);
+                    }
+                }
+                gui.fill(to[0] - 3, to[1] - 3, to[0] + 3, to[1] + 3, 0xFF000000);
+                gui.fill(to[0] - 2, to[1] - 2, to[0] + 2, to[1] + 2, color);
+                from = to;
+            }
+        }
+    }
+
+    /** A short ring where an order went: green move, red attack, yellow special. */
+    private void drawMarkers(GuiGraphicsExtractor gui) {
+        long now = System.currentTimeMillis();
+        markers.removeIf(mk -> now - mk.at() > MARKER_MS);
+        for (Marker mk : markers) {
+            int[] s = project(mk.x(), groundY(mk.x(), mk.z()), mk.z());
+            if (s == null) {
+                continue;
+            }
+            float t = (now - mk.at()) / (float) MARKER_MS;
+            int alpha = Math.max(0x30, (int) (0xFF * (1f - t)));
+            int color = (mk.color() & 0x00FFFFFF) | (alpha << 24);
+            int r = 4 + Math.round(8 * t);
+            ring(gui, s[0], s[1], r, color);
+            ring(gui, s[0], s[1], Math.max(2, r - 3), color);
+            gui.fill(s[0] - 1, s[1] - 1, s[0] + 1, s[1] + 1, color);
+        }
+    }
+
+    /** Pixels one block takes on the screen at this spot. */
+    private double blockPx(double x, double y, double z) {
+        int[] a = project(x, y, z);
+        int[] b = project(x + 1, y, z);
+        return a == null || b == null ? 4 : Math.abs(b[0] - a[0]);
+    }
+
+    /** A circle of points. */
+    private static void ring(GuiGraphicsExtractor gui, int cx, int cy, int r, int color) {
+        int n = Math.max(12, r * 4);
+        for (int i = 0; i < n; i++) {
+            double a = i * 2 * Math.PI / n;
+            int px = cx + (int) Math.round(Math.cos(a) * r);
+            int py = cy + (int) Math.round(Math.sin(a) * r);
+            gui.fill(px, py, px + 1, py + 1, color);
+        }
+    }
+
+    /** The stance at a squad: aggressive a full square, defensive a hollow one (a shield), passive a small dot. */
+    private static void stanceMark(GuiGraphicsExtractor gui, int x, int y, String stance, int color) {
+        switch (stance == null ? "" : stance) {
+            case "defensive" -> {
+                frame(gui, x - 2, y - 2, x + 2, y + 2, color);
+                gui.fill(x - 1, y - 1, x + 1, y + 1, 0xFF000000);
+            }
+            case "passive" -> gui.fill(x - 1, y - 1, x + 1, y + 1, color);
+            default -> gui.fill(x - 2, y - 2, x + 2, y + 2, color);
+        }
     }
 
     private static int orderColor(String order) {
         return switch (order == null ? "" : order) {
             case "gather" -> ORANGE;
-            case "target" -> RED;
+            case "target", "attack", "attack_move" -> RED;
             case "storm" -> 0xFFFF3030;
             case "free" -> VIOLET;
+            case "move", "hold", "retreat" -> GREEN;
+            case "special" -> 0xFFFFE040;
+            case "idle" -> LIGHT;
             default -> GREY;
         };
     }
@@ -1111,14 +1648,22 @@ public class WarLeaderScreen extends Screen {
         squadFirst = Math.max(0, Math.min(squadFirst, Math.max(0, data.squads.size() - rows)));
         for (int i = squadFirst; i < Math.min(squadFirst + rows, data.squads.size()); i++) {
             WarLeaderData.Squad s = data.squads.get(i);
-            boolean sel = s.id == squad;
+            boolean sel = this.sel.has(s.id);
             boolean hot = mouseX >= x0 && mouseX < x0 + SIDE_W && mouseY >= y && mouseY < y + SQ_H;
             if (sel || hot) {
                 gui.fill(x0 + 1, y, x0 + SIDE_W - 1, y + SQ_H - 1, sel ? 0xC03A2F12 : 0xC0241E34);
             }
             int color = orderColor(s.order);
-            gui.fill(x0 + 3, y + 3, x0 + 6, y + 6, color);
-            String name = shortName(s.item) + (s.machine ? "" : " " + s.alive + "/" + s.total);
+            stanceMark(gui, x0 + 5, y + 5, s.stance, color);
+            if (s.maxHealth > 0 && !"coming".equals(s.order)) {
+                // Kriegsführer 3: the squad's life under its row.
+                float share = Math.max(0f, Math.min(1f, s.health / s.maxHealth));
+                int c = share > 0.6f ? GREEN : share > 0.3f ? GOLD : RED;
+                gui.fill(x0 + 9, y + SQ_H - 2, x0 + SIDE_W - 4, y + SQ_H - 1, 0xC0000000);
+                gui.fill(x0 + 9, y + SQ_H - 2, x0 + 9 + Math.round((SIDE_W - 13) * share), y + SQ_H - 1, c);
+            }
+            int group = this.sel.groupOf(s.id);
+            String name = (group > 0 ? group + "·" : "") + shortName(s.item) + (s.machine ? "" : " " + s.alive + "/" + s.total);
             small(gui, font, font.plainSubstrByWidth(name, (int) (62 / 0.58f)), x0 + 9, y + 2, sel ? GOLD : LIGHT, 0.58f);
             String state = orderText(s);
             small(gui, font, state, x0 + SIDE_W - 4 - (int) Math.ceil(font.width(state) * 0.55f), y + 3, color, 0.55f);
@@ -1138,7 +1683,7 @@ public class WarLeaderScreen extends Screen {
         boolean overS = mouseX >= x0 + 8 + half && mouseX < x0 + 8 + 2 * half && mouseY >= by && mouseY < by + 12;
         WarLeaderData.Squad picked = squad >= 0 ? squadById(squad) : null;
         String gatherLabel = tr(picked != null && picked.machine ? "nightsiege.war.btn_free" : "nightsiege.war.btn_gather_short");
-        PurpleUi.button(gui, font, x0 + 4, by, half, 12, gatherLabel, squad >= 0, overG, false);
+        PurpleUi.button(gui, font, x0 + 4, by, half, 12, gatherLabel, !sel.isEmpty(), overG, false);
         PurpleUi.button(gui, font, x0 + 8 + half, by, half, 12, tr("nightsiege.war.btn_storm"), true, overS, true);
         if (data.defenders.isEmpty()) {
             return;   // the sandbox: nobody defends
@@ -1171,6 +1716,8 @@ public class WarLeaderScreen extends Screen {
             case "gather" -> tr("nightsiege.war.order.gather", s.seconds);
             case "target" -> tr(s.machine ? "nightsiege.war.order.aimed" : "nightsiege.war.order.target");
             case "storm" -> tr("nightsiege.war.order.storm");
+            case "move", "attack", "attack_move", "hold", "retreat", "special", "idle" ->
+                    tr("nightsiege.war.order." + s.order) + (s.ways.size() > 1 ? " +" + (s.ways.size() - 1) : "");
             default -> tr("nightsiege.war.order.free");
         };
     }
@@ -1178,9 +1725,11 @@ public class WarLeaderScreen extends Screen {
     private void drawHint(GuiGraphicsExtractor gui, Font font) {
         String text;
         WarLeaderData.Squad s = squad >= 0 ? squadById(squad) : null;
-        if (s != null) {
-            text = s.machine ? tr("nightsiege.war.hint_machine", shortName(s.item))
-                    : s.ownWill ? tr("nightsiege.war.hint_own", shortName(s.item)) : tr("nightsiege.war.hint_squad", shortName(s.item));
+        String who = sel.picked().size() > 1 ? tr("nightsiege.war.picked_many", sel.picked().size()) : s == null ? "" : shortName(s.item);
+        if (armed != null) {
+            text = tr("nightsiege.war.hint_armed." + armed.id());
+        } else if (s != null) {
+            text = s.machine && sel.picked().size() == 1 ? tr("nightsiege.war.hint_machine", who) : tr("nightsiege.war.hint_squad", who);
         } else {
             text = tr("nightsiege.war.hint", point + 1);
         }
@@ -1310,7 +1859,11 @@ public class WarLeaderScreen extends Screen {
 
     public void testPick(int pointIndex, int squadId, String shopTab) {
         point = pointIndex;
-        squad = squadId;
+        sel.clear();
+        if (squadId >= 0) {
+            sel.click(squadId, false);
+        }
+        syncPick();
         if (shopTab != null) {
             tab = shopTab;
         }
@@ -1322,6 +1875,31 @@ public class WarLeaderScreen extends Screen {
 
     public int testSquad() {
         return squad;
+    }
+
+    /** Tests (Kriegsführer 3): a world spot on the screen (null: not on it). */
+    public int[] testProject(double x, double y, double z) {
+        return project(x, y, z);
+    }
+
+    /** Tests: the picked squads ("1,4"). */
+    public String testPicked() {
+        return sel.ids();
+    }
+
+    /** Tests: a frame being drawn (for the picture), without letting go. */
+    public void testFrame(double ax, double ay, double bx, double by) {
+        dragX = ax;
+        dragY = ay;
+        dragToX = bx;
+        dragToY = by;
+        dragging = true;
+    }
+
+    /** Tests: the key waiting for a click, the intent at a screen spot. */
+    public String testIntent(double x, double y) {
+        WarOrders.Kind k = intentAt(x, y, armed);
+        return (armed == null ? "-" : armed.id()) + ">" + (k == null ? "none" : k.id());
     }
 
     public String testPhase() {

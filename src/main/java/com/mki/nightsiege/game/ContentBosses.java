@@ -114,6 +114,13 @@ final class ContentBosses {
         static final int STUN_TICKS = 3 * 20;
         static final int WALL_TICKS = 15 * 20;
         long nextStomp;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextStomp = now;
+            return true;
+        }
         long windupUntil;
         long nextWall;
         long nextAvalanche;
@@ -514,6 +521,13 @@ final class ContentBosses {
         boolean halves;
         boolean whiteHot;
         long nextEruption;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextEruption = now;
+            return true;
+        }
         long eruptionAt;
         final List<Vec3> eruptionMarks = new ArrayList<>();
         int eruptions;
@@ -821,6 +835,13 @@ final class ContentBosses {
         long nextStorm;
         long stormAt;
         long nextStrike;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextStrike = now;
+            return true;
+        }
         long strikeAt;
         final List<Vec3> strikeMarks = new ArrayList<>();
         int strikes;
@@ -1232,6 +1253,13 @@ final class ContentBosses {
         }
 
         long nextCharge;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextCharge = now;
+            return true;
+        }
         long windupUntil;
         long chargeUntil;
         Vec3 chargeDir;

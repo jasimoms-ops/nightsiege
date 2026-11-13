@@ -235,6 +235,48 @@ public final class Foes {
 
     private final List<Grave> graves = new ArrayList<>();
     private final Map<UUID, Dig> digs = new HashMap<>();
+    /** Kriegsführer 3 (K1): the leader's spot for a tunneler (dig here), a grappler (hook from here), a bearer (plant here). */
+    private record Spot(Vec3 at, long since) {
+    }
+    private static final Map<UUID, Spot> ORDERED = new HashMap<>();
+    /** Kriegsführer 3 (K1): ordered by the leader; without a spot of his its own will waits. */
+    private static final Set<UUID> HELD = new HashSet<>();
+
+    /** Kriegsführer 3 (K1): the leader's spot for this unit's job (null: none). */
+    public static void orderSpot(UUID id, Vec3 at, long now) {
+        if (id == null) {
+            return;
+        }
+        if (at == null) {
+            ORDERED.remove(id);
+        } else {
+            ORDERED.put(id, new Spot(at, now));
+        }
+    }
+
+    /** Kriegsführer 3 (K1): the unit has the leader's order (true) or acts on its own again (false). */
+    public static void hold(Entity mob, boolean held) {
+        if (mob == null) {
+            return;
+        }
+        if (held && hasRole(mob)) {
+            HELD.add(mob.getUUID());
+        } else {
+            HELD.remove(mob.getUUID());
+        }
+    }
+
+    /** Kriegsführer 3 (K1): the round is over, every unit has its own will again. */
+    public static void clearOrders() {
+        ORDERED.clear();
+        HELD.clear();
+    }
+
+    /** Kriegsführer 3 (K1): the spot the leader gave this unit, or null. */
+    public static Vec3 orderedSpot(UUID id) {
+        Spot spot = id == null ? null : ORDERED.get(id);
+        return spot == null ? null : spot.at();
+    }
     private final Map<UUID, Hook> hooks = new HashMap<>();
     private final Map<UUID, Long> buffedUntil = new HashMap<>();
     private final Map<UUID, Long> noFallUntil = new HashMap<>();
@@ -848,6 +890,10 @@ public final class Foes {
             if (!(level.getEntity(id) instanceof Mob mob) || !mob.isAlive()) {
                 continue;
             }
+            if (HELD.contains(id) && !ORDERED.containsKey(id) && role != Role.STANDARD_BEARER
+                    && !(role == Role.TUNNELER && digs.containsKey(id) && digs.get(id).phase > 0)) {
+                continue;   // Kriegsführer 3: the leader's order, no will of its own (a tunneler under the ground digs on)
+            }
             switch (role) {
                 case TUNNELER -> tickTunneler(host, mob, now);
                 case STANDARD_BEARER -> tickBearer(host, mob, defenders, now);
@@ -864,6 +910,8 @@ public final class Foes {
             buffedUntil.values().removeIf(until -> until < now);
             noFallUntil.values().removeIf(until -> until < now);
             ROLES.keySet().removeIf(id -> !(level.getEntity(id) instanceof Mob m) || !m.isAlive());
+            HELD.removeIf(id -> !ROLES.containsKey(id));
+            ORDERED.keySet().removeIf(id -> !ROLES.containsKey(id));
         }
     }
 
@@ -1021,6 +1069,22 @@ public final class Foes {
             case 0 -> {
                 // To 20-30 blocks before the wall (or at once when it is nearer already).
                 mob.setTarget(null);
+                Spot spot = ORDERED.get(mob.getUUID());
+                if (spot != null) {
+                    // Kriegsführer 3: where the leader said (after 20 s of walking it digs where it is).
+                    double ox = spot.at().x - mob.getX();
+                    double oz = spot.at().z - mob.getZ();
+                    if (ox * ox + oz * oz <= 2.5 * 2.5 || now - spot.since() > 400) {
+                        ORDERED.remove(mob.getUUID());
+                        dig.phase = 1;
+                        dig.since = now;
+                        mob.getNavigation().stop();
+                        level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.GRAVEL_BREAK, SoundSource.HOSTILE, 1.0f, 0.7f);
+                    } else if (now % 20 == 0 || mob.getNavigation().isDone()) {
+                        mob.getNavigation().moveTo(spot.at().x, spot.at().y, spot.at().z, 1.0);
+                    }
+                    return;
+                }
                 BaseScan base = host.base();
                 double edge = base == null ? 6.0 : base.edgeTowards(mob.getX(), mob.getZ());
                 double dist = Math.sqrt((mob.getX() - cx) * (mob.getX() - cx) + (mob.getZ() - cz) * (mob.getZ() - cz));
@@ -1144,6 +1208,19 @@ public final class Foes {
             buffedUntil.put(other.getUUID(), now + 30);
         }
         BossService.ring(level, new DustParticleOptions(0x8A1A1A, 1.1f), bearer.position().add(0, 0.15, 0), r, 28);
+        Spot spot = ORDERED.get(bearer.getUUID());
+        if (spot != null) {
+            // Kriegsführer 3: the standard stands where the leader said.
+            if (bearer.distanceToSqr(spot.at().x, bearer.getY(), spot.at().z) > 2.0) {
+                bearer.getNavigation().moveTo(spot.at().x, spot.at().y, spot.at().z, 1.1);
+            } else {
+                bearer.getNavigation().stop();
+            }
+            return;
+        }
+        if (HELD.contains(bearer.getUUID())) {
+            return;   // Kriegsführer 3: the leader's order, it does not back off on its own
+        }
         // It stays behind the others: too close to a defender, it backs off.
         ServerPlayer near = nearest(defenders, bearer);
         if (near != null && bearer.distanceToSqr(near) < 100.0) {
@@ -1179,6 +1256,16 @@ public final class Foes {
             hook = new Hook();
             hook.next = now + 40 + host.random().nextInt(60);   // the first throw after 2-5 s
             hooks.put(mob.getUUID(), hook);
+        }
+        Spot ordered = ORDERED.get(mob.getUUID());
+        if (ordered != null && hook.target == null
+                && mob.distanceToSqr(ordered.at().x, mob.getY(), ordered.at().z) > 2.5 * 2.5 && now - ordered.since() < 400) {
+            // Kriegsführer 3: first to the leader's spot, it hooks from there.
+            POSITIONING.remove(mob.getUUID());
+            if (now % 10 == 0 || mob.getNavigation().isDone()) {
+                mob.getNavigation().moveTo(ordered.at().x, ordered.at().y, ordered.at().z, 1.15);
+            }
+            return;
         }
         if (hook.target != null) {
             ServerPlayer target = level.getServer().getPlayerList().getPlayer(hook.target);
@@ -1233,7 +1320,7 @@ public final class Foes {
         } else {
             POSITIONING.remove(mob.getUUID());
         }
-        if (ready && !placed && now % 10 == 0) {
+        if (ordered == null && ready && !placed && now % 10 == 0) {
             double want = 7.5;
             double ux = flat < 1.0e-3 ? 1.0 : dx / flat;
             double uz = flat < 1.0e-3 ? 0.0 : dz / flat;

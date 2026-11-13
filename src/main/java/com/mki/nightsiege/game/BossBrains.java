@@ -121,6 +121,11 @@ final class BossBrains {
         void testNudge(long now) {
         }
 
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E. False: it has none to call. */
+        boolean commandAbility(long now) {
+            return false;
+        }
+
         static boolean below(Mob boss, double share) {
             return boss.getHealth() < boss.getMaxHealth() * share;
         }
@@ -144,6 +149,13 @@ final class BossBrains {
         /** Share of the max health of the stomp at its centre (Simon, 28 October 2026). */
         static final double STOMP_SHARE = 30.0;
         long nextStomp;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextStomp = now;
+            return true;
+        }
         long windupUntil;
         long nextRaise;
         long nextLeap;
@@ -342,6 +354,13 @@ final class BossBrains {
     static final class SpiderQueen extends Brain {
         private static final Identifier WEB = Identifier.fromNamespaceAndPath("nightsiege", "boss_web");
         long nextWeb;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextWeb = now;
+            return true;
+        }
         long webAt;
         UUID webTarget;
         long nextEggs;
@@ -640,6 +659,13 @@ final class BossBrains {
         final Map<UUID, Long> soulArrows = new HashMap<>();
         long nextShot;
         long nextRain;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextRain = now;
+            return true;
+        }
         Vec3 rainAt;
         long rainFall;
         long nextBlink;
@@ -1128,6 +1154,13 @@ final class BossBrains {
         static final double LEAP_SHARE = 25.0;
         boolean onFoot;
         long nextCharge;
+
+        /** Kriegsführer 3 (K1): the leader calls the boss's ability on E (it comes as soon as it can). */
+        @Override
+        boolean commandAbility(long now) {
+            nextCharge = now;
+            return true;
+        }
         long windupUntil;
         long chargeUntil;
         Vec3 chargeDir;

@@ -78,6 +78,8 @@ public final class Besiegers {
         final int side;
         final long started;
         Vec3 approach;
+        /** Kriegsführer 3 (K1): the leader's spot, walked to first. */
+        Vec3 goal;
         BlockPos wall;
         Direction face;
         int rung;
@@ -226,6 +228,74 @@ public final class Besiegers {
                 BUSY.add(mob.getUUID());
             }
         }
+    }
+
+    /** Kriegsführer 3 (K1): the carriers take their ladders to the leader's spot first, then lean them on the wall there. */
+    public void carriersTo(BlockPos anchor, List<Mob> mobs, Vec3 goal, long now) {
+        carriers(anchor, mobs, Double.NaN, now);
+        for (Mob mob : mobs) {
+            Job job = jobs.get(mob.getUUID());
+            if (job != null && !job.sapper && job.wall == null) {
+                job.goal = goal;
+            }
+        }
+    }
+
+    /** Kriegsführer 3 (K1): this creeper blows the wall at the leader's spot (false when that side has its holes tonight). */
+    public boolean sapperAt(Mob creeper, BlockPos anchor, SiegeConfig cfg, Vec3 spot, long now) {
+        if (creeper == null || anchor == null || spot == null || jobs.containsKey(creeper.getUUID())) {
+            return false;
+        }
+        int side = sideOf(anchor, spot);
+        if (!sideHasRoom(cfg, side)) {
+            return false;
+        }
+        creeper.addTag(SAPPER);
+        creeper.setCustomName(Component.translatable("nightsiege.mob.sapper"));
+        creeper.setTarget(null);
+        Job job = new Job(true, side, now);
+        job.approach = spot;
+        jobs.put(creeper.getUUID(), job);
+        BUSY.add(creeper.getUUID());
+        sapperOnWay.merge(side, 1, Integer::sum);
+        sapperSpots.computeIfAbsent(side, k -> new ArrayList<>()).add(spot);
+        return true;
+    }
+
+    /**
+     * Kriegsführer 3 (K1), E twice: the sapper goes off now. With the wall in front of it a crater as ever,
+     * else only its blast (no blocks).
+     */
+    public void igniteNow(ServerLevel world, Mob mob, BlockPos anchor, long now) {
+        if (world == null || mob == null || anchor == null || !mob.isAlive()) {
+            return;
+        }
+        Job job = jobs.get(mob.getUUID());
+        if (job != null && !job.sapper) {
+            finish(mob.getUUID(), job, mob);
+            job = null;
+        }
+        boolean fresh = job == null;
+        if (fresh) {
+            job = new Job(true, sideOf(anchor, mob.position()), now);
+        }
+        if (job.wall == null && !findWall(world, mob, anchor, job, 3.0)) {
+            if (!fresh) {
+                finish(mob.getUUID(), job, mob);
+            }
+            boolean powered = mob instanceof Creeper c && c.isPowered();
+            world.explode(mob, mob.getX(), mob.getY() + 0.5, mob.getZ(), powered ? 4.5f : 3.0f, Level.ExplosionInteraction.NONE);
+            mob.discard();
+            return;
+        }
+        if (fresh) {
+            mob.addTag(SAPPER);
+            jobs.put(mob.getUUID(), job);
+            BUSY.add(mob.getUUID());
+            sapperOnWay.merge(job.side, 1, Integer::sum);
+        }
+        job.fuseUntil = now;
+        mob.getNavigation().stop();
     }
 
     /**
@@ -422,6 +492,18 @@ public final class Besiegers {
 
     private void tickCarrier(ServerLevel world, Mob mob, Job job, BlockPos anchor, long now) {
         if (job.wall == null) {
+            if (job.goal != null) {
+                // Kriegsführer 3: to the leader's spot first (at most 20 s), then at the wall from there.
+                double gx = job.goal.x - mob.getX();
+                double gz = job.goal.z - mob.getZ();
+                if (gx * gx + gz * gz > 2.5 * 2.5 && now - job.started < 400) {
+                    if (mob.getNavigation().isDone() || now % 20 == 0) {
+                        mob.getNavigation().moveTo(job.goal.x, job.goal.y, job.goal.z, 1.0);
+                    }
+                    return;
+                }
+                job.goal = null;
+            }
             // On the way: towards the core until the wall is in front.
             if (findWall(world, mob, anchor, job, 2.5)) {
                 mob.getNavigation().stop();
