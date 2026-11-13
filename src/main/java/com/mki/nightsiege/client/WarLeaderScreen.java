@@ -864,7 +864,7 @@ public class WarLeaderScreen extends Screen {
             List<double[]> spots = new ArrayList<>();
             spots.add(new double[]{q.x, groundY(q.x, q.z), q.z});
             for (WarLeaderData.Unit u : q.units) {
-                spots.add(new double[]{u.x, u.y, u.z});
+                spots.add(WarCursor.live(u));
             }
             for (double[] w : spots) {
                 int[] p = project(w[0], w[1], w[2]);
@@ -977,7 +977,7 @@ public class WarLeaderScreen extends Screen {
             List<double[]> spots = new ArrayList<>();
             spots.add(new double[]{s.x, groundY(s.x, s.z), s.z});
             for (WarLeaderData.Unit u : s.units) {
-                spots.add(new double[]{u.x, u.y, u.z});   // a click on one of its monsters picks the squad
+                spots.add(WarCursor.live(u));   // a click on one of its monsters picks the squad
             }
             for (double[] w : spots) {
                 int[] p = project(w[0], w[1], w[2]);
