@@ -401,4 +401,56 @@ class Tor11KapitelTest {
             assertEquals(1, Chapters.nightIn(after + 1, won));
         }
     }
+
+    /** Pruefer 13.11.: a finale reward waits in the save (also over a restart) and comes exactly once. */
+    @Test
+    void finaleRewardComesExactlyOnceAfterARestart() {
+        Chapters.Progress p = new Chapters.Progress();
+        Chapters.claimFinale(p, "a", "WARRIOR", 1);
+        Chapters.claimFinale(p, "a", "WARRIOR", 1);   // a second close of the same finale adds nothing
+        Gson gson = new Gson();
+        Chapters.Progress loaded = gson.fromJson(gson.toJson(p), Chapters.Progress.class);   // the server went down
+        assertEquals(List.of("WARRIOR:1"), Chapters.takeFinaleClaims(loaded, "a"));
+        assertTrue(Chapters.takeFinaleClaims(loaded, "a").isEmpty());
+        assertTrue(Chapters.takeFinaleClaims(loaded, "b").isEmpty());
+        Chapters.Progress old = gson.fromJson("{\"chapter\":1}", Chapters.Progress.class);   // an old save
+        assertTrue(Chapters.takeFinaleClaims(old, "a").isEmpty());
+        Chapters.claimFinale(old, "a", "ARCHER", 2);
+        assertEquals(List.of("ARCHER:2"), Chapters.takeFinaleClaims(old, "a"));
+    }
+
+    /** Pruefer 13.11.: the player's counters go to the new character, the class's stay with the veteran. */
+    @Test
+    void advanceMovesThePlayersCountersAndKeepsTheClasss() {
+        Chapters.Progress p = new Chapters.Progress();
+        PlayerSkills own = character(SkillClass.WARRIOR, 400);
+        own.waveCredit = 3;
+        own.pointFraction = 0.25;
+        own.catchUpPool = 9;
+        own.catchUpFraction = 0.5;
+        own.donated = 40;
+        own.lost = 7;
+        own.keptSouls = 2;
+        own.unlocksFree = 1;
+        own.profileVersion = PlayerSkills.PROFILE_VERSION;
+        own.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
+        Map<String, PlayerSkills> skills = new HashMap<>(Map.of("a", own));
+        Chapters.advance(p, 20, 19, skills, List.of("a"), Set.of("a"), s -> "", (u, s) -> 20, "x");
+        PlayerSkills fresh = skills.get("a");
+        assertEquals(3, fresh.waveCredit);
+        assertEquals(0.25, fresh.pointFraction, 1e-9);
+        assertEquals(9, fresh.catchUpPool);
+        assertEquals(0.5, fresh.catchUpFraction, 1e-9);
+        assertEquals(PlayerSkills.PROFILE_VERSION, fresh.profileVersion);
+        assertEquals(PlayerSkills.FREE_SUBCLASS_VERSION, fresh.freeSubclassVersion);
+        assertEquals(0, fresh.earned + fresh.donated + fresh.lost + fresh.keptSouls + fresh.unlocksFree);
+        PlayerSkills vet = p.veteransOf("a").get(0).skills;
+        assertEquals(0, vet.waveCredit + vet.catchUpPool);
+        assertEquals(0.0, vet.pointFraction + vet.catchUpFraction, 1e-9);
+        assertEquals(400, vet.earned);
+        assertEquals(40, vet.donated);
+        assertEquals(7, vet.lost);
+        assertEquals(2, vet.keptSouls);
+        assertEquals(1, vet.unlocksFree);
+    }
 }

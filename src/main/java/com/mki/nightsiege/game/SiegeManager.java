@@ -5362,6 +5362,7 @@ public final class SiegeManager {
             PlayerSkills own = save.realSkillsOf(uuid);
             if (own.hasClass() && own.clazz() != null) {
                 finaleClass.put(uuid, own.clazz());
+                com.mki.nightsiege.core.Chapters.claimFinale(progress, uuid, own.clazz().name(), closed);   // saved with the chapter
             }
         }
         if (save.registered == null) {
@@ -5391,10 +5392,7 @@ public final class SiegeManager {
                 .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             String uuid = player.getUUID().toString();
-            SkillClass rewardClass = finaleClass.get(uuid);
-            if (rewardClass != null) {
-                giveFinaleReward(player, rewardClass, closed);
-            }
+            deliverFinaleClaims(player, false);   // the defenders online now; the others at their next login
             if (frozen.contains(uuid)) {
                 SkillService.clear(player);
                 ClassTags.update(server, player, save.skillsOf(uuid), "");
@@ -5402,19 +5400,37 @@ public final class SiegeManager {
                         .withStyle(ChatFormatting.AQUA));
             }
         }
-        // Defenders of the finale who are offline: the banner waits for them (the chest only comes in person).
-        for (String uuid : team) {
-            if (server.getPlayerList().getPlayer(UUID.fromString(uuid)) == null && finaleClass.containsKey(uuid)) {
-                if (save.pendingBanners == null) {
-                    save.pendingBanners = new HashMap<>();
-                }
-                List<String> mine = save.pendingBanners.computeIfAbsent(uuid, k -> new ArrayList<>());
-                if (!mine.contains(finaleClass.get(uuid).name())) {
-                    mine.add(finaleClass.get(uuid).name());
-                }
+        persist();
+    }
+
+    /**
+     * Pruefer 13.11.: hands out the player's waiting finale rewards (chest and banner), each exactly once. At a login
+     * or respawn they wait while the kit, a playtest or death would take them along.
+     */
+    private void deliverFinaleClaims(ServerPlayer player, boolean careful) {
+        if (careful && (player.isDeadOrDying() || kits.hasStash(player) || playtest.takesPart(player.getUUID()))) {
+            return;
+        }
+        List<String> claims = com.mki.nightsiege.core.Chapters.takeFinaleClaims(save.chapters(), player.getUUID().toString());
+        for (String claim : claims) {
+            int cut = claim.lastIndexOf(':');
+            SkillClass clazz = SkillClass.byName(cut < 0 ? claim : claim.substring(0, cut));
+            int chapter = cut < 0 ? 1 : parseIntOr(claim.substring(cut + 1), 1);
+            if (clazz != null) {
+                giveFinaleReward(player, clazz, chapter);
             }
         }
-        persist();
+        if (!claims.isEmpty()) {
+            persist();
+        }
+    }
+
+    private static int parseIntOr(String s, int fallback) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     // ------------------------------------------------------------------ Tor 11 Teil 2: "Belagerung starten"
@@ -6014,6 +6030,7 @@ public final class SiegeManager {
         playtest.afterRespawn(player);
         crates.deliverPending(player);
         safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
+        safe("Finale-Belohnung", () -> deliverFinaleClaims(player, true));
     }
 
     /** True while tonight's kit belongs on this player: the night runs with them standing, or it is coming for them. */
@@ -6606,6 +6623,7 @@ public final class SiegeManager {
         }
         crates.deliverPending(player);
         safe("Klassenbanner", () -> ClassBanners.deliverPending(this, player));
+        safe("Finale-Belohnung", () -> deliverFinaleClaims(player, true));   // Pruefer 13.11.: offline at the finale or its restart
         playtest.onJoin(player);   // things back after a playtest that ended while away
         safe("Kriegsführer", () -> warLeader.onJoin(player));   // a war leader back on the ground (or back above it)
         // Skills gelten nur waehrend einer Belagerung. Beim Betreten werden

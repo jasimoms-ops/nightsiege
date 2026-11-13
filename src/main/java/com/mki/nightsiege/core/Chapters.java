@@ -54,6 +54,11 @@ public final class Chapters {
          */
         public List<String> closing;
         public int closingLevel;
+        /**
+         * Pruefer 13.11.: finale rewards (chest and banner) not handed out yet, player uuid → "CLASS:chapter". Saved
+         * with the new chapter, handed out (and taken off) when the player is online: each exactly once.
+         */
+        public Map<String, List<String>> finaleClaims = new LinkedHashMap<>();
 
         public List<Veteran> veteransOf(String uuid) {
             if (veterans == null) {
@@ -148,6 +153,24 @@ public final class Chapters {
 
     private static Collection<java.util.UUID> nn(Collection<java.util.UUID> ids) {
         return ids == null ? List.of() : ids;
+    }
+
+    /** Notes a finale reward (chest and banner of the class) for a defender; the same one only once. */
+    public static void claimFinale(Progress p, String uuid, String clazz, int chapter) {
+        if (p.finaleClaims == null) {
+            p.finaleClaims = new LinkedHashMap<>();
+        }
+        List<String> mine = p.finaleClaims.computeIfAbsent(uuid, k -> new ArrayList<>());
+        String claim = clazz + ":" + chapter;
+        if (!mine.contains(claim)) {
+            mine.add(claim);
+        }
+    }
+
+    /** Takes a player's waiting finale rewards off ("CLASS:chapter"); a second call finds none. */
+    public static List<String> takeFinaleClaims(Progress p, String uuid) {
+        List<String> mine = p == null || p.finaleClaims == null ? null : p.finaleClaims.remove(uuid);
+        return mine == null ? List.of() : mine;
     }
 
     /** Who plays when the night starts: those who pressed ready and still stand near the core (nobody else). */
@@ -472,6 +495,18 @@ public final class Chapters {
                 fresh.xpPoolFraction = Math.max(0.0, own.xpPoolFraction);
                 own.xpPool = 0;
                 own.xpPoolFraction = 0.0;
+                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point, the
+                // latecomer pool (capped again at the next join); the veteran keeps none. Migration marks: as set.
+                fresh.waveCredit = Math.max(0, own.waveCredit);
+                fresh.pointFraction = Math.max(0.0, own.pointFraction);
+                fresh.catchUpPool = Math.max(0, own.catchUpPool);
+                fresh.catchUpFraction = Math.max(0.0, own.catchUpFraction);
+                own.waveCredit = 0;
+                own.pointFraction = 0.0;
+                own.catchUpPool = 0;
+                own.catchUpFraction = 0.0;
+                fresh.profileVersion = own.profileVersion;
+                fresh.freeSubclassVersion = own.freeSubclassVersion;
                 skills.put(uuid, fresh);
                 frozen.add(uuid);
             }
