@@ -131,6 +131,8 @@ final class KriegsBefehleScenes {
         checks = 0;
         final int[] id = {-1, -1};   // zombies (bought now), skeletons (now or from the build-up)
         final int[] home = new int[2];   // the skeletons' gathering point
+        final List<double[]> flags = new ArrayList<>();   // every gathering point (a click near its flag takes the flag)
+        final List<double[]> bones = new ArrayList<>();   // where each skeleton stands
         final String[] foe = {""};
         server(context, "room", (player, m) -> {
             MinecraftServer server = player.level().getServer();
@@ -164,6 +166,9 @@ final class KriegsBefehleScenes {
         server(context, "came", (player, m) -> {
             id[0] = m.warLeader().testSquadOf("zombies");
             id[1] = m.warLeader().testSquadOf("skelette");
+            for (BlockPos p : m.warLeader().testPoints()) {
+                flags.add(new double[]{p.getX() + 0.5, p.getY(), p.getZ() + 0.5});
+            }
             for (WarLeaderData.Squad q : m.warLeader().testData(player.level().getServer()).squads) {
                 if (q.id == id[1] && q.point >= 0 && q.point < m.warLeader().testPoints().size()) {
                     home[0] = m.warLeader().testPoints().get(q.point).getX();
@@ -192,6 +197,9 @@ final class KriegsBefehleScenes {
             }
             spread[0] = new double[]{x0, y, z0, x1, z1};
             spread[1] = middle(m.warLeader().testMobs(id[1]));
+            for (Mob mob : m.warLeader().testMobs(id[1])) {
+                bones.add(new double[]{mob.getX(), mob.getY(), mob.getZ()});
+            }
         });
         context.waitTicks(3);
         view(context, "frame camera", w -> w.testMove((spread[0][0] + spread[0][3]) / 2, (spread[0][2] + spread[0][4]) / 2, 24));
@@ -226,6 +234,27 @@ final class KriegsBefehleScenes {
         context.waitTicks(15);
         view(context, "groups", w -> {
             int[] at = spread[1] == null ? null : w.testProject(spread[1][0], spread[1][1], spread[1][2]);
+            // The skeletons gather round their flag (WarLeader.steerGather, within 2 blocks), so their middle lies on
+            // the flag, and a click within 10 pixels of a flag picks the flag (WarLeaderScreen.nearestFlag). Click
+            // the skeleton furthest from every flag, as a player clicks the squad and not its flag.
+            double flagGap = -1;
+            for (double[] b : bones) {
+                int[] s = w.testProject(b[0], b[1], b[2]);
+                if (s == null) {
+                    continue;
+                }
+                double gap = 1e9;
+                for (double[] f : flags) {
+                    int[] fs = w.testProject(f[0], f[1], f[2]);
+                    if (fs != null) {
+                        gap = Math.min(gap, Math.hypot(fs[0] - s[0], fs[1] - 6 - s[1]));
+                    }
+                }
+                if (gap > flagGap) {
+                    flagGap = gap;
+                    at = s;
+                }
+            }
             if (at == null) {
                 check(false, "groups: skeletons not on the screen");
                 return;
@@ -244,7 +273,8 @@ final class KriegsBefehleScenes {
             boolean jumped = before != null && after != null
                     && Math.hypot(after[0] - (spread[0][0] + spread[0][3]) / 2, after[2] - (spread[0][2] + spread[0][4]) / 2) < 8.0
                     && Math.hypot(after[0] - before[0], after[2] - before[2]) > 4.0;
-            check(clicked && one && two, "click picks the skeletons, Ctrl+1/2 keep, 1/2 bring back: click=" + clicked + " 1=" + one + " 2=" + two);
+            check(clicked && one && two, "click picks the skeletons, Ctrl+1/2 keep, 1/2 bring back: click=" + clicked + " 1=" + one + " 2=" + two
+                    + String.format(Locale.ROOT, " (flag %.0f px away)", flagGap));
             check(jumped, String.format(Locale.ROOT, "1 twice: the camera at group 1 (%.0f,%.0f -> %.0f,%.0f)",
                     before == null ? 0 : before[0], before == null ? 0 : before[2], after == null ? 0 : after[0], after == null ? 0 : after[2]));
             key(w, GLFW.GLFW_KEY_A, GLFW.GLFW_MOD_CONTROL);
@@ -418,6 +448,14 @@ final class KriegsBefehleScenes {
                     + " tunnel=" + m.warLeader().testBuy(server, "tunnelgraeber", 1)
                     + " spreng=" + m.warLeader().testBuy(server, "sprengmeister", 0)
                     + " leiter=" + m.warLeader().testBuy(server, "leitertraeger", 0));
+        });
+        // A tunneler of its own will digs once the wave starts and comes up within ~10 s (Foes.tickTunneler); E on a
+        // tunneler that came up already is done at once (WarLeader.specialDone) - so it waits on H for the E check.
+        context.waitTicks(110);   // the flare, 3 s, then they are there (the wave starts later)
+        server(context, "sandbox hold tunneler", (player, m) -> {
+            int t = m.warLeader().testSquadOf("tunnelgraeber");
+            m.warLeader().testCommand(player, "cmd:" + t + ":hold:NaN:NaN:0");
+            log("sandbox hold tunneler: #" + t + " " + m.warLeader().testMobs(t).size() + " mobs, order=" + order(m, t));
         });
     }
 
