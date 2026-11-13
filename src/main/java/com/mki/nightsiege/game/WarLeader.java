@@ -1762,12 +1762,12 @@ public final class WarLeader {
             }
             case "cam" -> {
                 if (phase == Phase.ROUND && p.length >= 3) {
-                    try {
-                        camX = Double.parseDouble(p[1]);
-                        camZ = Double.parseDouble(p[2]);
+                    double x = parseD(p[1]);
+                    double z = parseD(p[2]);
+                    if (Double.isFinite(x) && Double.isFinite(z)) {   // a broken report (also NaN, Infinity) changes nothing
+                        camX = x;
+                        camZ = z;
                         moveBody(player, false);
-                    } catch (NumberFormatException ignored) {
-                        // a broken report changes nothing
                     }
                 }
             }
@@ -1829,9 +1829,11 @@ public final class WarLeader {
         }
     }
 
-    private static double parseD(String s) {
+    /** A number from a client command; NaN (= none) when broken or not finite (Pruefer 13.11.: no NaN/Infinity). */
+    static double parseD(String s) {
         try {
-            return Double.parseDouble(s.trim());
+            double v = Double.parseDouble(s.trim());
+            return Double.isFinite(v) ? v : Double.NaN;
         } catch (NumberFormatException e) {
             return Double.NaN;
         }
