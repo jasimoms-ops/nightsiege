@@ -380,6 +380,21 @@ public final class BossService {
         return brain == null ? "-" : brain.stats();
     }
 
+    /** Kriegsfuehrer 3: only a boss of a running war leader's round whose squad has his order follows it. */
+    static boolean followsOrder(boolean warRound, boolean squadCommanded) {
+        return warRound && squadCommanded;
+    }
+
+    /** Lost more than 64 blocks away with no defender near: back towards the base (not while it follows an order). */
+    static boolean walksHome(double awaySq, boolean watched, boolean led) {
+        return awaySq > 64.0 * 64.0 && !watched && !led;
+    }
+
+    /** Every second without a living target the boss picks a defender (not the lich, not while it follows an order). */
+    static boolean seeksDefender(long now, boolean led, boolean hasLiveTarget, boolean lich) {
+        return now % 20 == 0 && !led && !hasLiveTarget && !lich;
+    }
+
     /** Every tick of the night once the boss is there. */
     public void tick(Host host, long now) {
         if (!spawned || fallen || brain == null || testHold) {
@@ -405,11 +420,11 @@ public final class BossService {
                 if (spot != null) {
                     boss.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
                 }
-            } else if (away > 64.0 * 64.0 && !watched && !led) {
+            } else if (walksHome(away, watched, led)) {
                 boss.getNavigation().moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5, 1.2);
             }
         }
-        if (now % 20 == 0 && !led && (boss.getTarget() == null || !boss.getTarget().isAlive()) && !(brain instanceof BossBrains.Lich)) {
+        if (seeksDefender(now, led, boss.getTarget() != null && boss.getTarget().isAlive(), brain instanceof BossBrains.Lich)) {
             aim(host, boss);
         }
         brain.tick(host, boss, now);
