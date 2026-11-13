@@ -410,7 +410,8 @@ public final class WarCursor {
                 double gy = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(q.x), (int) Math.floor(q.z));
                 String name = itemName(q.item);
                 hover = q.machine
-                        ? new Hover(Kind.MACHINE, name, "", -1f, q.x, gy, q.z, q.id)
+                        ? new Hover(Kind.MACHINE, name, q.maxHealth <= 0 ? "" : tr("nightsiege.war.cursor.life", Math.round(q.health),
+                        Math.round(q.maxHealth)), q.maxHealth <= 0 ? -1f : Math.max(0f, Math.min(1f, q.health / q.maxHealth)), q.x, gy, q.z, q.id)
                         : new Hover(Kind.SQUAD, name, tr("nightsiege.war.cursor.alive", q.alive, Math.max(q.alive, q.total)),
                         q.total <= 0 ? -1f : q.alive / (float) q.total, q.x, gy, q.z, q.id);
             }
@@ -430,7 +431,9 @@ public final class WarCursor {
             double d = sq(t.x + 0.5 - worldX) + sq(t.z + 0.5 - worldZ);
             if (d <= best) {
                 best = d;
-                hover = new Hover(Kind.GATE, tr("arch".equals(t.kind) ? "nightsiege.war.arch" : "nightsiege.war.gate"), "", -1f,
+                hover = new Hover(Kind.GATE, tr("arch".equals(t.kind) ? "nightsiege.war.arch" : "nightsiege.war.gate"),
+                        t.state == null || t.state.isEmpty() ? "" : tr("nightsiege.war.cursor.gate_" + t.state),
+                        "closed".equals(t.state) ? 1f : "broken".equals(t.state) ? 0f : -1f,
                         t.x + 0.5, t.y + 1, t.z + 0.5, -1);
             }
         }

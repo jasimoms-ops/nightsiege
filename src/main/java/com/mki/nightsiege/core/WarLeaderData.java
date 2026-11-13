@@ -72,6 +72,19 @@ public class WarLeaderData {
         public int x;
         public int y;
         public int z;
+        /** Tor 10: how it stands (gates are blocks, they have no life): "closed", "open", "broken"; empty from an older server. */
+        public String state = "";
+    }
+
+    /** Tor 10: a gate's state for the leader's cross. An archway is always open, a door or fence gate gone is broken. */
+    public static String gateState(boolean arch, boolean door, boolean open) {
+        if (arch) {
+            return "open";
+        }
+        if (!door) {
+            return "broken";
+        }
+        return open ? "open" : "closed";
     }
 
     public static class Squad {
