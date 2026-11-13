@@ -571,10 +571,15 @@ public final class TeamSim {
             if (!m.save().isRegistered(id)) {
                 m.save().register(id);
             }
+            // Tor 10 (K3): in a war leader's round the defenders play the free pick, level 20 with the recommended
+            // build and its crates; the round itself fights at L (warLevel 25).
             PlayerSkills skills = fullTree
                     ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1])
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
-                    TestKit.pointsBefore(run.level(), m.config()));
+                    warMode ? FreeClassPick.budget(m.config()) : TestKit.pointsBefore(run.level(), m.config()));
+            if (warMode && !fullTree) {
+                m.freeClassPick().openForSim(skills);
+            }
             m.save().skills.put(id, skills);
             if (bot.isSpectator() || !bot.isAlive()) {
                 bot.setGameMode(GameType.SURVIVAL);

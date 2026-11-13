@@ -132,6 +132,22 @@ final class KriegsBefehleScenes {
         final int[] id = {-1, -1};   // zombies (bought now), skeletons (now or from the build-up)
         final int[] home = new int[2];   // the skeletons' gathering point
         final String[] foe = {""};
+        server(context, "room", (player, m) -> {
+            MinecraftServer server = player.level().getServer();
+            // Room for two fresh squads at their own points: the storming squads of before go (else "full", and the
+            // checks would take squads in the middle of the fight, mixed with others).
+            int gone = 0;
+            for (WarLeaderData.Squad q : m.warLeader().testData(server).squads) {
+                if (!q.machine && !q.item.startsWith("boss.")) {
+                    for (Mob mob : m.warLeader().testMobs(q.id)) {
+                        mob.discard();
+                        gone++;
+                    }
+                }
+            }
+            log("room: " + gone + " monsters of the squads before taken away");
+        });
+        context.waitTicks(25);   // the round and the night count them gone
         server(context, "buy", (player, m) -> {
             MinecraftServer server = player.level().getServer();
             m.warLeader().testAddGold(60);
@@ -144,7 +160,7 @@ final class KriegsBefehleScenes {
                 }
             }
         });
-        context.waitTicks(110);   // the flare, 3 s, then they are there
+        context.waitTicks(110);   // the flare, 3 s, then they are there (the old squads are pruned meanwhile)
         server(context, "came", (player, m) -> {
             id[0] = m.warLeader().testSquadOf("zombies");
             id[1] = m.warLeader().testSquadOf("skelette");

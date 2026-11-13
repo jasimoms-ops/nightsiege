@@ -154,7 +154,7 @@ jobs:
           mkdir -p run/config
           echo "eula=true" > run/eula.txt
           printf "level-seed=nightsiege\nonline-mode=false\nmax-tick-time=-1\ndifficulty=hard\nspawn-protection=0\nview-distance=8\nsimulation-distance=8\nsync-chunk-writes=false\n" > run/server.properties
-          # Die Werte des echten Servers (Stand 29.10.), damit die Sim mit denselben Reglern spielt.
+          # Die Werte des echten Servers (v27 per Code-Migration auf den aktuellen Stand, 13.11.), damit die Sim mit denselben Reglern spielt.
           cp tools/sim/server-config.json run/config/nightsiege.json
           export NIGHTSIEGE_TEAMSIM="$TEAM shard=$SHARD/$COUNT"
           if [ -f tools/sim/burg.json.gz ]; then export NIGHTSIEGE_TEAMSIM_KARTE="$PWD/tools/sim/burg.json.gz"; fi
