@@ -1528,8 +1528,14 @@ public final class WarLeader {
                 }
             }
             case TUNNEL, GRAPPLE, STANDARD -> {
+                boolean dug = WarOrders.specialOf(s.item) == WarOrders.Special.TUNNEL && !mobs.isEmpty();
                 for (Mob mob : mobs) {
                     Foes.orderSpot(mob.getUUID(), spot, now);
+                    dug &= Foes.emerged(mob.getUUID());
+                }
+                ServerPlayer lead = dug ? leaderPlayer(world.getServer()) : null;
+                if (lead != null) {
+                    tell(lead, "nightsiege.war.special_dug", ChatFormatting.GRAY);   // a tunneler digs once (Foes.tickTunneler)
                 }
             }
             case BOSS -> bossAbility(world.getServer(), s, now);

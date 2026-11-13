@@ -388,14 +388,14 @@ public final class WarCursor {
         return top - low >= 2;
     }
 
-    /** Onto a flag (as the click picks it), else onto the nearest unit within {@link #SNAP} blocks. */
+    /** Onto an own squad within {@link #SNAP} blocks, else a flag, else the nearest other unit (as the click picks). */
     private static void snap(WarLeaderData data, double mouseX, double mouseY) {
+        Hover flag = null;
         for (WarLeaderData.Point p : data.points) {
             double[] s = project(p.x + 0.5, p.y, p.z + 0.5);
             if (s != null && sq(s[0] - mouseX) + sq(s[1] - 6 - mouseY) < 100) {
-                hover = new Hover(Kind.FLAG, tr("nightsiege.war.cursor.flag", p.index + 1), "", -1f, p.x + 0.5, p.y, p.z + 0.5, p.index);
-                under = Kind.FLAG;
-                return;
+                flag = new Hover(Kind.FLAG, tr("nightsiege.war.cursor.flag", p.index + 1), "", -1f, p.x + 0.5, p.y, p.z + 0.5, p.index);
+                break;
             }
         }
         double best = SNAP * SNAP;
@@ -436,6 +436,11 @@ public final class WarCursor {
                         "closed".equals(t.state) ? 1f : "broken".equals(t.state) ? 0f : -1f,
                         t.x + 0.5, t.y + 1, t.z + 0.5, -1);
             }
+        }
+        if (flag != null && (hover == null || (hover.kind() != Kind.SQUAD && hover.kind() != Kind.MACHINE))) {
+            hover = flag;   // a squad on its flag goes first (the flag also by F1-F8)
+            under = Kind.FLAG;
+            return;
         }
         if (hover != null) {
             under = hover.kind();

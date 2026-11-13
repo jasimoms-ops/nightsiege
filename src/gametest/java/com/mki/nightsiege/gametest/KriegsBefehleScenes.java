@@ -259,6 +259,27 @@ final class KriegsBefehleScenes {
                 check(false, "groups: skeletons not on the screen");
                 return;
             }
+            // The squad on its flag: a click there picks the squad, not the flag (the closest spot to a flag).
+            int[] onFlag = null;
+            double nearGap = 1e9;
+            List<double[]> spots = new ArrayList<>(bones);
+            spots.add(spread[1]);
+            for (double[] b : spots) {
+                int[] s = w.testProject(b[0], b[1], b[2]);
+                for (double[] f : flags) {
+                    int[] fs = s == null ? null : w.testProject(f[0], f[1], f[2]);
+                    if (fs != null && Math.hypot(fs[0] - s[0], fs[1] - 6 - s[1]) < nearGap) {
+                        nearGap = Math.hypot(fs[0] - s[0], fs[1] - 6 - s[1]);
+                        onFlag = s;
+                    }
+                }
+            }
+            if (onFlag != null) {
+                click(w, onFlag);
+            }
+            check(onFlag != null && nearGap < 10 && w.testPicked().equals(String.valueOf(id[1])),
+                    String.format(Locale.ROOT, "click on flag squad picks squad: picked=%s (want %d), flag %.0f px away (< 10)",
+                            w.testPicked(), id[1], nearGap));
             click(w, at);
             boolean clicked = w.testPicked().equals(String.valueOf(id[1]));
             key(w, GLFW.GLFW_KEY_2, GLFW.GLFW_MOD_CONTROL);
