@@ -1165,6 +1165,7 @@ public final class SiegeManager {
             safe("Reparatur nach Absturz", () -> NightDamage.recover(server));   // a night that crashed: its damage on disk is mended now (31.10.)
         }
         playtest.afterRestart(server);   // a playtest that ran when the server went down is undone
+        safe("Kapitel", () -> finishChapterChange(server));   // Pruefer 13.11.: down between won finale and chapter change
         safe("Ruhmeshalle", () -> HallService.importOnce(this, server));   // the nights before it, once (31.10.)
         NightSiegeMod.LOGGER.info("[Night Siege] {} Cores bekannt, {} Belagerungen bestanden",
                 save.cores == null ? 0 : save.cores.size(), save.siegesWon);
@@ -5217,6 +5218,12 @@ public final class SiegeManager {
             if (won && bossDown) {
                 endSeason(server);
                 chapterWon = true;   // Tor 11: the finale closes the chapter (below, once the night's rewards are out)
+                List<String> closing = new ArrayList<>();
+                for (UUID id : participants) {
+                    closing.add(id.toString());
+                }
+                save.chapters().closing = closing;   // saved with the won finale: a restart finishes the chapter change
+                save.chapters().closingLevel = siegeLevel;
             }
         } else if (bosses.planned() && bossDown && won) {
             save.lastBoss = bossKind == null ? null : bossKind.id();
@@ -5317,6 +5324,24 @@ public final class SiegeManager {
         }
     }
 
+    /** Pruefer 13.11.: a won finale whose chapter change did not run (the server went down in between) finishes now. */
+    public void finishChapterChange(MinecraftServer server) {
+        List<String> closing = save.chapters().closing;
+        if (closing == null) {
+            return;
+        }
+        Set<UUID> team = new HashSet<>();
+        for (String id : closing) {
+            try {
+                team.add(UUID.fromString(id));
+            } catch (IllegalArgumentException ignored) {
+                // a broken entry: no finale defender
+            }
+        }
+        NightSiegeMod.LOGGER.warn("[Night Siege] Finale gewonnen, Kapitelwechsel fehlte: wird nachgeholt ({} Verteidiger)", team.size());
+        closeChapter(server, team, save.chapters().closingLevel);
+    }
+
     /**
      * Tor 11: the finale is won. Every registered character becomes a veteran (with its level; those of the finale
      * at its level), the finale's defenders get the chest with infernite and the banner of their class, the world
@@ -5347,6 +5372,7 @@ public final class SiegeManager {
         List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
                 everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
                 (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
+        progress.closing = null;   // the chapter changed: saved together with it below
         save.bossBag = new ArrayList<>();   // the next chapter's bosses
         save.nextBoss = null;
         save.groupBosses.clear();

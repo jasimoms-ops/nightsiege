@@ -48,6 +48,12 @@ public final class Chapters {
          * null when none runs).
          */
         public Round round;
+        /**
+         * Pruefer 13.11.: a won finale whose chapter change has not run yet (the finale's team, null when none).
+         * The night's end saves before the change; a server that went down in between finishes it at the start.
+         */
+        public List<String> closing;
+        public int closingLevel;
 
         public List<Veteran> veteransOf(String uuid) {
             if (veterans == null) {
