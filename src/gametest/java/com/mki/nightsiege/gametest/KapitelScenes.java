@@ -76,6 +76,10 @@ final class KapitelScenes {
     }
 
     private static void shot(ClientGameTestContext context, String name) {
+        // The mouse in an empty corner first (lehren Design 12.11.), else a tooltip covers a button (fix 13.11.).
+        int windowH = context.computeOnClient(client -> client.getWindow().getScreenHeight());
+        context.getInput().setCursorPos(2, Math.max(2, windowH - 2));
+        context.waitTicks(3);
         context.takeScreenshot(name);
         shots++;
     }
@@ -311,6 +315,15 @@ final class KapitelScenes {
             m.config().testPrepSeconds = saved[0];
             m.config().batchIntervalSeconds = saved[1];
             save.curses.remove(com.mki.nightsiege.core.CurseKind.TOUGH.id());
+        });
+        // The picture must show a pool (fix 13.11.): after the flow above it may be spent, then a test pool.
+        server(context, "pool for the picture", (player, m) -> {
+            PlayerSkills own = m.save().realSkillsOf(player.getUUID().toString());
+            if (own.xpPool <= 0) {
+                own.xpPool = 120;
+            }
+            log("pool for the picture " + own.xpPool);
+            check(own.xpPool > 0, "a pool to show");
         });
         context.waitTicks(10);
         tab(context, "STATS");

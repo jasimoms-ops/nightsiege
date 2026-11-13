@@ -4766,11 +4766,7 @@ public class CoreScreen extends Screen {
         String chapterLine = Component.translatable(stats.chapterNight % 20 == 0 ? "nightsiege.chapter.finale" : "nightsiege.chapter.night",
                 stats.chapter, stats.chapterNight).getString() + (stats.chapterStars > 0 ? "  \u2605" + stats.chapterStars : "");
         gui.text(font, chapterLine, x + w - 8 - font.width(chapterLine), cy + (compact ? 1 : 4), GOLD, true);
-        if (stats.xpPool > 0) {
-            // Teil 2: "Vorrat: X Erfahrung, nutzbar bis Stufe Y"
-            String pool = Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel).getString();
-            smallText(gui, font, pool, x + w - 8 - (int) (font.width(pool) * 0.75f), cy + (compact ? 11 : 15), 0xFF7FD8FF, 0.75f);
-        }
+        // Teil 2: the pool ("Vorrat: X Erfahrung, nutzbar bis Stufe Y") stands at the foot of the record card (fix 13.11.).
         cy += compact ? 11 : 17;
         if (stats.siegeActive) {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
@@ -4869,7 +4865,19 @@ public class CoreScreen extends Screen {
                 {"nightsiege.ui.rec_kills", String.valueOf(stats.totalKills), "FFFFFFFF"},
                 {"nightsiege.ui.rec_champs", String.valueOf(stats.totalChampionKills), "FFFFAA00"}};
         int cellW = (w - 16) / 2;
-        boolean tight = y + h - cy < 3 * 21;
+        // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale, the latecomer pool.
+        float footScale = 0.75f;
+        List<net.minecraft.util.FormattedCharSequence> foot = new ArrayList<>();
+        if (stats.xpPool > 0 || stats.firstFinaleWon) {
+            foot.addAll(font.split(Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel),
+                    (int) ((w - 16) / footScale)));
+        }
+        int poolLines = foot.size();
+        if (stats.catchUpPool > 0) {
+            foot.addAll(font.split(Component.translatable("nightsiege.ui.late_pool", stats.catchUpPool), (int) ((w - 16) / footScale)));
+        }
+        int footH = foot.isEmpty() ? 0 : foot.size() * 8 + 3;
+        boolean tight = y + h - cy - footH < 3 * 21;
         for (int i = 0; i < cells.length; i++) {
             int cx = x + 8 + (i % 2) * cellW;
             int color = (int) Long.parseLong(cells[i][2], 16);
@@ -4878,7 +4886,9 @@ public class CoreScreen extends Screen {
                 int ry = cy + (i / 2) * 12;
                 String value = cells[i][1];
                 int vw = font.width(value);
-                String label = font.plainSubstrByWidth(Component.translatable(cells[i][0]).getString(), cellW - vw - 8);
+                // "Streak (best)" did not fit beside its value (fix 13.11.): the short word here.
+                String key = cells[i][0].equals("nightsiege.ui.rec_streak") ? "nightsiege.ui.rec_streak_short" : cells[i][0];
+                String label = font.plainSubstrByWidth(Component.translatable(key).getString(), cellW - vw - 8);
                 gui.text(font, label, cx, ry, 0xFF8C8894, true);
                 gui.text(font, value, cx + cellW - 6 - vw, ry, color, true);
             } else {
@@ -4887,10 +4897,13 @@ public class CoreScreen extends Screen {
                 gui.text(font, cells[i][1], cx, ry + 10, color, true);
             }
         }
-        if (stats.catchUpPool > 0) {
-            // The latecomer pool (Tor 6.7) at the foot of the card.
-            String pool = font.plainSubstrByWidth(Component.translatable("nightsiege.ui.late_pool", stats.catchUpPool).getString(), w - 16);
-            gui.text(font, pool, x + 8, y + h - 11, 0xFF55FFFF, true);
+        int fy = y + h - footH;
+        for (int i = 0; i < foot.size(); i++) {
+            gui.pose().pushMatrix();
+            gui.pose().translate(x + 8, fy + i * 8);
+            gui.pose().scale(footScale, footScale);
+            gui.text(font, foot.get(i), 0, 0, i < poolLines ? 0xFF7FD8FF : 0xFF55FFFF, true);
+            gui.pose().popMatrix();
         }
     }
 
