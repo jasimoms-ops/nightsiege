@@ -370,4 +370,35 @@ class Tor11KapitelTest {
         assertEquals(0, p.veteransOf("a").get(0).skills.xpPool);
         assertEquals(0.0, p.veteransOf("a").get(0).skills.xpPoolFraction, 1e-9);
     }
+
+    /**
+     * Pruefer 13.11., rule 10: a migrated world past night 20 (chapter 1, finale not won, nightBase 0) keeps boss
+     * nights every 4th night and gets its finale at the next 20th rhythm night (27 → 40, 45 → 60); a lost finale
+     * comes again, a won one opens chapter 2 at night 1. The late rhythm is gone.
+     */
+    @Test
+    void migratedWorldPastNightTwentyGetsBossNightsAndAFinale() {
+        SiegeConfig c = cfg();
+        Chapters.Progress p = new Chapters.Progress();
+        for (int start : new int[] {27, 45}) {
+            int finale = -1;
+            for (int night = start; night < start + 20; night++) {
+                BossPlan.NightKind kind = Chapters.nightKind(Chapters.nightIn(night, p), c);
+                assertTrue(kind != BossPlan.NightKind.LATE, "night " + night);
+                assertEquals(night % 4 == 0 ? (night % 20 == 0 ? BossPlan.NightKind.GROUP : BossPlan.NightKind.BOSS)
+                        : BossPlan.NightKind.NORMAL, kind, "night " + night);
+                if (kind == BossPlan.NightKind.GROUP && finale < 0) {
+                    finale = night;
+                }
+            }
+            assertEquals(start == 27 ? 40 : 60, finale);
+            int rhythm = finale - 1;   // the rhythm counts a night at its end: the coming one is rhythm + 1
+            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false));   // lost: the finale again
+            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true);
+            Chapters.Progress won = new Chapters.Progress();
+            Chapters.advance(won, after, 30, new HashMap<>(), List.of(), Set.of(), s -> "", (u, s) -> 1, "x");
+            assertEquals(2, won.chapter);
+            assertEquals(1, Chapters.nightIn(after + 1, won));
+        }
+    }
 }
