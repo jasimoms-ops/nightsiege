@@ -7,6 +7,7 @@ import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMachineKind;
 import com.mki.nightsiege.core.WarLeaderData;
+import com.mki.nightsiege.core.WarOrders;
 import com.mki.nightsiege.core.WarShop;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
@@ -107,6 +108,15 @@ public final class WarLeader {
         double tz;
         boolean spawned;
         long nextNav;
+        /** Kriegsführer 3 (K1): the leader's orders in a row; with any, no will of its own (no auto-storm). */
+        final WarOrders.Queue queue = new WarOrders.Queue();
+        WarOrders.Stance stance = WarOrders.Stance.AGGRESSIVE;
+        boolean commanded;
+        /** Where it stands between and after orders. */
+        double sx;
+        double sz;
+        /** When the boss's ability was called last (-1: never). */
+        long specialUsed = -1L;
 
         Squad(int id, String item, int point, boolean ownWill, List<String> mobs, long boughtAt) {
             this.id = id;
@@ -294,6 +304,9 @@ public final class WarLeader {
             return true;
         }
         Squad s = memberOf.get(mob.getUUID());
+        if (s != null && s.commanded) {
+            return engage(s, mob, target);
+        }
         if (s == null || !"gather".equals(s.order) || s.point < 0 || s.point >= points.size()) {
             return true;
         }
@@ -898,15 +911,35 @@ public final class WarLeader {
             for (BlockPos p : points) {
                 world.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, new ChunkPos(p.getX() >> 4, p.getZ() >> 4), 2);
             }
+            Set<Long> held = new HashSet<>();
             for (Squad s : squads) {
                 Vec3 c = centre(s);
                 if (c != null) {
                     world.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL,
                             new ChunkPos((int) Math.floor(c.x) >> 4, (int) Math.floor(c.z) >> 4), 2);
                 }
+                // Kriegsführer 3: every member where it is, and where its order takes it.
+                for (UUID id : s.members) {
+                    Entity e = world.getEntity(id);
+                    if (e != null) {
+                        hold(held, e.getX(), e.getZ());
+                    }
+                }
+                WarOrders.Order o = s.commanded ? s.queue.current() : null;
+                if (o != null) {
+                    hold(held, o.x(), o.z());
+                }
             }
         } catch (RuntimeException ignored) {
             // loading is a help, not a must
+        }
+    }
+
+    private void hold(Set<Long> held, double x, double z) {
+        int cx = (int) Math.floor(x) >> 4;
+        int cz = (int) Math.floor(z) >> 4;
+        if (held.add(((long) cx << 32) ^ (cz & 0xffffffffL))) {
+            world.getChunkSource().addTicketWithRadius(TicketType.ENDER_PEARL, new ChunkPos(cx, cz), 1);
         }
     }
 
@@ -930,6 +963,9 @@ public final class WarLeader {
                     it.remove();
                     continue;
                 }
+            }
+            if (s.commanded && now % WarOrders.STEER_TICKS == 0) {
+                steer(s, now);   // Kriegsführer 3: the leader's orders take hold within half a second
             }
             if (now % 10 == 0 && "gather".equals(s.order) && !s.isMachine() && !s.isBoss()) {
                 steerGather(s, now);
@@ -988,6 +1024,8 @@ public final class WarLeader {
     private void spawn(MinecraftServer server, Squad s, long now) {
         s.spawned = true;
         BlockPos p = s.point >= 0 && s.point < points.size() ? points.get(s.point) : core;
+        s.sx = p.getX() + 0.5;
+        s.sz = p.getZ() + 0.5;
         if (s.isMachine()) {
             SiegeMachineKind kind = SiegeMachineKind.byId(s.item.substring("machine.".length()));
             Vec3 at = machineSpot(p);
@@ -1028,6 +1066,9 @@ public final class WarLeader {
                 memberOf.put(boss.getUUID(), s);
                 s.total = 1;
                 s.order = "free";
+                if (s.commanded) {
+                    start(s, now);
+                }
                 Component text = Component.translatable("nightsiege.war.boss_comes", Component.translatable("nightsiege.boss." + kind.id()))
                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD);
                 for (ServerPlayer pl : everyone(server)) {
@@ -1065,7 +1106,9 @@ public final class WarLeader {
             return;
         }
         String wanted = s.order;
-        if (s.ownWill) {
+        if (s.commanded) {
+            start(s, now);   // Kriegsführer 3: ordered while it was coming
+        } else if (s.ownWill) {
             s.order = "free";
         } else if ("target".equals(wanted)) {
             target(s, s.tx, s.tz, now);
@@ -1194,6 +1237,7 @@ public final class WarLeader {
 
     /** Gather: the raid lets go, back to the point. */
     private void gather(Squad s, long now) {
+        free(s);
         s.order = "gather";
         s.gatherSince = now;
         s.nextNav = 0;
@@ -1219,6 +1263,452 @@ public final class WarLeader {
             }
         }
         return best;
+    }
+
+    // ------------------------------------------------------------------ Kriegsführer 3 (K1): the leader's orders
+
+    /** The squads of "1,4,7" (unknown ids left out). */
+    private List<Squad> picked(String ids) {
+        List<Squad> out = new ArrayList<>();
+        for (String part : ids.split(",")) {
+            int id = parse(part, -1);
+            for (Squad q : squads) {
+                if (q.id == id && !out.contains(q)) {
+                    out.add(q);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * An order for the picked squads: "gather" (back to the old ways: gathering, auto-storm) or a kind of
+     * {@link WarOrders.Kind}; queued (Shift) it waits behind the orders before it.
+     */
+    private void command(MinecraftServer server, List<Squad> picked, String what, double x, double z, boolean queued, String target, long now) {
+        if (picked.isEmpty() || world == null || core == null) {
+            return;
+        }
+        if ("gather".equals(what)) {
+            for (Squad s : picked) {
+                free(s);
+                if (s.isMachine()) {
+                    aimMachine(server, s, "free", x, z);
+                } else if (s.ownWill || s.isBoss()) {
+                    s.order = "free";
+                } else if (s.spawned) {
+                    gather(s, now);
+                } else {
+                    s.order = "coming";
+                }
+            }
+            log("befehl", "sammeln#" + picked.size(), -1, picked.size());
+            return;
+        }
+        WarOrders.Kind kind = WarOrders.Kind.byId(what);
+        if (kind == null) {
+            return;
+        }
+        boolean spot = !Double.isNaN(x) && !Double.isNaN(z) && inView(x, z);
+        ServerPlayer foe = null;
+        if (kind == WarOrders.Kind.ATTACK && target != null && !target.isEmpty()) {
+            foe = defenderNamed(server, target);
+            if (foe == null) {
+                return;
+            }
+            x = foe.getX();
+            z = foe.getZ();
+            spot = true;
+        }
+        if (kind.needsSpot() && !spot) {
+            return;
+        }
+        int n = 0;
+        for (Squad s : picked) {
+            if (s.isMachine()) {
+                // A machine aims (as since 05.11.); hold and retreat let it shoot on its own again.
+                if (kind == WarOrders.Kind.HOLD || kind == WarOrders.Kind.RETREAT) {
+                    aimMachine(server, s, "free", x, z);
+                } else if (spot) {
+                    aimMachine(server, s, "target", x, z);
+                }
+                continue;
+            }
+            if (kind == WarOrders.Kind.SPECIAL && WarOrders.specialOf(s.item) == WarOrders.Special.NONE) {
+                continue;   // no job of its own
+            }
+            WarOrders.Order o;
+            switch (kind) {
+                case RETREAT -> {
+                    BlockPos pt = s.point >= 0 && s.point < points.size() ? points.get(s.point) : core;
+                    o = WarOrders.Order.at(kind, pt.getX() + 0.5, pt.getZ() + 0.5);
+                }
+                case HOLD -> {
+                    Vec3 c = centre(s);
+                    o = WarOrders.Order.at(kind, c != null ? c.x : s.sx, c != null ? c.z : s.sz);
+                }
+                case STORM -> o = WarOrders.Order.at(kind, core.getX() + 0.5, core.getZ() + 0.5);
+                default -> o = new WarOrders.Order(kind, x, z, foe == null ? "" : foe.getUUID().toString());
+            }
+            s.commanded = true;
+            s.queue.give(o, queued);
+            if (s.spawned && (!queued || s.queue.size() == 1)) {
+                start(s, now);
+            }
+            n++;
+        }
+        if (n > 0) {
+            if (file != null) {
+                file.befehle++;
+            }
+            log("befehl", String.format(Locale.ROOT, "%s%s#%d@%.0f,%.0f", queued ? "+" : "", kind.id(), n, x, z), -1, n);
+        }
+    }
+
+    /** V: the picked squads' stance goes on (the first one's next); it stands with an order from now on. */
+    private void stance(List<Squad> picked) {
+        if (picked.isEmpty()) {
+            return;
+        }
+        WarOrders.Stance next = picked.get(0).stance.next();
+        for (Squad s : picked) {
+            if (s.isMachine()) {
+                continue;
+            }
+            s.stance = next;
+            if (!s.commanded) {
+                s.commanded = true;
+                Vec3 c = centre(s);
+                if (c != null) {
+                    s.sx = c.x;
+                    s.sz = c.z;
+                }
+                if (s.spawned) {
+                    start(s, world.getGameTime());
+                }
+            }
+        }
+        log("befehl", "haltung_" + next.id(), -1, picked.size());
+    }
+
+    /** E twice: the sappers go off where they are, the boss calls its ability. */
+    private void specialNow(MinecraftServer server, List<Squad> picked, long now) {
+        for (Squad s : picked) {
+            WarOrders.Special sp = WarOrders.specialOf(s.item);
+            if (sp == WarOrders.Special.BLAST && s.spawned) {
+                for (Mob mob : mobsOf(s)) {
+                    m.besiegers().igniteNow(world, mob, core, now);
+                }
+                log("befehl", "zuenden#" + s.id, s.point, 0);
+            } else if (sp == WarOrders.Special.BOSS && s.spawned) {
+                bossAbility(server, s, now);
+            }
+        }
+    }
+
+    private boolean bossAbility(MinecraftServer server, Squad s, long now) {
+        ServerPlayer lead = leaderPlayer(server);
+        long wait = WarOrders.cooldownLeft(s.specialUsed, now);
+        if (wait > 0) {
+            if (lead != null) {
+                tell(lead, "nightsiege.war.special_wait", ChatFormatting.GRAY, (wait + 19) / 20);
+            }
+            return false;
+        }
+        if (!m.bosses().commandAbility(now)) {
+            if (lead != null) {
+                tell(lead, "nightsiege.war.special_none", ChatFormatting.GRAY);
+            }
+            return false;
+        }
+        s.specialUsed = now;
+        log("befehl", "boss_faehigkeit#" + s.id, s.point, 0);
+        return true;
+    }
+
+    /** Back to the old ways (gathering, the auto-storm, a job of its own). */
+    private void free(Squad s) {
+        if (!s.commanded) {
+            return;
+        }
+        s.commanded = false;
+        s.queue.clear();
+        if (world == null) {
+            return;
+        }
+        for (UUID id : s.members) {
+            Foes.orderSpot(id, null, 0L);
+            Foes.hold(world.getEntity(id), false);
+        }
+    }
+
+    private List<Mob> mobsOf(Squad s) {
+        List<Mob> out = new ArrayList<>();
+        if (world == null) {
+            return out;
+        }
+        for (UUID id : s.members) {
+            if (world.getEntity(id) instanceof Mob mob && mob.isAlive()) {
+                out.add(mob);
+            }
+        }
+        return out;
+    }
+
+    /** A new order takes hold now: old jobs and fights the order does not allow end, the way is new. */
+    private void start(Squad s, long now) {
+        WarOrders.Order o = s.queue.current();
+        s.nextNav = 0;
+        for (Mob mob : mobsOf(s)) {
+            m.raid().release(mob);
+            if (Besiegers.busy(mob)) {
+                Besiegers.disrupt(mob);
+            }
+            Foes.orderSpot(mob.getUUID(), null, 0L);
+            Foes.hold(mob, true);
+            LivingEntity t = mob.getTarget();
+            if (t != null && !mayTarget(mob, t)) {
+                mob.setTarget(null);
+            }
+            if (!mob.isPassenger()) {
+                mob.getNavigation().stop();
+            }
+        }
+        if (o == null) {
+            s.order = "idle";
+            return;
+        }
+        s.order = o.kind().id();
+        switch (o.kind()) {
+            case STORM -> storm(s, now);
+            case ATTACK -> {
+                if (o.hasTarget()) {
+                    steer(s, now);
+                } else {
+                    target(s, o.x(), o.z(), now);   // a building: the raid's way in, the ladders and sappers at work
+                }
+            }
+            case SPECIAL -> {
+                special(s, o, now);
+                if (WarOrders.specialOf(s.item) == WarOrders.Special.BOSS && s.queue.current() == o) {
+                    advance(s, now);   // the ability is called: the next order at once
+                    return;
+                }
+            }
+            default -> steer(s, now);
+        }
+        if (s.queue.current() == o) {
+            s.order = o.kind().id();   // storm() and target() wrote their old names
+        }
+    }
+
+    /** The unit's own job at the leader's spot. */
+    private void special(Squad s, WarOrders.Order o, long now) {
+        Vec3 spot = new Vec3(o.x(), groundY(o.x(), o.z()), o.z());
+        List<Mob> mobs = mobsOf(s);
+        switch (WarOrders.specialOf(s.item)) {
+            case LADDER -> m.besiegers().carriersTo(core, mobs, spot, now);
+            case BLAST -> {
+                boolean any = false;
+                for (Mob mob : mobs) {
+                    any |= m.besiegers().sapperAt(mob, core, m.config(), spot, now);
+                }
+                ServerPlayer lead = leaderPlayer(world.getServer());
+                if (!any && lead != null) {
+                    tell(lead, "nightsiege.war.special_full", ChatFormatting.GRAY);
+                }
+            }
+            case TUNNEL, GRAPPLE, STANDARD -> {
+                for (Mob mob : mobs) {
+                    Foes.orderSpot(mob.getUUID(), spot, now);
+                }
+            }
+            case BOSS -> bossAbility(world.getServer(), s, now);
+            default -> {
+            }
+        }
+    }
+
+    /** Is the special order done (then the next in the row)? Ladders and sappers at work, a tunneler under the ground: not yet. */
+    private boolean specialDone(Squad s, WarOrders.Order o) {
+        switch (WarOrders.specialOf(s.item)) {
+            case LADDER, BLAST -> {
+                for (Mob mob : mobsOf(s)) {
+                    if (Besiegers.busy(mob)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case TUNNEL -> {
+                for (Mob mob : mobsOf(s)) {
+                    if (Foes.roleOf(mob) == Foes.Role.TUNNELER && !Foes.emerged(mob.getUUID())) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case GRAPPLE, STANDARD -> {
+                Vec3 c = centre(s);
+                return c == null || WarOrders.arrived(c.x, c.z, o.x(), o.z());
+            }
+            default -> {
+                return true;
+            }
+        }
+    }
+
+    /** The order is done: the next one in the row, or the squad stands where it is. */
+    private void advance(Squad s, long now) {
+        s.queue.next();
+        start(s, now);
+    }
+
+    /** Every half second: the squad's order carried on (the way, the target, whom it may fight). */
+    private void steer(Squad s, long now) {
+        WarOrders.Order o = s.queue.current();
+        Vec3 c = centre(s);
+        boolean nav = now >= s.nextNav;
+        if (nav) {
+            s.nextNav = now + 40;
+        }
+        if (o == null) {
+            for (Mob mob : mobsOf(s)) {
+                LivingEntity t = drop(mob);
+                if (t == null && far(mob, s.sx, s.sz, WarOrders.ARRIVE + 1.0) && (nav || mob.getNavigation().isDone())) {
+                    walk(mob, s.sx, s.sz, 1.0);
+                }
+            }
+            return;
+        }
+        switch (o.kind()) {
+            case MOVE, ATTACK_MOVE, RETREAT -> {
+                if (c != null && WarOrders.arrived(c.x, c.z, o.x(), o.z())) {
+                    s.sx = o.x();
+                    s.sz = o.z();
+                    advance(s, now);
+                    return;
+                }
+                double speed = o.kind() == WarOrders.Kind.RETREAT ? WarOrders.RETREAT_SPEED : 1.0;
+                for (Mob mob : mobsOf(s)) {
+                    LivingEntity t = drop(mob);
+                    if (t == null && o.kind() == WarOrders.Kind.ATTACK_MOVE) {
+                        ServerPlayer near = nearestDefender(mob);
+                        if (near != null && near.distanceTo(mob) <= WarOrders.LEASH) {
+                            mob.setTarget(near);
+                            t = mob.getTarget();
+                        }
+                    }
+                    if (t == null && (nav || mover(mob).getNavigation().isDone())) {
+                        walk(mob, o.x(), o.z(), speed);
+                    }
+                }
+            }
+            case ATTACK -> {
+                if (!o.hasTarget()) {
+                    // A building: the raid's plan takes them; a way point behind it waits until they are there.
+                    if (s.queue.size() > 1 && c != null && WarOrders.arrived(c.x, c.z, o.x(), o.z())) {
+                        advance(s, now);
+                    }
+                    return;
+                }
+                ServerPlayer foe = defenderById(o.target());
+                if (foe == null) {
+                    advance(s, now);   // fallen, gone: the next order
+                    return;
+                }
+                for (Mob mob : mobsOf(s)) {
+                    if (mob.getTarget() != foe) {
+                        mob.setTarget(foe);
+                    }
+                    if (nav || mover(mob).getNavigation().isDone()) {
+                        mover(mob).getNavigation().moveTo(foe, 1.1);
+                    }
+                }
+            }
+            case HOLD -> {
+                for (Mob mob : mobsOf(s)) {
+                    LivingEntity t = drop(mob);
+                    if (t == null && far(mob, o.x(), o.z(), 2.5) && (nav || mob.getNavigation().isDone())) {
+                        walk(mob, o.x(), o.z(), 1.0);
+                    }
+                }
+            }
+            case SPECIAL -> {
+                if (specialDone(s, o)) {
+                    s.sx = o.x();
+                    s.sz = o.z();
+                    advance(s, now);
+                }
+            }
+            default -> {
+                // storm: the raid's plan
+            }
+        }
+    }
+
+    /** The monster's target, dropped when its order does not allow it any more. */
+    private LivingEntity drop(Mob mob) {
+        LivingEntity t = mob.getTarget();
+        if (t != null && (!t.isAlive() || !mayTarget(mob, t))) {
+            mob.setTarget(null);
+            return null;
+        }
+        return t;
+    }
+
+    private static boolean far(Mob mob, double x, double z, double d) {
+        double dx = mob.getX() - x;
+        double dz = mob.getZ() - z;
+        return dx * dx + dz * dz > d * d;
+    }
+
+    /** A rider is steered through its mount (the warlord on his ravager, the camel troop). */
+    private static Mob mover(Mob mob) {
+        return mob.getVehicle() instanceof Mob mount ? mount : mob;
+    }
+
+    private void walk(Mob mob, double x, double z, double speed) {
+        double ox = random.nextInt(3) - 1;
+        double oz = random.nextInt(3) - 1;
+        mover(mob).getNavigation().moveTo(x + ox, groundY(x + ox, z + oz), z + oz, speed);
+    }
+
+    private double groundY(double x, double z) {
+        return world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(x), (int) Math.floor(z));
+    }
+
+    /** Whom a commanded squad's monster may fight ({@link WarOrders#mayEngage}). */
+    private boolean engage(Squad s, Mob mob, LivingEntity target) {
+        WarOrders.Order o = s.queue.current();
+        WarOrders.Kind kind = o == null ? null : o.kind();
+        boolean named = o != null && (!o.hasTarget() || o.target().equals(target.getUUID().toString()));
+        boolean attacker = mob.getLastHurtByMob() == target;
+        double ax = kind == WarOrders.Kind.HOLD ? o.x() : s.sx;
+        double az = kind == WarOrders.Kind.HOLD ? o.z() : s.sz;
+        double dx = target.getX() - ax;
+        double dz = target.getZ() - az;
+        return WarOrders.mayEngage(kind, s.stance, named, attacker, Math.sqrt(dx * dx + dz * dz));
+    }
+
+    private ServerPlayer defenderNamed(MinecraftServer server, String name) {
+        for (ServerPlayer p : rosterOnline(server, world)) {
+            if (p.getScoreboardName().equals(name) && !m.isFallen(p.getUUID()) && !p.isSpectator() && p.isAlive()) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    private ServerPlayer defenderById(String id) {
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        ServerPlayer p = world.getServer().getPlayerList().getPlayer(uuid);
+        return p == null || p.level() != world || !p.isAlive() || p.isSpectator() || m.isFallen(uuid) ? null : p;
     }
 
     // ------------------------------------------------------------------ the leader's actions
@@ -1289,6 +1779,27 @@ public final class WarLeader {
                     sendData(player, false);
                 }
             }
+            case "cmd" -> {
+                // Kriegsführer 3: "cmd:<ids>:<kind>:<x>:<z>:<queued>[:<defender>]"
+                if (phase == Phase.ROUND && p.length >= 6) {
+                    command(server, picked(p[1]), p[2], parseD(p[3]), parseD(p[4]), "1".equals(p[5]), p.length >= 7 ? p[6] : "", now);
+                    sendData(player, false);
+                }
+            }
+            case "now" -> {
+                // Kriegsführer 3, E twice: "now:<ids>" (the sapper goes off, the boss's ability)
+                if (phase == Phase.ROUND && p.length >= 2) {
+                    specialNow(server, picked(p[1]), now);
+                    sendData(player, false);
+                }
+            }
+            case "stance" -> {
+                // Kriegsführer 3, V: "stance:<ids>" (aggressive, defensive, passive)
+                if (phase == Phase.ROUND && p.length >= 2) {
+                    stance(picked(p[1]));
+                    sendData(player, false);
+                }
+            }
             case "refresh" -> sendData(player, phase == Phase.LOBBY);
             default -> {
             }
@@ -1346,6 +1857,7 @@ public final class WarLeader {
         if (s == null || s.ownWill || s.isBoss()) {
             return;
         }
+        free(s);   // the old orders (the bot, the side panel's buttons) end the leader's new ones
         if (s.isMachine()) {
             aimMachine(server, s, what, x, z);
             return;
@@ -1669,6 +2181,7 @@ public final class WarLeader {
         if (phase != Phase.ROUND) {
             return;
         }
+        Foes.clearOrders();
         long now = world == null ? 0L : world.getGameTime();
         int seconds = (int) Math.max(0, (now - roundStart) / 20);
         int wavesSeconds = Math.max(0, seconds - prepSeconds(m.config()));
@@ -2002,6 +2515,13 @@ public final class WarLeader {
             }
         }
         long now = world.getGameTime();
+        if (base != null && core != null) {
+            // Kriegsführer 3: the base's edge, so a click on it attacks.
+            for (int i = 0; i < 32; i++) {
+                double a = (i + 0.5) * 2 * Math.PI / 32;
+                d.edge.add(base.edgeTowards(core.getX() + 0.5 + Math.cos(a), core.getZ() + 0.5 + Math.sin(a)));
+            }
+        }
         for (Squad s : squads) {
             WarLeaderData.Squad q = new WarLeaderData.Squad();
             q.id = s.id;
@@ -2029,6 +2549,30 @@ public final class WarLeader {
             } else if (s.point >= 0 && s.point < points.size()) {
                 q.x = points.get(s.point).getX() + 0.5;
                 q.z = points.get(s.point).getZ() + 0.5;
+            }
+            q.commanded = s.commanded;
+            q.stance = s.stance.id();
+            for (WarOrders.Order o : s.queue.all()) {
+                WarLeaderData.Way way = new WarLeaderData.Way();
+                way.kind = o.kind().id();
+                way.x = o.x();
+                way.z = o.z();
+                q.ways.add(way);
+            }
+            q.special = WarOrders.specialOf(s.item).id();
+            q.specialWait = (int) ((WarOrders.cooldownLeft(s.specialUsed, now) + 19) / 20);
+            if (s.spawned) {
+                for (UUID id : s.members) {
+                    if (world.getEntity(id) instanceof LivingEntity l && l.isAlive()) {
+                        WarLeaderData.Unit u = new WarLeaderData.Unit();
+                        u.x = l.getX();
+                        u.y = l.getY();
+                        u.z = l.getZ();
+                        q.units.add(u);
+                        q.health += l.getHealth();
+                        q.maxHealth += l.getMaxHealth();
+                    }
+                }
             }
             q.seconds = !s.spawned ? (int) Math.max(0, (s.spawnAt - now + 19) / 20)
                     : "gather".equals(s.order) ? (int) Math.max(0, (cfg.warAutoStormSeconds * 20L - (now - s.gatherSince) + 19) / 20) : 0;
@@ -2357,6 +2901,42 @@ public final class WarLeader {
 
     public void testStormAll() {
         stormAll(world == null ? 0L : world.getGameTime());
+    }
+
+    /** Tests (Kriegsführer 3): an order as the leader's screen sends it ("cmd:..." without "war:"). */
+    public void testCommand(ServerPlayer leader, String action) {
+        onAction(leader, action);
+    }
+
+    /** Tests: a squad's order now, its stance, its row, whether it has the leader's order. */
+    public String testOrderOf(int id) {
+        for (Squad s : squads) {
+            if (s.id == id) {
+                return s.order + "/" + s.stance.id() + "/" + s.queue.size() + (s.commanded ? "/cmd" : "/free");
+            }
+        }
+        return "-";
+    }
+
+    /** Tests: the living members of a squad. */
+    public List<Mob> testMobs(int id) {
+        for (Squad s : squads) {
+            if (s.id == id) {
+                return mobsOf(s);
+            }
+        }
+        return List.of();
+    }
+
+    /** Tests: the id of the newest squad of this kind that came (or -1). */
+    public int testSquadOf(String item) {
+        int best = -1;
+        for (Squad s : squads) {
+            if (s.spawned && s.item.equals(item)) {
+                best = s.id;
+            }
+        }
+        return best;
     }
 
     /** Tests: the squads' first id that came (or -1). */

@@ -30,6 +30,8 @@ public class WarLeaderData {
     public List<Target> targets = new ArrayList<>();
     public List<Squad> squads = new ArrayList<>();
     public List<Mate> defenders = new ArrayList<>();
+    /** The base's edge per slice around the core (Kriegsführer 3: a click on it attacks). */
+    public List<Double> edge = new ArrayList<>();
     /** The card of this wave ("" none). */
     public String card = "";
     public int machines;
@@ -77,7 +79,7 @@ public class WarLeaderData {
         public String item = "";
         public int alive;
         public int total;
-        /** "coming" (flare up), "gather", "target", "storm". */
+        /** "coming" (flare up), "gather", "target", "storm", "free"; with an order (K1) its kind ("move", "hold", ...) or "idle". */
         public String order = "";
         public int point;
         public double x;
@@ -90,6 +92,31 @@ public class WarLeaderData {
         public boolean aimed;
         public double aimX;
         public double aimZ;
+        /** Kriegsführer 3 (K1): ordered by the leader (no will of its own), its stance, its way points. */
+        public boolean commanded;
+        public String stance = "aggressive";
+        public List<Way> ways = new ArrayList<>();
+        /** Its special order on E ("none", "ladder", "blast", ...) and the seconds until it is ready again. */
+        public String special = "none";
+        public int specialWait;
+        /** The life of its living members together. */
+        public float health;
+        public float maxHealth;
+        /** Where its members stand (for the rings and the frame). */
+        public List<Unit> units = new ArrayList<>();
+    }
+
+    /** One order in a squad's row: what and where. */
+    public static class Way {
+        public String kind = "";
+        public double x;
+        public double z;
+    }
+
+    public static class Unit {
+        public double x;
+        public double y;
+        public double z;
     }
 
     public static class Mate {
