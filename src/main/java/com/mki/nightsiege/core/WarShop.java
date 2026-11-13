@@ -132,6 +132,14 @@ public final class WarShop {
         return (int) Math.max(1, Math.min(Math.max(nightCap, cfg.maxLiveMobsCap), Math.round(nightCap * f)));
     }
 
+    /**
+     * Chef 13.11. 09:20: the life and damage factor of the round's bought monsters by its defenders (bots and humans):
+     * 1 + warStrengthPerExtraDefender for every defender beyond the fourth; 1.0 up to four and by default.
+     */
+    public static double strengthFactor(int defenders, SiegeConfig cfg) {
+        return 1.0 + cfg.warStrengthPerExtraDefender * Math.max(0, defenders - 4);
+    }
+
     public static int roundGold(int level, int players, SiegeConfig cfg, double perPlayer, int maxLive) {
         int perWave = SiegeMath.mobsPerBatch(level, Math.max(1, players), cfg, perPlayer, maxLive);
         double mobs = (double) nightWaves(level, cfg) * perWave;

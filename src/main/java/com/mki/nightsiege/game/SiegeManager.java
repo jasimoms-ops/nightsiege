@@ -711,6 +711,11 @@ public final class SiegeManager {
 
     /** A monster the war leader bought, at a gathering point: counted with the night's. */
     Mob warSpawn(String entityId, BlockPos spot) {
+        return warSpawn(entityId, spot, 0);
+    }
+
+    /** As above, the round's defenders counted for warStrengthPerExtraDefender (Chef 13.11. 09:20). */
+    Mob warSpawn(String entityId, BlockPos spot, int defenders) {
         if (world == null || !active) {
             return null;
         }
@@ -718,7 +723,13 @@ public final class SiegeManager {
         if (MobFactory.isUnavailable(id)) {
             id = entityId;
         }
-        Mob mob = MobFactory.spawnAt(world, spot, id, siegeLevel, config, random, currentEvent, false);
+        Mob mob;
+        warStrength = com.mki.nightsiege.core.WarShop.strengthFactor(defenders, config);
+        try {
+            mob = MobFactory.spawnAt(world, spot, id, siegeLevel, config, random, currentEvent, false);
+        } finally {
+            warStrength = 1.0;
+        }
         if (mob == null) {
             return null;
         }
@@ -734,6 +745,13 @@ public final class SiegeManager {
             SiegeTeams.mark(world.getServer(), mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
         }
         return mob;
+    }
+
+    /** Life and damage factor of the war leader's squad being spawned now (1.0 at any other spawn). */
+    private double warStrength = 1.0;
+
+    public double warStrength() {
+        return warStrength;
     }
 
     /** A card of the war leader: tonight's event changes (NONE: back to a plain night). */
