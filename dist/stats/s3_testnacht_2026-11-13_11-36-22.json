@@ -1,0 +1,958 @@
+{
+  "art": "nacht",
+  "sim": "d33|L25|G6|zufall|3",
+  "version": "1.0.0",
+  "build": "1b9c65d",
+  "start": "2026-11-13 11:36:22",
+  "ende": "2026-11-13 11:43:41",
+  "abgeschlossen": true,
+  "test": true,
+  "playtest": false,
+  "spieltest": false,
+  "nacht": -1,
+  "stufe": 25,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_gehalten",
+  "dauerSekunden": 959,
+  "aufbauSekunden": 0,
+  "killZiel": 0,
+  "kills": 456,
+  "gespawnt": 565,
+  "tode": 3,
+  "ersterTodSekunde": 470,
+  "ersterTodWelle": 0,
+  "basis": {
+    "geschlossen": false,
+    "breite": 82,
+    "tiefe": 91,
+    "tore": 0
+  },
+  "spieler": {
+    "Bot04": {
+      "name": "Bot04",
+      "uuid": "58a1059d-bb14-3d22-849f-9afc7c1e7456",
+      "klasse": "warrior",
+      "weg": "might",
+      "unterklasse": "axe",
+      "profil": "WARRIOR",
+      "punkteImProfil": 160,
+      "ultStufe3": false,
+      "kit": "warrior",
+      "knoten": {
+        "warrior_drill": 2,
+        "w_endurance": 2,
+        "w_ironskin": 2,
+        "sunder": 1,
+        "heavy_blow": 2,
+        "w_cleave": 1,
+        "w_crusader": 1,
+        "w_momentum": 1,
+        "w_earthshock": 1,
+        "ground_slam": 1,
+        "w_aftershock": 1,
+        "w_colossus": 1
+      }
+    },
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "mech",
+      "unterklasse": "electrician",
+      "profil": "ENGINEER",
+      "punkteImProfil": 162,
+      "ultStufe3": false,
+      "kit": "engineer",
+      "knoten": {
+        "spike_trap": 2,
+        "e_battery": 2,
+        "snare_trap": 1,
+        "e_longrange": 1,
+        "e_circuit": 1,
+        "tesla_coil": 2,
+        "capacitor": 1,
+        "e_seeker": 1,
+        "e_beacon": 1,
+        "e_backup": 1,
+        "overcharge": 1,
+        "e_piercer": 1,
+        "e_fortress": 1
+      }
+    },
+    "Bot03": {
+      "name": "Bot03",
+      "uuid": "1ac5a064-6ab4-3363-b769-c4e4abe5bbf7",
+      "klasse": "archer",
+      "weg": "bow",
+      "unterklasse": "heavy",
+      "profil": "ARCHER",
+      "punkteImProfil": 160,
+      "ultStufe3": false,
+      "kit": "archer",
+      "knoten": {
+        "archer_focus": 2,
+        "a_lightfoot": 2,
+        "a_steady": 2,
+        "a_pierce": 1,
+        "heavy_draw": 2,
+        "piercing": 1,
+        "a_fire": 1,
+        "a_firevolley": 1,
+        "a_eagle": 1,
+        "arrow_storm": 1,
+        "a_tempest": 1,
+        "a_deadeye": 1
+      }
+    },
+    "Bot05": {
+      "name": "Bot05",
+      "uuid": "92bc33ed-7440-3ee1-95d2-be4a22c138e3",
+      "klasse": "guardian",
+      "weg": "bless",
+      "unterklasse": "medic",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 160,
+      "ultStufe3": false,
+      "kit": "guardian",
+      "knoten": {
+        "vitality": 2,
+        "g_challenger": 2,
+        "g_prayer": 2,
+        "field_dressing": 1,
+        "g_healing_hand": 2,
+        "guardian_angel": 1,
+        "g_miracle": 1,
+        "g_lightbringer": 1,
+        "g_overflow": 1,
+        "mass_heal": 1,
+        "g_rebirth": 1,
+        "g_saint": 1
+      }
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "alchemist",
+      "profil": "ENGINEER",
+      "punkteImProfil": 161,
+      "ultStufe3": false,
+      "kit": "engineer",
+      "knoten": {
+        "spike_trap": 2,
+        "e_battery": 2,
+        "snare_trap": 2,
+        "e_stockpile": 2,
+        "e_detonator": 2,
+        "potion_tower": 2,
+        "toxic_brew": 1,
+        "e_chain_reaction": 1,
+        "e_plague_mine": 1,
+        "brew_heal": 1,
+        "brew_poison": 1,
+        "brew_slow": 1,
+        "e_acid_flask": 1,
+        "e_blastpower": 1,
+        "bombardment": 1,
+        "e_firebombs": 1
+      }
+    },
+    "Bot06": {
+      "name": "Bot06",
+      "uuid": "74157673-abda-3a03-9cd4-78085b2e8110",
+      "klasse": "guardian",
+      "weg": "shield",
+      "unterklasse": "shieldfighter",
+      "profil": "GUARDIAN",
+      "punkteImProfil": 160,
+      "ultStufe3": false,
+      "kit": "guardian",
+      "knoten": {
+        "vitality": 2,
+        "g_challenger": 2,
+        "g_ironward": 2,
+        "g_shieldwall": 1,
+        "riposte": 2,
+        "g_shieldthrow": 1,
+        "g_boomerang": 1,
+        "g_counterstrike": 1,
+        "g_laststand": 1,
+        "shield_charge": 1,
+        "g_debris": 1,
+        "g_living_wall": 1
+      }
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 2
+  },
+  "maschinen": [
+    {
+      "art": "mortar",
+      "startSekunde": 245,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 102,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    },
+    {
+      "art": "fire",
+      "startSekunde": 247,
+      "endeSekunde": 959,
+      "zerstoert": false,
+      "sabotiertVon": "",
+      "schuesse": 89,
+      "bloecke": 0,
+      "schadenAnSpielern": 0.0
+    }
+  ],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 959,
+      "gespawnt": 565,
+      "typen": {
+        "minecraft:vindicator": 92,
+        "nightsiege:standard_bearer": 36,
+        "nightsiege:revenant": 90,
+        "minecraft:zombie": 68,
+        "minecraft:skeleton": 62,
+        "minecraft:creeper": 35,
+        "minecraft:parched": 17,
+        "minecraft:spider": 32,
+        "minecraft:husk": 17,
+        "minecraft:camel_husk": 17,
+        "nightsiege:iron_knight": 43,
+        "nightsiege:grappler": 17,
+        "nightsiege:tunneler": 20,
+        "minecraft:cave_spider": 6,
+        "minecraft:stray": 13
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot04": {
+          "schaden": 10683.150960445404,
+          "schadenNachQuelle": {
+            "nah:netherite_axe": 8468.650534152985,
+            "faehigkeit:axtwurf": 2214.5004262924194
+          },
+          "erhalten": 2606.204304307699,
+          "erhaltenNachGegner": {
+            "umgebung:on_fire": 22.0,
+            "maschine": 252.8176634311676,
+            "nightsiege:revenant": 287.133602142334,
+            "nightsiege:iron_knight": 396.2869281768799,
+            "minecraft:husk": 31.604156494140625,
+            "minecraft:parched": 13.744500160217285,
+            "minecraft:skeleton": 109.1706030368805,
+            "minecraft:spider": 68.42012214660645,
+            "nightsiege:standard_bearer": 47.87667751312256,
+            "minecraft:zombie": 278.72198486328125,
+            "minecraft:vindicator": 837.9788284301758,
+            "boss:minecraft:iron_golem": 117.26997002959251,
+            "minecraft:creeper": 93.5203857421875,
+            "nightsiege:grappler": 41.41218185424805,
+            "minecraft:stray": 8.246700286865234
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 195.27771046757698,
+          "kills": 127,
+          "assists": 17,
+          "tode": 1,
+          "abgefangen": 2286.8183286488056,
+          "treffer": 156,
+          "geblockt": 0,
+          "lebensraub": 144.73084896802902,
+          "verloren": 221.8401403427124,
+          "absorbiert": 40.47999954223633,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 6.0,
+          "drohneSekunden": 68,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:dash": 71,
+            "ult": 33,
+            "faehigkeit_f": 25
+          },
+          "tasten": {
+            "ABILITY_1": 71,
+            "ULT": 33,
+            "ABILITY_2": 25
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 892
+        },
+        "Bot05": {
+          "schaden": 257.23852491378784,
+          "schadenNachQuelle": {
+            "nah:healer_staff": 257.23852491378784
+          },
+          "erhalten": 908.3163946568966,
+          "erhaltenNachGegner": {
+            "nightsiege:tunneler": 35.12123489379883,
+            "maschine": 116.30632424354553,
+            "nightsiege:revenant": 508.38478088378906,
+            "nightsiege:iron_knight": 83.17847442626953,
+            "minecraft:vindicator": 136.4748077392578,
+            "umgebung:on_fire": 21.0,
+            "boss:minecraft:iron_golem": 7.850772470235825
+          },
+          "heilungGegeben": 311.2481015920639,
+          "heilungErhalten": 46.44329497218132,
+          "kills": 2,
+          "assists": 12,
+          "tode": 1,
+          "abgefangen": 748.0537317693233,
+          "treffer": 49,
+          "geblockt": 13,
+          "lebensraub": 0.0,
+          "verloren": 70.74623346328735,
+          "absorbiert": 105.69460678100586,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 4.0,
+          "drohneSekunden": 20,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 200,
+            "faehigkeit_f": 103,
+            "ult": 35,
+            "stab": 1135,
+            "wahl:hand": 4,
+            "wahl:selfheal": 3
+          },
+          "tasten": {
+            "ABILITY_2": 106,
+            "ULT": 35,
+            "ABILITY_1": 4
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 940
+        },
+        "Bot06": {
+          "schaden": 5096.293675899506,
+          "schadenNachQuelle": {
+            "nah:mace": 5096.293675899506
+          },
+          "erhalten": 1279.5700149536133,
+          "erhaltenNachGegner": {
+            "maschine": 147.74575424194336,
+            "minecraft:parched": 11.318999767303467,
+            "nightsiege:standard_bearer": 49.8036003112793,
+            "minecraft:husk": 29.50184440612793,
+            "minecraft:creeper": 46.04578447341919,
+            "nightsiege:revenant": 85.40865325927734,
+            "minecraft:vindicator": 576.6577987670898,
+            "minecraft:cave_spider": 59.311556816101074,
+            "umgebung:magic": 9.0,
+            "minecraft:skeleton": 14.71469783782959,
+            "nightsiege:iron_knight": 153.97461891174316,
+            "umgebung:lava": 4.0,
+            "umgebung:on_fire": 38.0,
+            "nightsiege:tunneler": 54.08670616149902
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 79.04080736637115,
+          "kills": 69,
+          "assists": 64,
+          "tode": 1,
+          "abgefangen": 1577.2672822475433,
+          "treffer": 84,
+          "geblockt": 14,
+          "lebensraub": 48.63672015070915,
+          "verloren": 99.0408124923706,
+          "absorbiert": 52.52757549285889,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 16.0,
+          "drohneSekunden": 20,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "schild": 202,
+            "faehigkeit_f": 103,
+            "ult": 35,
+            "wahl:shield": 43,
+            "wahl:tankheal": 3
+          },
+          "tasten": {
+            "ABILITY_2": 103,
+            "ULT": 35,
+            "ABILITY_1": 43,
+            "ABILITY_3": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 940
+        },
+        "Bot01": {
+          "schaden": 1866.6149978637695,
+          "schadenNachQuelle": {
+            "nah:netherite_sword": 955.4380631446838,
+            "turm:tesla_coil_bemannt": 868.4736723899841,
+            "turm:spike_trap": 42.70326232910156
+          },
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 16,
+          "assists": 43,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 54,
+            "ult": 35,
+            "wahl:static": 43,
+            "wahl:chain": 11
+          },
+          "tasten": {
+            "ABILITY_1": 54,
+            "ULT": 35,
+            "ABILITY_3": 43,
+            "ABILITY_2": 11
+          },
+          "turmSekunden": 883,
+          "fussSekunden": 77
+        },
+        "Bot03": {
+          "schaden": 6275.256067991257,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 1447.0773043632507,
+            "nah:bow": 629.0822432041168,
+            "fern:bow": 4199.096520423889
+          },
+          "erhalten": 368.9308651983738,
+          "erhaltenNachGegner": {
+            "minecraft:vindicator": 102.35610580444336,
+            "minecraft:skeleton": 189.1889877319336,
+            "maschine": 56.94572687149048,
+            "boss:minecraft:iron_golem": 15.589044958353043,
+            "minecraft:stray": 4.85099983215332
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 2.6774740517139435,
+          "kills": 66,
+          "assists": 192,
+          "tode": 0,
+          "abgefangen": 368.9308651983738,
+          "treffer": 41,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 2.6774749755859375,
+          "absorbiert": 38.061115980148315,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "ult": 35,
+            "faehigkeit_f": 73
+          },
+          "tasten": {
+            "ULT": 35,
+            "ABILITY_2": 73
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 960
+        },
+        "Bot02": {
+          "schaden": 12792.174070566893,
+          "schadenNachQuelle": {
+            "turm:potion_tower": 9010.316309899092,
+            "nah:netherite_sword": 3579.168459177017,
+            "turm:spike_trap": 202.6893014907837
+          },
+          "erhalten": 734.7124839425087,
+          "erhaltenNachGegner": {
+            "maschine": 425.0714291334152,
+            "umgebung:on_fire": 271.0,
+            "boss:minecraft:iron_golem": 7.031944930553436,
+            "nightsiege:tunneler": 31.60910987854004
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 63.47708673775196,
+          "kills": 154,
+          "assists": 130,
+          "tode": 0,
+          "abgefangen": 515.2361092567444,
+          "treffer": 46,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 63.47708702087402,
+          "absorbiert": 164.13246166706085,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "wahl:escape": 51,
+            "wahl:boil": 71,
+            "wahl:brew": 60,
+            "wahl:acid": 52,
+            "ult": 28
+          },
+          "tasten": {
+            "ABILITY_1": 51,
+            "ABILITY_2": 71,
+            "ABILITY_3": 60,
+            "ABILITY_4": 52,
+            "ULT": 28
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 960
+        }
+      },
+      "msptSchnitt": 22.8,
+      "msptMax": 597.8,
+      "ticksUeber50": 1992,
+      "msptP95": 95.5,
+      "lebendMax": 120,
+      "mobsMax": 219
+    }
+  ],
+  "gegner": {
+    "minecraft:vindicator": {
+      "gespawnt": 92,
+      "getoetet": 69,
+      "ueberlebtSekundenSumme": 3599.200000000001,
+      "ueberlebtSekundenSchnitt": 52.2,
+      "schadenAnSpielern": 1653.4675407409668,
+      "getoetetVon": {
+        "klasse:heavy": 18,
+        "klasse:shieldfighter": 7,
+        "turm:potion_tower": 16,
+        "klasse:alchemist": 2,
+        "umgebung:fall": 1,
+        "klasse:axe": 25
+      }
+    },
+    "nightsiege:standard_bearer": {
+      "gespawnt": 36,
+      "getoetet": 26,
+      "ueberlebtSekundenSumme": 3506.2000000000007,
+      "ueberlebtSekundenSchnitt": 134.9,
+      "schadenAnSpielern": 97.68027782440186,
+      "getoetetVon": {
+        "klasse:shieldfighter": 9,
+        "umgebung:fall": 1,
+        "klasse:alchemist": 5,
+        "turm:potion_tower": 6,
+        "klasse:axe": 4,
+        "klasse:electrician": 1
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 90,
+      "getoetet": 86,
+      "ueberlebtSekundenSumme": 7284.599999999999,
+      "ueberlebtSekundenSchnitt": 84.7,
+      "schadenAnSpielern": 880.9270362854004,
+      "getoetetVon": {
+        "klasse:heavy": 15,
+        "klasse:axe": 17,
+        "turm:potion_tower": 27,
+        "klasse:alchemist": 10,
+        "klasse:electrician": 3,
+        "klasse:shieldfighter": 9,
+        "umgebung:fall": 5
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 68,
+      "getoetet": 61,
+      "ueberlebtSekundenSumme": 6094.4,
+      "ueberlebtSekundenSchnitt": 99.9,
+      "schadenAnSpielern": 278.72198486328125,
+      "getoetetVon": {
+        "turm:potion_tower": 10,
+        "klasse:axe": 21,
+        "klasse:heavy": 11,
+        "klasse:alchemist": 10,
+        "umgebung:fall": 4,
+        "klasse:shieldfighter": 4,
+        "umgebung:lightning_bolt": 1
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 62,
+      "getoetet": 57,
+      "ueberlebtSekundenSumme": 4258.2,
+      "ueberlebtSekundenSchnitt": 74.7,
+      "schadenAnSpielern": 313.0742886066437,
+      "getoetetVon": {
+        "turm:potion_tower": 24,
+        "klasse:shieldfighter": 3,
+        "klasse:alchemist": 6,
+        "turm:tesla_coil_bemannt": 1,
+        "klasse:heavy": 3,
+        "umgebung:fall": 2,
+        "klasse:axe": 18
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 35,
+      "getoetet": 23,
+      "ueberlebtSekundenSumme": 1669.0000000000002,
+      "ueberlebtSekundenSchnitt": 72.6,
+      "schadenAnSpielern": 139.5661702156067,
+      "getoetetVon": {
+        "klasse:heavy": 7,
+        "turm:potion_tower": 5,
+        "klasse:shieldfighter": 3,
+        "umgebung:fall": 2,
+        "klasse:alchemist": 1,
+        "klasse:axe": 5
+      }
+    },
+    "minecraft:parched": {
+      "gespawnt": 17,
+      "getoetet": 16,
+      "ueberlebtSekundenSumme": 772.5,
+      "ueberlebtSekundenSchnitt": 48.3,
+      "schadenAnSpielern": 25.063499927520752,
+      "getoetetVon": {
+        "klasse:alchemist": 2,
+        "klasse:shieldfighter": 6,
+        "klasse:axe": 6,
+        "klasse:electrician": 1,
+        "turm:tesla_coil_bemannt": 1
+      }
+    },
+    "minecraft:spider": {
+      "gespawnt": 32,
+      "getoetet": 29,
+      "ueberlebtSekundenSumme": 2095.15,
+      "ueberlebtSekundenSchnitt": 72.2,
+      "schadenAnSpielern": 68.42012214660645,
+      "getoetetVon": {
+        "klasse:shieldfighter": 7,
+        "turm:potion_tower": 5,
+        "klasse:heavy": 5,
+        "klasse:electrician": 1,
+        "klasse:axe": 10,
+        "umgebung:fall": 1
+      }
+    },
+    "minecraft:husk": {
+      "gespawnt": 17,
+      "getoetet": 15,
+      "ueberlebtSekundenSumme": 708.4499999999999,
+      "ueberlebtSekundenSchnitt": 47.2,
+      "schadenAnSpielern": 61.106000900268555,
+      "getoetetVon": {
+        "klasse:shieldfighter": 7,
+        "klasse:axe": 4,
+        "umgebung:in_wall": 1,
+        "klasse:alchemist": 2,
+        "klasse:heavy": 1
+      }
+    },
+    "minecraft:camel_husk": {
+      "gespawnt": 17,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    },
+    "nightsiege:iron_knight": {
+      "gespawnt": 43,
+      "getoetet": 36,
+      "ueberlebtSekundenSumme": 3409.1999999999994,
+      "ueberlebtSekundenSchnitt": 94.7,
+      "schadenAnSpielern": 633.4400215148926,
+      "getoetetVon": {
+        "turm:potion_tower": 8,
+        "klasse:alchemist": 7,
+        "turm:spike_trap": 1,
+        "klasse:shieldfighter": 4,
+        "klasse:heavy": 3,
+        "umgebung:fall": 2,
+        "klasse:axe": 11
+      }
+    },
+    "nightsiege:grappler": {
+      "gespawnt": 17,
+      "getoetet": 10,
+      "ueberlebtSekundenSumme": 1345.6999999999998,
+      "ueberlebtSekundenSchnitt": 134.6,
+      "schadenAnSpielern": 41.41218185424805,
+      "getoetetVon": {
+        "turm:potion_tower": 1,
+        "klasse:axe": 4,
+        "klasse:electrician": 1,
+        "klasse:alchemist": 1,
+        "umgebung:fall": 1,
+        "turm:tesla_coil_bemannt": 1,
+        "klasse:shieldfighter": 1
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 20,
+      "getoetet": 19,
+      "ueberlebtSekundenSumme": 618.75,
+      "ueberlebtSekundenSchnitt": 32.6,
+      "schadenAnSpielern": 120.81705093383789,
+      "getoetetVon": {
+        "turm:potion_tower": 3,
+        "turm:tesla_coil_bemannt": 4,
+        "klasse:shieldfighter": 5,
+        "klasse:medic": 2,
+        "klasse:heavy": 3,
+        "klasse:electrician": 1,
+        "umgebung:wither": 1
+      }
+    },
+    "minecraft:cave_spider": {
+      "gespawnt": 6,
+      "getoetet": 4,
+      "ueberlebtSekundenSumme": 113.8,
+      "ueberlebtSekundenSchnitt": 28.5,
+      "schadenAnSpielern": 59.311556816101074,
+      "getoetetVon": {
+        "klasse:shieldfighter": 3,
+        "turm:potion_tower": 1
+      }
+    },
+    "maschine": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 998.8868979215622,
+      "getoetetVon": {}
+    },
+    "boss:minecraft:iron_golem": {
+      "gespawnt": 0,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 147.74173238873482,
+      "getoetetVon": {}
+    },
+    "minecraft:stray": {
+      "gespawnt": 13,
+      "getoetet": 5,
+      "ueberlebtSekundenSumme": 270.90000000000003,
+      "ueberlebtSekundenSchnitt": 54.2,
+      "schadenAnSpielern": 13.097700119018555,
+      "getoetetVon": {
+        "klasse:axe": 2,
+        "klasse:alchemist": 1,
+        "klasse:shieldfighter": 1,
+        "turm:tesla_coil_bemannt": 1
+      }
+    }
+  },
+  "tuerme": {
+    "tesla_coil|Bot01": {
+      "art": "tesla_coil",
+      "besitzer": "Bot01",
+      "schaden": 868.4736723899841,
+      "schadenBemannt": 868.4736723899841,
+      "kills": 8,
+      "killsBemannt": 8,
+      "sekundenBemannt": 883
+    },
+    "potion_tower|Bot02": {
+      "art": "potion_tower",
+      "besitzer": "Bot02",
+      "schaden": 9010.316309899092,
+      "schadenBemannt": 0.0,
+      "kills": 106,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    },
+    "spike_trap|Bot02": {
+      "art": "spike_trap",
+      "besitzer": "Bot02",
+      "schaden": 202.6893014907837,
+      "schadenBemannt": 0.0,
+      "kills": 1,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    },
+    "spike_trap|Bot01": {
+      "art": "spike_trap",
+      "besitzer": "Bot01",
+      "schaden": 42.70326232910156,
+      "schadenBemannt": 0.0,
+      "kills": 0,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "msptP95": 95.5,
+  "lebendMax": 120,
+  "bewertung": {},
+  "staerksteKlasse": {},
+  "kuriositaeten": {
+    "Bot03": {
+      "geschosse": 779.0,
+      "ohneTreffer": 308.0,
+      "weitesterTreffer": 30.3,
+      "blutrausch": 8.0,
+      "mehrfach": 3.0,
+      "creeper": 7.0,
+      "kletterer": 1.0
+    },
+    "Bot06": {
+      "weitesterTreffer": 17.4,
+      "blutrausch": 8.0,
+      "mehrfach": 1.0,
+      "ohneTreffer": 305.0,
+      "creeper": 3.0,
+      "kletterer": 1.0
+    },
+    "Bot02": {
+      "blutrausch": 13.0,
+      "mehrfach": 5.0,
+      "weitesterTreffer": 20.9,
+      "kletterer": 15.0,
+      "creeper": 6.0,
+      "ohneTreffer": 305.0
+    },
+    "Bot01": {
+      "weitesterTreffer": 27.5,
+      "blutrausch": 3.0,
+      "mehrfach": 2.0
+    },
+    "Bot04": {
+      "weitesterTreffer": 6.3,
+      "blutrausch": 14.0,
+      "mehrfach": 3.0,
+      "ohneTreffer": 373.0,
+      "creeper": 5.0,
+      "kletterer": 1.0,
+      "halbesHerz": 1.0
+    },
+    "Bot05": {
+      "weitesterTreffer": 13.6,
+      "ohneTreffer": 269.0,
+      "halbesHerz": 1.0,
+      "blutrausch": 1.0,
+      "mehrfach": 1.0
+    }
+  },
+  "todDurch": {
+    "Bot06": {
+      "nightsiege:iron_knight": 1
+    },
+    "Bot05": {
+      "minecraft:vindicator": 1
+    },
+    "Bot04": {
+      "nightsiege:iron_knight": 1
+    }
+  },
+  "bosseBesiegt": 0,
+  "opfer": {
+    "Bot06": {
+      "minecraft:husk": 7,
+      "minecraft:parched": 6,
+      "minecraft:spider": 7,
+      "minecraft:vindicator": 7,
+      "minecraft:skeleton": 3,
+      "nightsiege:revenant": 9,
+      "nightsiege:iron_knight": 4,
+      "nightsiege:standard_bearer": 9,
+      "minecraft:creeper": 3,
+      "minecraft:zombie": 4,
+      "minecraft:cave_spider": 3,
+      "nightsiege:tunneler": 5,
+      "minecraft:stray": 1,
+      "nightsiege:grappler": 1
+    },
+    "Bot02": {
+      "minecraft:parched": 2,
+      "minecraft:vindicator": 18,
+      "minecraft:zombie": 20,
+      "nightsiege:revenant": 37,
+      "minecraft:skeleton": 30,
+      "nightsiege:iron_knight": 16,
+      "minecraft:spider": 5,
+      "minecraft:creeper": 6,
+      "nightsiege:tunneler": 3,
+      "nightsiege:grappler": 2,
+      "nightsiege:standard_bearer": 11,
+      "minecraft:cave_spider": 1,
+      "minecraft:husk": 2,
+      "minecraft:stray": 1
+    },
+    "Bot04": {
+      "minecraft:husk": 4,
+      "minecraft:zombie": 21,
+      "nightsiege:revenant": 17,
+      "minecraft:parched": 6,
+      "nightsiege:iron_knight": 11,
+      "minecraft:skeleton": 18,
+      "minecraft:spider": 10,
+      "nightsiege:grappler": 4,
+      "minecraft:vindicator": 25,
+      "minecraft:creeper": 5,
+      "nightsiege:standard_bearer": 4,
+      "minecraft:stray": 2
+    },
+    "Bot03": {
+      "minecraft:vindicator": 18,
+      "nightsiege:revenant": 15,
+      "minecraft:creeper": 7,
+      "minecraft:zombie": 11,
+      "minecraft:skeleton": 3,
+      "nightsiege:iron_knight": 3,
+      "minecraft:spider": 5,
+      "nightsiege:tunneler": 3,
+      "minecraft:husk": 1
+    },
+    "Bot01": {
+      "nightsiege:revenant": 3,
+      "minecraft:skeleton": 1,
+      "nightsiege:tunneler": 5,
+      "minecraft:spider": 1,
+      "nightsiege:grappler": 2,
+      "minecraft:parched": 2,
+      "nightsiege:standard_bearer": 1,
+      "minecraft:stray": 1
+    },
+    "Bot05": {
+      "nightsiege:tunneler": 2
+    }
+  },
+  "schlaueNacht": {
+    "an": false,
+    "hoechste": 0,
+    "tiefste": 0,
+    "ende": 0,
+    "eliten": 0,
+    "extraSondermonster": 0,
+    "pausen": 0,
+    "schritte": [],
+    "steuert": false,
+    "fruehEntschieden": false,
+    "zeitAnteil": 1.0,
+    "spitzenDruck": 0.71,
+    "schleifeGezaehlt": false,
+    "schleifeAn": false,
+    "schleifeVorher": 0.0,
+    "schleifeNachher": 0.0
+  },
+  "bossVerlauf": []
+}
