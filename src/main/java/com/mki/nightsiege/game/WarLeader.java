@@ -6,6 +6,7 @@ import com.mki.nightsiege.core.PlayerSkills;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMachineKind;
+import com.mki.nightsiege.core.WarBotPlan;
 import com.mki.nightsiege.core.WarLeaderData;
 import com.mki.nightsiege.core.WarOrders;
 import com.mki.nightsiege.core.WarShop;
@@ -117,6 +118,8 @@ public final class WarLeader {
         double sz;
         /** When the boss's ability was called last (-1: never). */
         long specialUsed = -1L;
+        /** The bot leader sent it into an assault (Tor 10). */
+        boolean botSent;
 
         Squad(int id, String item, int point, boolean ownWill, List<String> mobs, long boughtAt) {
             this.id = id;
@@ -2693,6 +2696,10 @@ public final class WarLeader {
             return false;
         }
         bot = true;
+        botWave = -1;
+        botLadders = -1;
+        botAssaultAt = 0;
+        botSpendAt = 0;
         world = level;
         core = at;
         leader = null;
@@ -2743,41 +2750,214 @@ public final class WarLeader {
      * their wave, the boss once, a card now and then), on two sides of the base; its squads storm
      * after 20 seconds, the first one aims at a gate.
      */
+    /**
+     * The bot leader (Tor 10, plan-kriegsfuehrer-3 Prüfen 4) plays with the orders as a good human does, with only
+     * what the window shows (the defenders' places and life, the base's edge and gates): the squads gather until
+     * the assault is big enough, then go by a way point before the wall to its weakest spot (fewest defenders),
+     * ladders and sappers right there; a defender alone and weak is focused; hurt squads pull back; machines
+     * shoot at groups and those up high; the boss (after wave 3) goes for the focus and calls its ability close to them.
+     */
     private void tickBot(MinecraftServer server, long now) {
         if (now < botNext) {
             return;
         }
-        botNext = now + 100;
-        SiegeConfig cfg = m.config();
+        botNext = now + 40;
+        List<WarBotPlan.Defender> defs = botDefenders(server);
         if (botWave != wave) {
             botWave = wave;
-            spendBot(server, now);
-        } else if (wave >= 1 && gold >= 4) {
-            spendBot(server, now);
+            botAssaultAt = now + 20L * 20;
+            spendBot(server, now, defs);
+        } else if (wave >= 1 && gold >= 4 && now >= botSpendAt) {
+            spendBot(server, now, defs);
         }
+        if (wave < 1 || core == null) {
+            return;
+        }
+        int focus = WarBotPlan.focus(defs);
+        WarBotPlan.Defender foe = focus < 0 ? null : defs.get(focus);
+        int ready = 0;
+        List<Squad> waiting = new ArrayList<>();
         for (Squad s : new ArrayList<>(squads)) {
-            if (s.spawned && "gather".equals(s.order) && now - s.gatherSince > 400) {
-                if (base != null && !base.gates.isEmpty() && s.id % 3 == 0) {
-                    BaseScan.Gate g = base.gates.get(random.nextInt(base.gates.size()));
-                    order(server, s.id, "target", g.pos().getX() + 0.5, g.pos().getZ() + 0.5, now);
-                } else {
-                    order(server, s.id, "storm", Double.NaN, Double.NaN, now);
-                }
+            if (!s.spawned || s.members.isEmpty()) {
+                continue;
             }
+            if (s.isMachine()) {
+                int t = WarBotPlan.machineTarget(defs, core.getY());
+                if (t >= 0) {
+                    WarBotPlan.Defender d = defs.get(t);
+                    if (!"target".equals(s.order) || Math.hypot(s.tx - d.x(), s.tz - d.z()) > 4.0) {
+                        command(server, List.of(s), "attack", d.x(), d.z(), false, "", now);
+                    }
+                }
+                continue;
+            }
+            Vec3 c = centre(s);
+            if (s.isBoss()) {
+                if (foe != null && c != null && Math.hypot(c.x - foe.x(), c.z - foe.z()) <= 8.0) {
+                    specialNow(server, List.of(s), now);   // its ability where the defenders are
+                }
+                WarOrders.Order o = s.queue.current();
+                String want = foe == null ? null : defenderUuid(server, foe.name());
+                if (want != null && (o == null || o.kind() != WarOrders.Kind.ATTACK || !want.equals(o.target()))) {
+                    command(server, List.of(s), "attack", Double.NaN, Double.NaN, false, foe.name(), now);
+                } else if (want == null && o == null) {
+                    command(server, List.of(s), "storm", Double.NaN, Double.NaN, false, "", now);
+                }
+                continue;
+            }
+            float[] life = life(s);
+            if (s.botSent && WarBotPlan.retreat(life[0], life[1]) && !"retreat".equals(s.order)) {
+                command(server, List.of(s), "retreat", Double.NaN, Double.NaN, false, "", now);
+                s.botSent = false;   // spared for the next assault
+                continue;
+            }
+            if (!s.botSent) {
+                if ("gather".equals(s.order) || "idle".equals(s.order)) {
+                    waiting.add(s);
+                    ready += s.members.size();
+                }
+                continue;
+            }
+            if (WarOrders.specialOf(s.item) != WarOrders.Special.NONE && !"idle".equals(s.order)) {
+                continue;   // at its job (done: it joins the fight)
+            }
+            // Sent: the focus when it is close and reachable, else on with the storm.
+            WarOrders.Order o = s.queue.current();
+            if (foe != null && c != null && Math.hypot(c.x - foe.x(), c.z - foe.z()) <= 20.0
+                    && (base == null || !base.closed || !base.contains((int) Math.floor(foe.x()), (int) Math.floor(foe.z()))
+                    || base.contains((int) Math.floor(c.x), (int) Math.floor(c.z)))) {
+                String want = defenderUuid(server, foe.name());
+                if (want != null && (o == null || o.kind() != WarOrders.Kind.ATTACK || !want.equals(o.target()))) {
+                    command(server, List.of(s), "attack", Double.NaN, Double.NaN, false, foe.name(), now);
+                }
+            } else if (o == null) {
+                command(server, List.of(s), "storm", Double.NaN, Double.NaN, false, "", now);
+            }
+        }
+        if (!waiting.isEmpty() && (ready >= WarBotPlan.assaultSize(defs.size()) || now >= botAssaultAt)) {
+            assault(server, waiting, defs, now);
+            botAssaultAt = now + 30L * 20;
         }
     }
 
-    private void spendBot(MinecraftServer server, long now) {
+    /** The assault: by a way point before the wall to its weakest spot; ladders, sappers and the others at their jobs. */
+    private void assault(MinecraftServer server, List<Squad> waiting, List<WarBotPlan.Defender> defs, long now) {
+        List<double[]> spots = wallSpots();
+        int i = WarBotPlan.quietest(spots, defs);
+        if (i < 0) {
+            for (Squad s : waiting) {
+                command(server, List.of(s), "storm", Double.NaN, Double.NaN, false, "", now);
+                s.botSent = true;
+            }
+            return;
+        }
+        double[] spot = spots.get(i);
+        double cx = core.getX() + 0.5;
+        double cz = core.getZ() + 0.5;
+        double a = Math.atan2(spot[1] - cz, spot[0] - cx);
+        double edge = base == null ? Math.hypot(spot[0] - cx, spot[1] - cz) : base.edgeTowards(spot[0], spot[1]);
+        double wx = cx + Math.cos(a) * (edge + 1.5);
+        double wz = cz + Math.sin(a) * (edge + 1.5);
+        double sx = cx + Math.cos(a) * (edge + 10.0);
+        double sz = cz + Math.sin(a) * (edge + 10.0);
+        for (Squad s : waiting) {
+            switch (WarOrders.specialOf(s.item)) {
+                // Chef 13.11. 03:20: ladders and sappers together at ONE spot.
+                case LADDER, BLAST -> command(server, List.of(s), "special", wx, wz, false, "", now);
+                case TUNNEL, GRAPPLE, STANDARD -> command(server, List.of(s), "special", sx, sz, false, "", now);
+                default -> {
+                    command(server, List.of(s), "move", sx, sz, false, "", now);
+                    command(server, List.of(s), "attack", spot[0], spot[1], true, "", now);
+                }
+            }
+            s.botSent = true;
+        }
+        log("bot", String.format(Locale.ROOT, "sturm@%.0f,%.0f%s", spot[0], spot[1], spot[2] > 0 ? "_tor" : ""), -1, waiting.size());
+    }
+
+    /** The wall's spots to choose from: the gates (in front of them) and eight places round the wall. */
+    private List<double[]> wallSpots() {
+        List<double[]> out = new ArrayList<>();
+        double cx = core.getX() + 0.5;
+        double cz = core.getZ() + 0.5;
+        if (base != null) {
+            for (BaseScan.Gate g : base.gates) {
+                BlockPos f = g.front() != null ? g.front() : g.pos();
+                out.add(new double[]{f.getX() + 0.5, f.getZ() + 0.5, 1});
+            }
+        }
+        for (int k = 0; k < 8; k++) {
+            double a = k * Math.PI / 4;
+            double e = base == null ? 10.0 : base.edgeTowards(cx + Math.cos(a), cz + Math.sin(a));
+            double x = cx + Math.cos(a) * (e + 1.0);
+            double z = cz + Math.sin(a) * (e + 1.0);
+            if (inView(x, z)) {
+                out.add(new double[]{x, z, 0});
+            }
+        }
+        return out;
+    }
+
+    /** The defenders standing, as the window shows them. */
+    private List<WarBotPlan.Defender> botDefenders(MinecraftServer server) {
+        List<WarBotPlan.Defender> out = new ArrayList<>();
+        if (world == null) {
+            return out;
+        }
+        for (ServerPlayer p : rosterOnline(server, world)) {
+            if (!m.isFallen(p.getUUID()) && !p.isSpectator() && p.isAlive()) {
+                out.add(new WarBotPlan.Defender(p.getScoreboardName(), p.getX(), p.getY(), p.getZ(), p.getHealth(), p.getMaxHealth()));
+            }
+        }
+        return out;
+    }
+
+    private String defenderUuid(MinecraftServer server, String name) {
+        ServerPlayer p = defenderNamed(server, name);
+        return p == null ? null : p.getUUID().toString();
+    }
+
+    /** A squad's life together (as its bar in the list): {health, max}. */
+    private float[] life(Squad s) {
+        float h = 0;
+        float max = 0;
+        for (Mob mob : mobsOf(s)) {
+            h += mob.getHealth();
+            max += mob.getMaxHealth();
+        }
+        // The fallen count too: the bar starts at the squad's full size.
+        if (s.total > 0 && !s.members.isEmpty() && s.members.size() < s.total) {
+            max = max / s.members.size() * s.total;
+        }
+        return new float[]{h, max};
+    }
+
+    /** The bot's shopping, at the point nearest to the wall's weakest spot; fitting to the group's size. */
+    private void spendBot(MinecraftServer server, long now, List<WarBotPlan.Defender> defs) {
         SiegeConfig cfg = m.config();
+        botSpendAt = now + 200;
         if (points.isEmpty()) {
             return;
         }
+        List<double[]> spots = core == null ? List.of() : wallSpots();
+        int target = WarBotPlan.quietest(spots, defs);
         int main = random.nextInt(points.size());
+        if (target >= 0) {
+            double best = Double.MAX_VALUE;
+            for (int i = 0; i < points.size(); i++) {
+                double d = Math.hypot(points.get(i).getX() + 0.5 - spots.get(target)[0], points.get(i).getZ() + 0.5 - spots.get(target)[1]);
+                if (d < best) {
+                    best = d;
+                    main = i;
+                }
+            }
+        }
         int flank = (main + points.size() / 2) % points.size();
-        if (wave >= cfg.warBossFromWave && !bossBought && gold >= WarShop.BOSS_PRICE && !bossOffers.isEmpty()) {
+        // Chef 13.11. 03:20: the boss only after wave 3 (the last wave at the latest), then steered.
+        if (wave >= Math.max(cfg.warBossFromWave, Math.min(4, waves)) && !bossBought && gold >= WarShop.BOSS_PRICE && !bossOffers.isEmpty()) {
             buy(server, "boss." + bossOffers.get(random.nextInt(bossOffers.size())).id(), main, now);
         }
-        if (wave >= cfg.warMachineFromWave && gold >= WarShop.MACHINE_PRICE + 8 && random.nextDouble() < 0.5) {
+        if (wave >= cfg.warMachineFromWave && gold >= WarShop.MACHINE_PRICE + 8) {
             SiegeMachineKind[] kinds = SiegeMachineKind.values();
             buy(server, "machine." + kinds[random.nextInt(kinds.length)].id(), main, now);
         }
@@ -2788,28 +2968,35 @@ public final class WarLeader {
                 buy(server, "card." + c.id(), main, now);
             }
         }
-        // Every wave a way over the wall first, as a normal night brings it: ladder carriers and sappers.
-        buy(server, "leitertraeger", main, now);
-        if (level >= Math.max(1, cfg.sapperFromLevel)) {
-            buy(server, WarShop.SAPPER, main, now);
-            buy(server, WarShop.SAPPER, flank, now);
+        if (botWave == wave && botLadders != wave) {
+            // Every wave its ways over the wall first: ladder carriers by the group's size, two sappers.
+            botLadders = wave;
+            for (int i = 0; i < WarBotPlan.ladders(defs.size()); i++) {
+                buy(server, "leitertraeger", main, now);
+            }
+            if (level >= Math.max(1, cfg.sapperFromLevel)) {
+                buy(server, WarShop.SAPPER, main, now);
+                buy(server, WarShop.SAPPER, main, now);
+            }
         }
-        String[] weights = {"zombies", "zombies", "zombies", "skelette", "skelette", "spinnen", "spinnen", "creeper", "creeper",
-                "wiedergaenger", "wiedergaenger", "axtillager", "enterhaken", "tunnelgraeber", "standarte", "eisenritter", "kameltrupp",
-                "leitertraeger", WarShop.SAPPER};
+        List<String> weights = WarBotPlan.shopping(defs.size());
         int tries = 0;
         while (gold >= 3 && tries++ < 60) {
-            String id = weights[random.nextInt(weights.length)];
+            String id = weights.get(random.nextInt(weights.size()));
             WarShop.Squad sq = WarShop.squad(id);
             if (sq == null || fromLevel(sq) > level || sq.price() > gold) {
                 continue;
             }
-            String why = buy(server, id, random.nextDouble() < 0.65 ? main : flank, now);
+            String why = buy(server, id, random.nextDouble() < 0.75 ? main : flank, now);
             if ("nightsiege.war.full".equals(why)) {
                 break;
             }
         }
     }
+
+    private long botAssaultAt;
+    private long botSpendAt;
+    private int botLadders = -1;
 
     // ------------------------------------------------------------------ helpers
 

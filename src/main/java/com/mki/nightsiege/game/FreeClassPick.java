@@ -189,6 +189,23 @@ public final class FreeClassPick {
         return rolls;
     }
 
+    /**
+     * Tor 10: the team simulation's defender bots get the free pick's crates (funCrates) straight on their
+     * profile, as a player's "Alle öffnen". Returns the crates opened.
+     */
+    public int openForSim(PlayerSkills skills) {
+        SkillClass clazz = skills == null ? null : skills.clazz();
+        if (clazz == null) {
+            return 0;
+        }
+        SiegeConfig cfg = m.config();
+        int n = due(cfg, 0);
+        for (int i = 1; i <= n; i++) {
+            m.crates().roll(skills, clazz, kindOf(i, cfg), Math.max(1, cfg.funKitLevel));
+        }
+        return n;
+    }
+
     /** The kind of the n-th crate, as in the playtest: a fragment crate for every boss night, event crates by chance. */
     private CrateKind kindOf(int index, SiegeConfig cfg) {
         if (cfg.bossesEnabled && cfg.bossEvery > 0
