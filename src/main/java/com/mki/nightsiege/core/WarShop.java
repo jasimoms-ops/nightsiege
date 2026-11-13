@@ -120,6 +120,18 @@ public final class WarShop {
      * night, over the round's waves, times the share.
      * {@code perPlayer} and {@code maxLive} as the night uses them (the playtest scales otherwise).
      */
+    /**
+     * Tor 10 botkauf: the war leader's round's live cap, the night's cap ({@code SiegeManager.maxLive}) times
+     * warLiveCapFactor, at most maxLiveMobsCap (never below the night's cap); 1.0 = exactly the night's cap.
+     */
+    public static int liveCap(int nightCap, SiegeConfig cfg) {
+        double f = cfg.warLiveCapFactor;
+        if (f == 1.0) {
+            return nightCap;
+        }
+        return (int) Math.max(1, Math.min(Math.max(nightCap, cfg.maxLiveMobsCap), Math.round(nightCap * f)));
+    }
+
     public static int roundGold(int level, int players, SiegeConfig cfg, double perPlayer, int maxLive) {
         int perWave = SiegeMath.mobsPerBatch(level, Math.max(1, players), cfg, perPlayer, maxLive);
         double mobs = (double) nightWaves(level, cfg) * perWave;

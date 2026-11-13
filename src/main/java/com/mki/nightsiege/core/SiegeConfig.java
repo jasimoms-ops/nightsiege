@@ -578,6 +578,11 @@ public class SiegeConfig {
     public int warMaxMachines = 2;
     public int warMachineFromWave = 2;
     public int warBossFromWave = 3;
+    /**
+     * Tor 10 botkauf (Chef 13.11.): the war leader's round may hold this many times the night's live cap at once
+     * (1.0 = as a night, as before), at most maxLiveMobsCap (the lag limit). Only the war leader's round reads it.
+     */
+    public double warLiveCapFactor = 1.0;
     /** Who stands this close to the core is in the ready round; after this the leader may go without those not ready. */
     public int warLobbyRadius = 48;
     public int warForceSeconds = 30;
@@ -1796,6 +1801,7 @@ public class SiegeConfig {
         warMaxMachines = clamp(warMaxMachines, 0, 6);
         warMachineFromWave = clamp(warMachineFromWave, 1, 20);
         warBossFromWave = clamp(warBossFromWave, 1, 20);
+        warLiveCapFactor = Double.isNaN(warLiveCapFactor) ? 1.0 : clampDouble(warLiveCapFactor, 0.25, 4.0);
         warLobbyRadius = clamp(warLobbyRadius, 8, 200);
         warForceSeconds = clamp(warForceSeconds, 0, 300);
         warLevel = clamp(warLevel, 1, 200);
@@ -2277,7 +2283,8 @@ public class SiegeConfig {
         }
         if (settingsVersion < 30) {
             // Tor 11 (Simon 13.11.): chapters instead of level 21+. chapterScaling and chapterFinaleInfernite are new
-            // fields with their defaults (chapters 1 and 2 as before); no value moves.
+            // fields with their defaults (chapters 1 and 2 as before); no value moves. Tor 10 botkauf: warLiveCapFactor
+            // is a new field with its default 1.0 (the round's live cap as before).
             if (chapterScaling == null || chapterScaling.isEmpty()) {
                 chapterScaling = new ArrayList<>(List.of(0.0, 0.0, 0.10, 0.20, 0.30));
             }

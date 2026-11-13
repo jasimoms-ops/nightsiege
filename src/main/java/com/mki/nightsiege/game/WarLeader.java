@@ -1094,7 +1094,7 @@ public final class WarLeader {
         }
         int made = 0;
         for (String id : s.mobs) {
-            if (m.liveCount() >= m.maxLive()) {
+            if (m.liveCount() >= liveCap()) {
                 break;
             }
             String use = MobFactory.isUnavailable(id) ? fallback(id) : id;
@@ -2056,7 +2056,7 @@ public final class WarLeader {
             if (fromLevel(sq) > level && !sandbox) {
                 return "nightsiege.war.level";
             }
-            if (m.liveCount() + pendingMonsters() + sq.size() > m.maxLive()) {
+            if (m.liveCount() + pendingMonsters() + sq.size() > liveCap()) {
                 return "nightsiege.war.full";
             }
             mobs = sq.mobs();
@@ -2112,6 +2112,11 @@ public final class WarLeader {
         }
         WarShop.Squad sq = WarShop.squad(item);
         return sq == null ? 0 : sq.price();
+    }
+
+    /** The round's live cap: the night's (SiegeManager.maxLive) times warLiveCapFactor (Tor 10 botkauf). */
+    private int liveCap() {
+        return WarShop.liveCap(m.maxLive(), m.config());
     }
 
     private int pendingMonsters() {
@@ -2645,7 +2650,7 @@ public final class WarLeader {
             it.count = sq.size();
             it.from = fromLevel(sq);
             it.ownWill = sq.ownWill();
-            it.state = fromLevel(sq) > level && !sandbox ? "level" : live + sq.size() > m.maxLive() ? "full"
+            it.state = fromLevel(sq) > level && !sandbox ? "level" : live + sq.size() > liveCap() ? "full"
                     : gold < sq.price() && !sandbox ? "poor" : "ok";
             d.shop.add(it);
         }
@@ -3034,7 +3039,7 @@ public final class WarLeader {
             }
         }
         for (int tries = 0; tries < 60; tries++) {
-            int room = m.maxLive() - m.liveCount() - pendingMonsters();
+            int room = liveCap() - m.liveCount() - pendingMonsters();
             WarBotPlan.Offer o = WarBotPlan.pick(wanted, gold, room, random);
             if (o == null) {
                 botWhy["voll".equals(WarBotPlan.stop(wanted, gold, room)) ? 0 : 1]++;
@@ -3066,7 +3071,7 @@ public final class WarLeader {
             return;
         }
         NightSiegeMod.LOGGER.info("[Night Siege sim] BOTSPEND;{};{};{};{};{};voll={},arm={},satt={}", w, gold, botWaveSpent,
-                botLiveN == 0 ? 0 : botLiveSum / botLiveN, m.maxLive(), botWhy[0], botWhy[1], botWhy[2]);
+                botLiveN == 0 ? 0 : botLiveSum / botLiveN, liveCap(), botWhy[0], botWhy[1], botWhy[2]);
         Arrays.fill(botWhy, 0);
         botLiveSum = 0;
         botLiveN = 0;
