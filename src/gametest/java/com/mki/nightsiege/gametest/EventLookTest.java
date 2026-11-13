@@ -292,6 +292,14 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     TankScenes.run(context, game);   // Tor 4.2: the tanks' self heal on Y, the mace hits one, +25 % on elites
                 }
+                if (want.contains("maschinen4")) {
+                    com.mki.nightsiege.game.TrapService.mortarsAnyTime = true;   // these scenes test by day
+                    alive(context);
+                    mortarScene(context, game);
+                    mannedScene(context, game);
+                    spotterScene(context, game);
+                    droneScene(context, game);
+                }
                 if (want.contains("techniker")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     TechnikerScenes.run(context, game);   // Tor 4b: every engineer key on foot and in the seat
