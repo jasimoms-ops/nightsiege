@@ -317,6 +317,25 @@ public class CoreStats {
     public int chapterNight = 1;
     public boolean firstFinaleWon;
     public int chapterStars;
+    /** Teil 2, "Belagerung starten": why it is grey (empty: open), for the current character and for the veterans. */
+    public String roundBlock = "";
+    public String roundVeteranBlock = "";
+    /** The level the current character would play, curses and fragment laid in (+10 % each for veterans). */
+    public int roundLevel = 1;
+    public int roundExtras;
+    /** Erfahrungsvorrat: points waiting, usable up to this world level. */
+    public int xpPool;
+    public int poolLevel = 1;
+    /** This player's veterans, oldest first (the index is what "round:start:<i>" sends). */
+    public List<VeteranChoice> veterans = new ArrayList<>();
+
+    public static class VeteranChoice {
+        public String clazz = "";
+        public String sub = "";
+        public int chapter;
+        public int level;
+        public boolean finale;
+    }
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();
     /** Per class: the gain abilities on the gain keys, key by key (balance update 2). */

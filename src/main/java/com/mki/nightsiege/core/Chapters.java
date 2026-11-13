@@ -43,6 +43,11 @@ public final class Chapters {
         public String firstFinaleDate = "";
         /** Player uuid → their veterans, oldest first. */
         public Map<String, List<Veteran>> veterans = new LinkedHashMap<>();
+        /**
+         * Teil 2: a "Belagerung starten" round that is running (saved, so a crash finds it and puts everyone back;
+         * null when none runs).
+         */
+        public Round round;
 
         public List<Veteran> veteransOf(String uuid) {
             if (veterans == null) {
@@ -64,6 +69,82 @@ public final class Chapters {
         public boolean finale;
         /** The character itself (tree, gains, profiles); a copy is lent out to play it ({@link #thaw}). */
         public PlayerSkills skills;
+        /** The save's skill tree version when it was frozen (the load migrations start there when it comes back). */
+        public int treeVersion;
+    }
+
+    /** A running "Belagerung starten" round (Teil 2): who plays which character, curses and fragment laid in. */
+    public static class Round {
+        /** Player uuid → the veteran played (index into their list), -1 for the current character. */
+        public Map<String, Integer> picks = new LinkedHashMap<>();
+        /** Curse stones and the night fragment laid in for it (each +10 % for veterans). */
+        public int extras;
+        public int level = 1;
+        public String started = "";
+    }
+
+    /** Index for "the current character" in {@link Round#picks}. */
+    public static final int CURRENT = -1;
+
+    /**
+     * Share of a round's experience that goes into the pool (Simon 13.11.): a veteran 50 %, +10 % for every curse or
+     * fragment (added), the current character 100 %.
+     */
+    public static double xpShare(boolean veteran, int extras) {
+        return veteran ? 0.5 + 0.1 * Math.max(0, extras) : 1.0;
+    }
+
+    /** Adds a round's points (times the share) to the character's pool; returns the whole points added. */
+    public static int addToPool(PlayerSkills own, double points, double share) {
+        if (own == null || points <= 0 || share <= 0) {
+            return 0;
+        }
+        double gained = points * share + Math.max(0.0, own.xpPoolFraction);
+        int whole = (int) Math.floor(gained + 1e-9);
+        own.xpPoolFraction = Math.max(0.0, gained - whole);
+        own.xpPool = Math.max(0, own.xpPool) + whole;
+        return whole;
+    }
+
+    /**
+     * The pool flows into the character up to {@code cap} earned points (the points of the chapter's world level);
+     * the rest waits. Returns the points that flowed.
+     */
+    public static int flowPool(PlayerSkills own, int cap) {
+        if (own == null || own.xpPool <= 0) {
+            return 0;
+        }
+        int room = Math.max(0, cap - Math.max(0, own.earned));
+        int move = Math.min(room, own.xpPool);
+        if (move > 0) {
+            own.award(move);
+            own.xpPool -= move;
+        }
+        return move;
+    }
+
+    /**
+     * Why the buttons that wait for the first finale (war leader, bastion, the veterans' loop) are grey, or null
+     * when open: open from the first won finale, always for the playtest and operators.
+     */
+    public static String finaleLock(Progress p, boolean playtest, boolean operator) {
+        if (playtest || operator || (p != null && p.firstFinaleWon)) {
+            return null;
+        }
+        return "nightsiege.chapter.lock_finale";
+    }
+
+    /**
+     * After a crash in the middle of a round: the round is gone (no experience, nothing of the world touched), the
+     * lent veterans were never saved. Returns the players who were in it (to tell them), and clears it.
+     */
+    public static List<String> recover(Progress p) {
+        if (p == null || p.round == null) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>(p.round.picks.keySet());
+        p.round = null;
+        return out;
     }
 
     /** The chapter of a night counted from the first (a world without a won finale in between): 1–20 → 1, 21–40 → 2. */

@@ -1199,6 +1199,10 @@ public final class SiegeManager {
         if (save.cores == null) {
             save.cores = new ArrayList<>();
         }
+        List<String> roundLost = com.mki.nightsiege.core.Chapters.recover(save.chapters());   // Tor 11: a crash in "Belagerung starten"
+        if (!roundLost.isEmpty()) {
+            NightSiegeMod.LOGGER.warn("[Night Siege] Belagerung starten lief beim Absturz ({} Spieler): ohne Wirkung beendet", roundLost.size());
+        }
         int respec = save.migrateSkills();
         if (respec > 0) {
             NightSiegeMod.LOGGER.info("[Night Siege] Neue Klassen-Bäume: {} Spieler bekommen ihre Punkte zurück", respec);
@@ -2446,6 +2450,7 @@ public final class SiegeManager {
         }
         if (prep != null && prep.world != null) {
             endKits(prep.world.getServer());
+            endSiegeRound(prep.world.getServer(), false, false);   // Tor 11
         }
         return true;
     }
@@ -2479,9 +2484,12 @@ public final class SiegeManager {
             prepBar = null;
         }
         testBoss = prep.boss;
+        siegeRound = siegeRoundPending;   // Tor 11: the build-up of "Belagerung starten" becomes its night
+        siegeRoundPending = false;
         if (!startTest(server, prep.world, prep.anchor, prep.level, prep.event)) {
             trapsHanded.clear();
             broadcast(server, Component.translatable("nightsiege.cmd.no_target").withStyle(ChatFormatting.GRAY));
+            endSiegeRound(server, false, false);
         } else if (lastSetupSeconds >= 0) {
             stats.setupSeconds(lastSetupSeconds);   // Tor 9.1 (i): the build-up in the night's statistics
         }
@@ -4253,6 +4261,15 @@ public final class SiegeManager {
 
     /** A wave is over: everyone still standing near the core has survived it. */
     private void waveSurvived(MinecraftServer server) {
+        if (siegeRound && world != null) {
+            // Tor 11: "Belagerung starten" gives no points now, its waves go into the pool at the end.
+            for (UUID id : participants) {
+                if (!fallen.contains(id)) {
+                    roundWaves.merge(id, 1, Integer::sum);
+                }
+            }
+            return;
+        }
         if (testRun || !config.skillsEnabled || world == null || anchor == null) {
             return;
         }
@@ -5164,6 +5181,9 @@ public final class SiegeManager {
         }
         if (testRun) {
             logNight(won ? "test_gehalten" : "test_verloren", 0, required);
+            if (siegeRound) {
+                endSiegeRound(server, true, won);   // Tor 11: the pool, the veterans back
+            }
             testRun = false;
             broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
                     .withStyle(ChatFormatting.GRAY));
@@ -5266,6 +5286,7 @@ public final class SiegeManager {
             safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
         }
         logNight(result, blasted, required);
+        safe("Vorrat", this::flowPools);   // Tor 11: a higher world level lets the pools flow on
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
             save.curses.clear();   // the stones lay for this night: the altar is empty again
@@ -5318,6 +5339,7 @@ public final class SiegeManager {
             List<com.mki.nightsiege.core.Chapters.Veteran> list = progress.veteransOf(uuid);
             com.mki.nightsiege.core.Chapters.Veteran v = list.isEmpty() ? null : list.get(list.size() - 1);
             if (v != null) {
+                v.treeVersion = save.skillTreeVersion;
                 HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
             }
         }
@@ -5352,6 +5374,241 @@ public final class SiegeManager {
             }
         }
         persist();
+    }
+
+    // ------------------------------------------------------------------ Tor 11 Teil 2: "Belagerung starten"
+
+    /** The running test night is a "Belagerung starten" round (its build-up: pending). */
+    private boolean siegeRound;
+    private boolean siegeRoundPending;
+    /** Waves each player held in the round (for the pool). */
+    private final Map<UUID, Integer> roundWaves = new HashMap<>();
+    /** Who takes part: everyone this near the core when it starts (Simon 13.11.: 48 blocks). */
+    public static final double ROUND_RADIUS = 48.0;
+
+    public boolean inSiegeRound() {
+        return siegeRound || siegeRoundPending;
+    }
+
+    /** Why the buttons of the first finale (war leader, bastion, veterans) are grey for this player, or null. */
+    public String finaleLock(ServerPlayer player) {
+        return com.mki.nightsiege.core.Chapters.finaleLock(save.chapters(),
+                config.testToolsForEveryone || playtest.running(), player != null && isAdmin(player) && !finaleLockAsPlayer);
+    }
+
+    /** Scenes: the operator of the test world counts like a player for the finale lock. */
+    public static boolean finaleLockAsPlayer;
+
+    /** Scenes: waves held in the running round (as if the waves had come). */
+    public void roundWavesForTests(UUID id, int waves) {
+        roundWaves.merge(id, Math.max(0, waves), Integer::sum);
+    }
+
+    private boolean tellFinaleLock(ServerPlayer player) {
+        String lock = finaleLock(player);
+        if (lock == null) {
+            return false;
+        }
+        player.sendSystemMessage(Component.translatable(lock).withStyle(ChatFormatting.GRAY));
+        openCoreWindow(player);
+        return true;
+    }
+
+    /** Why "Belagerung starten" cannot start now (a translation key), or null. Veteran: pick 0 and up. */
+    public String roundBlock(MinecraftServer server, ServerPlayer player, int pick) {
+        if (active || pendingTest != null || playtest.running() || warRound || bastionRound) {
+            return "nightsiege.round.block_busy";
+        }
+        if (server != null && (nightComing(server) || voteOpen(server))) {
+            return "nightsiege.round.block_night";
+        }
+        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+            String lock = finaleLock(player);
+            if (lock != null) {
+                return lock;
+            }
+            if (player == null || pick >= save.chapters().veteransOf(player.getUUID().toString()).size()) {
+                return "nightsiege.round.no_veteran";
+            }
+        } else if (player != null && !save.realSkillsOf(player.getUUID().toString()).hasClass()) {
+            return "nightsiege.round.no_class";
+        }
+        return null;
+    }
+
+    /** The core window's "round:start:<pick>" (pick -1: the current character, 0…: a veteran). */
+    private void onSiegeRoundAction(ServerPlayer player, String argument) {
+        String arg = argument == null ? "" : argument;
+        if (!arg.startsWith("start:")) {
+            return;
+        }
+        int pick;
+        try {
+            pick = Integer.parseInt(arg.substring(6).trim());
+        } catch (NumberFormatException e) {
+            return;
+        }
+        startSiegeRound(player, pick);
+    }
+
+    /**
+     * Tor 11 (Simon 13.11.): a night without effect on the world. A veteran plays night 20 as a normal night (no
+     * bosses), the curse stones and the night fragment laid in make it harder (and are left where they are); the
+     * current character plays a night of its own level. Everyone near the core takes part (build-up with "Bereit").
+     */
+    public boolean startSiegeRound(ServerPlayer player, int pick) {
+        MinecraftServer server = player == null ? null : player.level().getServer();
+        if (server == null) {
+            return false;
+        }
+        String block = roundBlock(server, player, pick);
+        if (block == null && !isRegistered(player)) {
+            block = "nightsiege.bastion.register";
+        }
+        CoreRecord rec = block == null ? mainCore() : null;
+        ServerLevel level = rec == null ? null : levelByName(server, rec.dimension);
+        BlockPos at = rec == null ? null : new BlockPos(rec.x, rec.y, rec.z);
+        if (block == null && (level == null || player.level() != level
+                || player.distanceToSqr(at.getX() + 0.5, at.getY(), at.getZ() + 0.5) > ROUND_RADIUS * ROUND_RADIUS)) {
+            block = "nightsiege.round.too_far";
+        }
+        if (block != null) {
+            player.sendSystemMessage(Component.translatable(block, (int) ROUND_RADIUS).withStyle(ChatFormatting.GRAY));
+            openCoreWindow(player);
+            return false;
+        }
+        String uuid = player.getUUID().toString();
+        com.mki.nightsiege.core.Chapters.Round round = new com.mki.nightsiege.core.Chapters.Round();
+        round.picks.put(uuid, pick);
+        NightFragment fragment = NightFragment.byName(save.nightFragment);
+        round.extras = Curses.chosen(save).size() + (fragment != null ? 1 : 0);
+        round.started = java.time.LocalDateTime.now().toString();
+        int worldLevel = currentLevel();
+        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+            com.mki.nightsiege.core.Chapters.Veteran v = save.chapters().veteransOf(uuid).get(pick);
+            save.lend(uuid, veteranCharacter(v));   // the veteran plays tonight; the frozen one stays as it is
+            round.level = Math.max(1, Math.min(config.maxLevel, v.level));
+        } else {
+            round.level = characterLevel(save.realSkillsOf(uuid), worldLevel);
+        }
+        save.chapters().round = round;
+        roundWaves.clear();
+        siegeRoundPending = true;
+        double radius = config.participantRadius;
+        boolean ok;
+        try {
+            config.participantRadius = Math.min(radius, ROUND_RADIUS);   // the round gathers those near the core
+            ok = prepareTest(server, level, at, round.level, fragment == null ? SiegeEvent.NONE : fragment.event(), null, true);
+        } finally {
+            config.participantRadius = radius;
+        }
+        if (!ok) {
+            endSiegeRound(server, false, false);
+            player.sendSystemMessage(Component.translatable("nightsiege.round.block_busy").withStyle(ChatFormatting.GRAY));
+            return false;
+        }
+        if (active) {
+            siegeRound = true;   // no build-up (testPrepSeconds 0): the night runs already
+            siegeRoundPending = false;
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten: {} ({}), Stufe {}, Flueche/Fragment {}", player.getScoreboardName(),
+                pick == com.mki.nightsiege.core.Chapters.CURRENT ? "aktueller Charakter" : "Veteran " + pick, round.level, round.extras);
+        persist();
+        return true;
+    }
+
+    /**
+     * The round is over (held, lost or broken off): with {@code credit} every defender's waves go into the pool of
+     * their current character (a veteran's at 50 % + 10 % per curse or fragment) and flow up to the world level; the
+     * lent veterans go back. Nothing of the world changes.
+     */
+    private void endSiegeRound(MinecraftServer server, boolean credit, boolean won) {
+        com.mki.nightsiege.core.Chapters.Round round = save.chapters().round;
+        siegeRound = false;
+        siegeRoundPending = false;
+        if (round == null) {
+            roundWaves.clear();
+            return;
+        }
+        save.chapters().round = null;
+        Set<String> everyone = new java.util.LinkedHashSet<>(round.picks.keySet());
+        for (UUID id : participants) {
+            everyone.add(id.toString());
+        }
+        double perWave = Math.max(0.0, config.pointGainMultiplier) / Math.max(1, config.wavesPerPoint);
+        int cap = poolCap();
+        for (String uuid : everyone) {
+            int pick = round.picks.getOrDefault(uuid, com.mki.nightsiege.core.Chapters.CURRENT);
+            boolean veteran = pick != com.mki.nightsiege.core.Chapters.CURRENT;
+            if (veteran) {
+                save.endLoan(uuid);
+            }
+            ServerPlayer player = server == null ? null : server.getPlayerList().getPlayer(UUID.fromString(uuid));
+            if (player != null && veteran) {
+                SkillService.clear(player);
+            }
+            if (!credit) {
+                continue;
+            }
+            PlayerSkills own = save.realSkillsOf(uuid);
+            int waves = roundWaves.getOrDefault(UUID.fromString(uuid), 0);
+            int added = com.mki.nightsiege.core.Chapters.addToPool(own, waves * perWave,
+                    com.mki.nightsiege.core.Chapters.xpShare(veteran, round.extras));
+            int flowed = com.mki.nightsiege.core.Chapters.flowPool(own, cap);
+            if (player != null) {
+                player.sendSystemMessage(Component.translatable("nightsiege.round.pool_gain", added, flowed, own.xpPool, currentLevel())
+                        .withStyle(ChatFormatting.AQUA));
+            }
+        }
+        roundWaves.clear();
+        if (credit) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten vorbei ({}): {} Spieler", won ? "gehalten" : "verloren", everyone.size());
+        }
+        persist();
+    }
+
+    /** The level a character plays in "Belagerung starten": its own (by its points, at most the world's). */
+    public int roundLevelOf(PlayerSkills own) {
+        return characterLevel(own, currentLevel());
+    }
+
+    /** Points a character may hold from the pool: those of the chapter's world level (a steady player's sum). */
+    public int poolCap() {
+        return TestKit.pointsBefore(SiegeMath.level(chapterWins(), lastKnownDay, config), config);
+    }
+
+    /** Every character's pool flows on up to the world level (after a won real night, Tor 11). */
+    public void flowPools() {
+        if (save.skills == null) {
+            return;
+        }
+        int cap = poolCap();
+        for (PlayerSkills own : save.skills.values()) {
+            com.mki.nightsiege.core.Chapters.flowPool(own, cap);
+        }
+    }
+
+    /**
+     * A veteran's character to play: a copy, sent through the load migrations of the characters from the tree
+     * version it was frozen with (Tor 11), so the frozen one never changes.
+     */
+    public PlayerSkills veteranCharacter(com.mki.nightsiege.core.Chapters.Veteran v) {
+        PlayerSkills copy = com.mki.nightsiege.core.Chapters.thaw(v);
+        if (copy == null) {
+            return new PlayerSkills();
+        }
+        SiegeSave once = new SiegeSave();
+        once.skillTreeVersion = v.treeVersion > 0 ? v.treeVersion : save.skillTreeVersion;
+        once.skills = new HashMap<>(Map.of("veteran", copy));
+        once.migrateSkills();
+        once.moveRetiredNodes();
+        if (copy.profileVersion < PlayerSkills.PROFILE_VERSION) {
+            skillTree.migrateProfiles(copy);
+        }
+        if (copy.freeSubclassVersion < PlayerSkills.FREE_SUBCLASS_VERSION) {
+            skillTree.migrateFreeSubclass(copy);
+        }
+        return copy;
     }
 
     /** A character's level: the highest one (up to the world's) whose points it has earned (a test kit's sum). */
@@ -5732,6 +5989,9 @@ public final class SiegeManager {
     }
 
     private void clearSiegeState() {
+        if ((siegeRound || siegeRoundPending) && world != null) {
+            endSiegeRound(world.getServer(), false, false);   // Tor 11: broken off: nothing for the pool
+        }
         Wounds.clear();
         StealPool.clear();
         Elites.clear();
@@ -6963,13 +7223,22 @@ public final class SiegeManager {
             }
             case "bastion" -> {   // the Letzte Bastion (Update 7): the core window's button
                 if ("start".equals(argument)) {
+                    if (tellFinaleLock(player)) {
+                        return;   // Tor 11: from the first won finale on
+                    }
                     bastion.requestStart(player);
                 }
             }
+            case "round" -> onSiegeRoundAction(player, argument);   // Tor 11: "Belagerung starten"
             case "fun" -> onFunAction(player, argument);   // the fun mode's tree: fill, ready, another class
             case "playtest" -> playtest.onAction(player, argument);   // the playtest window (28 October 2026)
             case "crate_all" -> crates.openAll(player);   // the crate window's "Alle öffnen" (Tor 9.1 h)
-            case "war" -> warLeader.onAction(player, argument);   // the war leader's round (29 October 2026)
+            case "war" -> {   // the war leader's round (29 October 2026)
+                if (("start".equals(argument) || "sandbox".equals(argument)) && tellFinaleLock(player)) {
+                    return;   // Tor 11: from the first won finale on
+                }
+                warLeader.onAction(player, argument);
+            }
             case "feedback" -> safe("Bewertung", () -> stats.feedback(player, argument));   // 1-click feedback (29 October 2026)
             case "curse" -> {   // the curse altar (update 2): a stone laid on or taken off
                 // At most one stone every half second per player: each one tells every registered player
