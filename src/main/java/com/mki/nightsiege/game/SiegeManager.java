@@ -640,12 +640,8 @@ public final class SiegeManager {
 
     /** Lent profiles of players in no fun round any more go back (a log-out, a round that ended without us). */
     private void sweepLoans(MinecraftServer server) {
-        Set<UUID> keep = new HashSet<>();
-        keep.addAll(bastion.roundMembers());
-        keep.addAll(warLeader.roundMembers());
-        if (active && (warRound || bastionRound)) {
-            keep.addAll(participants);
-        }
+        Set<String> keep = com.mki.nightsiege.core.Chapters.loanHolders(roundNow(), bastion.roundMembers(),
+                warLeader.roundMembers(), active && (warRound || bastionRound) ? participants : null);
         for (String id : new ArrayList<>(save.loans.keySet())) {
             UUID uuid;
             try {
@@ -654,7 +650,7 @@ public final class SiegeManager {
                 save.endLoan(id);
                 continue;
             }
-            if (!keep.contains(uuid)) {
+            if (!keep.contains(id)) {
                 NightSiegeMod.LOGGER.info("[Night Siege] Spaßmodus: Leihprofil von {} zurück (in keiner Runde mehr)", id);
                 endFun(server, uuid);
             }

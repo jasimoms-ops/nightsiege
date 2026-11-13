@@ -121,6 +121,29 @@ public final class Chapters {
         return null;
     }
 
+    /**
+     * Who may play a lent profile now (Pruefer 13.11.), the one place for every round that lends one: the ready
+     * rounds of the bastion and the war leader, the night of such a round, and the "Belagerung starten" round (its
+     * ready round and its night). sweepLoans takes back every other loan, so a new round with lent profiles goes here.
+     */
+    public static Set<String> loanHolders(Round siegeRound, Collection<java.util.UUID> bastionRound,
+                                          Collection<java.util.UUID> warRound, Collection<java.util.UUID> funNight) {
+        Set<String> out = new java.util.HashSet<>();
+        for (Collection<java.util.UUID> ids : List.of(nn(bastionRound), nn(warRound), nn(funNight))) {
+            for (java.util.UUID id : ids) {
+                out.add(id.toString());
+            }
+        }
+        if (siegeRound != null && siegeRound.picks != null) {
+            out.addAll(siegeRound.picks.keySet());
+        }
+        return out;
+    }
+
+    private static Collection<java.util.UUID> nn(Collection<java.util.UUID> ids) {
+        return ids == null ? List.of() : ids;
+    }
+
     /** Who plays when the night starts: those who pressed ready and still stand near the core (nobody else). */
     public static List<String> roster(Round r, Collection<String> nearCore) {
         List<String> out = new ArrayList<>();

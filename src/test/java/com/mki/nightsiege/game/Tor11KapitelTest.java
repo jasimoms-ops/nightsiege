@@ -328,4 +328,29 @@ class Tor11KapitelTest {
         assertEquals(0, Chapters.flowPool(own, 0));                                      // world level 1: everything waits
         assertEquals(added, own.xpPool);
     }
+
+    /** Pruefer 13.11.: a veteran of "Belagerung starten" keeps the lent profile while the round runs, then it goes back. */
+    @Test
+    void siegeRoundVeteranKeepsTheLoanUntilTheRoundEnds() {
+        String vet = java.util.UUID.randomUUID().toString();
+        String other = java.util.UUID.randomUUID().toString();
+        Map<String, String> loans = new HashMap<>(Map.of(vet, "lent", other, "lent"));
+        Chapters.Round round = new Chapters.Round();
+        round.starter = vet;
+        round.picks.put(vet, 0);
+        for (int cycle = 0; cycle < 5; cycle++) {   // sweepLoans every 2 s: ready round, then the night
+            round.night = cycle >= 2;
+            Set<String> keep = Chapters.loanHolders(round, List.of(), List.of(), null);
+            loans.keySet().removeIf(id -> !keep.contains(id));
+            assertTrue(loans.containsKey(vet), "cycle " + cycle);
+            assertFalse(loans.containsKey(other));
+        }
+        Set<String> keep = Chapters.loanHolders(null, List.of(), List.of(), null);   // the round is over
+        loans.keySet().removeIf(id -> !keep.contains(id));
+        assertTrue(loans.isEmpty());
+        java.util.UUID b = java.util.UUID.randomUUID();
+        java.util.UUID w = java.util.UUID.randomUUID();
+        java.util.UUID n = java.util.UUID.randomUUID();
+        assertEquals(Set.of(b.toString(), w.toString(), n.toString()), Chapters.loanHolders(null, List.of(b), List.of(w), Set.of(n)));
+    }
 }
