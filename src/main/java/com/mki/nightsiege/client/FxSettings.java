@@ -26,6 +26,7 @@ public final class FxSettings {
     public static final class Data {
         public boolean full = true;    // Chef 12.11. 22:20: "voll" as default after the second review passed (pruefer.md, Runde 2)
         public boolean shake = true;
+        public int cross = 1;          // Tor 10: the war leader's cross, 0 small, 1 normal, 2 large (Esc menu of the view)
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -64,6 +65,16 @@ public final class FxSettings {
     /** Camera shake on one's own ultimate. */
     public static boolean shake() {
         return data().shake;
+    }
+
+    /** The war leader's cross size: 0 small, 1 normal, 2 large. */
+    public static int crossSize() {
+        return Math.max(0, Math.min(2, data().cross));
+    }
+
+    public static void setCrossSize(int size) {
+        data().cross = Math.max(0, Math.min(2, size));
+        save();
     }
 
     public static void setFull(boolean full) {

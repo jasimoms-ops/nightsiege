@@ -574,6 +574,19 @@ public final class SiegeMachines {
     public static final double AIM_REACH = 110.0;
 
     /**
+     * How far an aimed shot strays (one sigma per axis, blocks): mortar 1.5, the fire and plague slings 1,
+     * the trebuchet 4 (it hits a wall within 6 blocks of the spot instead). The war leader's cross shows it (Tor 10).
+     */
+    public static double aimSpread(SiegeMachineKind kind) {
+        return switch (kind) {
+            case MORTAR -> 1.5;
+            case FIRE, PLAGUE -> 1.0;
+            case TREBUCHET -> 4.0;
+            default -> 0.0;
+        };
+    }
+
+    /**
      * The war leader aims a machine (Kriegsführer, Simon 05.11.: "wie der Sprengmeister", both: without an
      * order it picks itself, with a click it shoots there). It shoots as soon as its reload allows. Null
      * gives it back its own will. False when no such machine stands or the spot is out of its reach.
@@ -616,14 +629,14 @@ public final class SiegeMachines {
                 Vec3 to = wall != null
                         ? new Vec3(wall.x() + 0.5 + wall.face().getStepX() * 0.6, wall.ground() + Math.max(1.0, (wall.top() - wall.ground()) * 0.55),
                                 wall.z() + 0.5 + wall.face().getStepZ() * 0.6)
-                        : groundAt(level, anchor.add(random.nextGaussian() * 4, 0, random.nextGaussian() * 4));
+                        : groundAt(level, anchor.add(random.nextGaussian() * aimSpread(machine.kind), 0, random.nextGaussian() * aimSpread(machine.kind)));
                 swing(machine, now);
                 launch(machine, machine.at(0, 8.0, -1.5), to, now + 4, 50, 14, Blocks.COBBLESTONE.defaultBlockState(), 1.1f, wall);
                 sound(level, machine.base, SoundEvents.ANVIL_PLACE, 1.4f, 0.5f);
                 return true;
             }
             case MORTAR -> {
-                Vec3 to = aim != null ? spread(level, aim, 1.5) : insideTarget(f, machine);
+                Vec3 to = aim != null ? spread(level, aim, aimSpread(machine.kind)) : insideTarget(f, machine);
                 swing(machine, now);
                 launch(machine, machine.at(0, 2.0, 1.2), to, now, 60, 24, Blocks.COAL_BLOCK.defaultBlockState(), 0.55f, null);
                 sound(level, machine.base, SoundEvents.GENERIC_EXPLODE.value(), 1.6f, 1.6f);
@@ -632,7 +645,7 @@ public final class SiegeMachines {
                 return true;
             }
             case FIRE, PLAGUE -> {
-                Vec3 to = aim != null ? spread(level, aim, 1.0) : insideTarget(f, machine);
+                Vec3 to = aim != null ? spread(level, aim, aimSpread(machine.kind)) : insideTarget(f, machine);
                 swing(machine, now);
                 BlockState load = machine.kind == SiegeMachineKind.FIRE ? Blocks.MAGMA_BLOCK.defaultBlockState()
                         : Blocks.BONE_BLOCK.defaultBlockState();

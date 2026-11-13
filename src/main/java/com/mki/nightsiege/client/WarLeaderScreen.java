@@ -258,6 +258,7 @@ public class WarLeaderScreen extends Screen {
             active = null;
         }
         cursor(true);
+        WarCursor.reset();
         Minecraft.getInstance().smartCull = true;
         super.removed();
     }
@@ -450,14 +451,16 @@ public class WarLeaderScreen extends Screen {
             click(1.3f);
             return true;
         }
-        int picked = nearestSquad(x, y);
+        WarCursor.Hover under = WarCursor.hover();   // what the cross shows is what the click takes
+        int picked = under != null && (under.kind() == WarCursor.Kind.SQUAD || under.kind() == WarCursor.Kind.MACHINE)
+                ? under.id() : nearestSquad(x, y);
         if (picked >= 0) {
             squad = picked;
             click(1.2f);
             return true;
         }
         if (squad >= 0) {
-            BlockPos at = pickBlock(x, y);
+            BlockPos at = WarCursor.target() != null ? WarCursor.target() : pickBlock(x, y);
             WarLeaderData.Squad s = squadById(squad);
             if (at != null && s != null && !s.ownWill) {
                 send("war:order:" + squad + ":target:" + at.getX() + ":" + at.getZ());
@@ -729,7 +732,7 @@ public class WarLeaderScreen extends Screen {
 
     private int[] menuBox() {
         int w = 170;
-        int h = 86;
+        int h = 106;
         int x = (this.width - w) / 2;
         int y = (this.height - h) / 2;
         return new int[]{x, y, w, h};
@@ -758,6 +761,8 @@ public class WarLeaderScreen extends Screen {
                 menu = false;
             }
             confirmGiveUp = !confirmGiveUp;
+        } else if (y >= y0 + 60 && y < y0 + 76) {
+            FxSettings.setCrossSize((FxSettings.crossSize() + 1) % 3);   // Tor 10: small, normal, large
         }
     }
 
@@ -816,15 +821,18 @@ public class WarLeaderScreen extends Screen {
             placed = true;
             camYv = targetY();
         }
+        // Tor 10 / K2: the ground cross (WarCursor) instead of the mouse; over a panel the small cross as before.
+        double[] at = WarCursor.update(data, squad, mouseX, mouseY, this.width, this.height, delta, menu || overPanel(mouseX, mouseY));
         drawWorld(gui, font);
+        WarCursorRender.draw(gui, font);
         drawTop(gui, font);
         drawShop(gui, font, mouseX, mouseY);
         drawSide(gui, font, mouseX, mouseY);
         drawHint(gui, font);
         if (menu) {
             drawMenu(gui, font, mouseX, mouseY);
-        } else {
-            cross(gui, mouseX, mouseY, squad >= 0 ? RED : GOLD);
+        } else if (!WarCursor.shown()) {
+            cross(gui, (int) at[0], (int) at[1], GOLD);
         }
         super.extractRenderState(gui, mouseX, mouseY, delta);
     }
@@ -983,15 +991,6 @@ public class WarLeaderScreen extends Screen {
             gui.fill(s[0] - 8, s[1] + 5, s[0] + 8, s[1] + 7, 0xC0000000);
             gui.fill(s[0] - 8, s[1] + 5, s[0] - 8 + Math.round(16 * Math.max(0f, Math.min(1f, share))), s[1] + 7, c);
             small(gui, font, m.name, s[0] - (int) (font.width(m.name) * 0.3f), s[1] - 10, 0xFFBFE0FF, 0.6f);
-        }
-        // Under the cursor: the target spot of the picked squad.
-        if (hover != null && squad >= 0 && !menu) {
-            int[] s = project(hover.getX() + 0.5, hover.getY() + 1, hover.getZ() + 0.5);
-            if (s != null) {
-                WarLeaderData.Squad sq = squadById(squad);
-                small(gui, font, tr(sq != null && sq.machine ? "nightsiege.war.fire_here" : "nightsiege.war.target_here"),
-                        s[0] + 9, s[1] + 6, RED, 0.55f);
-            }
         }
     }
 
@@ -1202,8 +1201,9 @@ public class WarLeaderScreen extends Screen {
         int y0 = b[1] + 20;
         String[] labels = {tr("nightsiege.war.menu_back"), tr("nightsiege.war.menu_game"),
                 tr(data.sandbox ? (confirmGiveUp ? "nightsiege.war.menu_sandbox_end_sure" : "nightsiege.war.menu_sandbox_end")
-                        : confirmGiveUp ? "nightsiege.war.menu_giveup_sure" : "nightsiege.war.menu_giveup")};
-        for (int i = 0; i < 3; i++) {
+                        : confirmGiveUp ? "nightsiege.war.menu_giveup_sure" : "nightsiege.war.menu_giveup"),
+                tr("nightsiege.war.menu_cross", tr("nightsiege.war.cross_size." + FxSettings.crossSize()))};
+        for (int i = 0; i < 4; i++) {
             int y = y0 + i * 20;
             boolean over = mouseX >= bx && mouseX < bx + bw && mouseY >= y && mouseY < y + 16;
             PurpleUi.button(gui, font, bx, y, bw, 16, labels[i], true, over, i == 0);
