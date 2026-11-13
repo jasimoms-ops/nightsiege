@@ -36,6 +36,10 @@ public class WarLeaderData {
     public String card = "";
     public int machines;
     public int machinesMax;
+    /** Chef 13.11.: the leader wins at this many standing or fewer (warWinStandingDivisor); -1 off or an older server. */
+    public int winStanding = -1;
+    /** How many defenders stand now (with winStanding). */
+    public int standing;
     /** The sandbox (Simon 05.11.): nobody defends, endless gold, everything open, no end. */
     public boolean sandbox;
     /** The ready round: who is in it and ready, when the leader may go without the rest. */

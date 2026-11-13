@@ -1036,7 +1036,12 @@ public class WarLeaderScreen extends Screen {
             return true;
         }
         int bw = topW();
-        return y < 25 && x >= (this.width - bw) / 2.0 - 2 && x < (this.width + bw) / 2.0 + 2;
+        return y < topBottom() + 2 && x >= (this.width - bw) / 2.0 - 2 && x < (this.width + bw) / 2.0 + 2;
+    }
+
+    /** The head's foot: one line more when the win at so few standing is on (Chef 13.11.). */
+    private int topBottom() {
+        return data != null && data.winStanding >= 0 ? 31 : 23;
     }
 
     private int topW() {
@@ -1547,7 +1552,7 @@ public class WarLeaderScreen extends Screen {
     private void drawTop(GuiGraphicsExtractor gui, Font font) {
         int w = topW();
         int x0 = (this.width - w) / 2;
-        panel(gui, x0, 3, x0 + w, 23);
+        panel(gui, x0, 3, x0 + w, topBottom());
         String phase = "prep".equals(data.phase) ? tr("nightsiege.war.top_prep", clock(data.seconds))
                 : data.sandbox ? tr("nightsiege.war.top_sandbox", data.wave)
                 : tr("nightsiege.war.top_wave", data.wave, data.waves, clock(data.seconds));
@@ -1560,10 +1565,16 @@ public class WarLeaderScreen extends Screen {
             sub = tr("nightsiege.war.top_card", tr("nightsiege.war.card." + data.card)) + "  ·  " + sub;
         }
         small(gui, font, font.plainSubstrByWidth(sub, (int) ((w - 10) / 0.6f)), x0 + 5, 15, data.card.isEmpty() ? GREY : RED, 0.6f);
+        if (data.winStanding >= 0) {
+            String win = tr("nightsiege.war.top_standing", data.winStanding, data.standing);
+            small(gui, font, font.plainSubstrByWidth(win, (int) ((w - 10) / 0.6f)), x0 + 5, 23,
+                    data.standing <= data.winStanding ? RED : GOLD, 0.6f);
+        }
         if (ticks < noticeUntil && !notice.isEmpty()) {
             int nw = (int) Math.ceil(font.width(notice) * 0.7f);
-            panel(gui, (this.width - nw) / 2 - 4, 26, (this.width + nw) / 2 + 4, 35);
-            small(gui, font, notice, (this.width - nw) / 2, 28, ORANGE, 0.7f);
+            int ny = topBottom() + 3;
+            panel(gui, (this.width - nw) / 2 - 4, ny, (this.width + nw) / 2 + 4, ny + 9);
+            small(gui, font, notice, (this.width - nw) / 2, ny + 2, ORANGE, 0.7f);
         }
     }
 
