@@ -121,6 +121,8 @@ public final class WarLeader {
         long specialUsed = -1L;
         /** The bot leader sent it into an assault (Tor 10). */
         boolean botSent;
+        /** Its life when the bot sent it (the retreat is measured on this, Tor 10 bot fix). */
+        float botSentLife;
 
         Squad(int id, String item, int point, boolean ownWill, List<String> mobs, long boughtAt) {
             this.id = id;
@@ -2852,7 +2854,7 @@ public final class WarLeader {
                 continue;
             }
             float[] life = life(s);
-            if (s.botSent && WarBotPlan.retreat(life[0], life[1]) && !"retreat".equals(s.order)) {
+            if (s.botSent && WarBotPlan.retreatSinceSent(life[0], s.botSentLife) && !"retreat".equals(s.order)) {
                 command(server, List.of(s), "retreat", Double.NaN, Double.NaN, false, "", now);
                 s.botSent = false;   // spared for the next assault
                 continue;
@@ -2888,8 +2890,22 @@ public final class WarLeader {
 
     /** The assault: by a way point before the wall to its weakest spot; ladders, sappers and the others at their jobs. */
     private void assault(MinecraftServer server, List<Squad> waiting, List<WarBotPlan.Defender> defs, long now) {
+        for (Squad s : waiting) {
+            s.botSentLife = life(s)[0];   // the retreat is measured from here, the remnants storm along
+        }
         List<double[]> spots = wallSpots();
         int i = WarBotPlan.quietest(spots, defs);
+        if (!WarBotPlan.walled(base != null, base != null && base.closed)) {
+            // An open base (Tor 10 bot fix): no wall to climb, straight at the focus by the core.
+            int focus = WarBotPlan.focus(defs);
+            String foe = focus < 0 ? "" : defs.get(focus).name();
+            for (Squad s : waiting) {
+                command(server, List.of(s), foe.isEmpty() ? "storm" : "attack", Double.NaN, Double.NaN, false, foe, now);
+                s.botSent = true;
+            }
+            log("bot", foe.isEmpty() ? "sturm@kern" : "sturm@kern_fokus", -1, waiting.size());
+            return;
+        }
         if (i < 0) {
             for (Squad s : waiting) {
                 command(server, List.of(s), "storm", Double.NaN, Double.NaN, false, "", now);
@@ -3018,7 +3034,7 @@ public final class WarLeader {
                 buy(server, "card." + c.id(), main, now);
             }
         }
-        if (botWave == wave && botLadders != wave) {
+        if (botWave == wave && botLadders != wave && WarBotPlan.walled(base != null, base != null && base.closed)) {
             // Every wave its ways over the wall first: ladder carriers by the group's size, two sappers.
             botLadders = wave;
             for (int i = 0; i < WarBotPlan.ladders(defs.size()); i++) {

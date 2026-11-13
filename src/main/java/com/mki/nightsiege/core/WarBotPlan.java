@@ -127,6 +127,22 @@ public final class WarBotPlan {
         return max > 0 && health / max < RETREAT_SHARE;
     }
 
+    /**
+     * Tor 10 bot fix: a sent squad pulls back only when it lost life in this assault, measured on its life when it was
+     * sent (not on its full size with the fallen: a thinned squad would be pulled back two seconds after every storm).
+     */
+    public static boolean retreatSinceSent(float health, float sentHealth) {
+        return retreat(health, sentHealth);
+    }
+
+    /**
+     * Tor 10 bot fix: a wall to climb only when the scan found a closed base; then ladders, sappers and the wall's
+     * weakest spot. An open base (no scan, not closed) is stormed at its defenders by the core.
+     */
+    public static boolean walled(boolean scanned, boolean closed) {
+        return scanned && closed;
+    }
+
     /** So many monsters wait at the points before an assault: a bigger group, a bigger wave. */
     public static int assaultSize(int defenders) {
         return 6 + 3 * Math.max(1, defenders);

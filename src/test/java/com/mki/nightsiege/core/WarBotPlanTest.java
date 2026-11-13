@@ -121,4 +121,22 @@ class WarBotPlanTest {
         assertEquals(base + 2, more);
         assertEquals(WarBotPlan.shopping(2, 3).size(), WarBotPlan.shopping(2, 9).size());   // at most three count
     }
+
+    // Tor 10 bot fix (krieg6/krieg8): no retreat two seconds after every storm, no ladders against an open base.
+    @Test
+    void aThinnedSquadIsNotPulledBackRightAfterBeingSent() {
+        // Four zombies of 20 life, three fallen: 20 of 80 (25 %) on the old measure would retreat at once.
+        assertTrue(WarBotPlan.retreat(20f, 80f));
+        assertFalse(WarBotPlan.retreatSinceSent(20f, 20f));   // sent with 20: nothing lost in this storm
+        assertFalse(WarBotPlan.retreatSinceSent(7f, 20f));    // 35 % of what it was sent with
+        assertTrue(WarBotPlan.retreatSinceSent(5f, 20f));     // 25 %: it lost most in this storm
+        assertFalse(WarBotPlan.retreatSinceSent(5f, 0f));     // never sent: no retreat
+    }
+
+    @Test
+    void ladderAndWallOnlyAgainstAClosedBase() {
+        assertTrue(WarBotPlan.walled(true, true));
+        assertFalse(WarBotPlan.walled(true, false));    // the sim's castle: open, 0 gates
+        assertFalse(WarBotPlan.walled(false, false));   // no scan
+    }
 }
