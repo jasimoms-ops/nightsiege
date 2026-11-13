@@ -353,4 +353,21 @@ class Tor11KapitelTest {
         java.util.UUID n = java.util.UUID.randomUUID();
         assertEquals(Set.of(b.toString(), w.toString(), n.toString()), Chapters.loanHolders(null, List.of(b), List.of(w), Set.of(n)));
     }
+
+    /** Pruefer 13.11.: the pool and its fraction go to the new character; the veteran keeps none (rule 7). */
+    @Test
+    void advanceMovesThePoolToTheNewCharacter() {
+        Chapters.Progress p = new Chapters.Progress();
+        PlayerSkills own = character(SkillClass.WARRIOR, 400);
+        own.xpPool = 37;
+        own.xpPoolFraction = 0.4;
+        Map<String, PlayerSkills> skills = new HashMap<>(Map.of("a", own));
+        Chapters.advance(p, 20, 19, skills, List.of("a"), Set.of("a"), s -> "", (u, s) -> 20, "x");
+        PlayerSkills fresh = skills.get("a");
+        assertNotSame(own, fresh);
+        assertEquals(37, fresh.xpPool);
+        assertEquals(0.4, fresh.xpPoolFraction, 1e-9);
+        assertEquals(0, p.veteransOf("a").get(0).skills.xpPool);
+        assertEquals(0.0, p.veteransOf("a").get(0).skills.xpPoolFraction, 1e-9);
+    }
 }

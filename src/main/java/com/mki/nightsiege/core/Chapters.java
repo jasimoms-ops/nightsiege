@@ -461,6 +461,11 @@ public final class Chapters {
                 PlayerSkills fresh = new PlayerSkills();
                 fresh.lastNight = own.lastNight;   // the latecomer count goes on
                 fresh.templateGiven = own.templateGiven;
+                // Rule 7: the pool belongs to the current character, so it goes along (Pruefer 13.11.); the veteran keeps none.
+                fresh.xpPool = Math.max(0, own.xpPool);
+                fresh.xpPoolFraction = Math.max(0.0, own.xpPoolFraction);
+                own.xpPool = 0;
+                own.xpPoolFraction = 0.0;
                 skills.put(uuid, fresh);
                 frozen.add(uuid);
             }
