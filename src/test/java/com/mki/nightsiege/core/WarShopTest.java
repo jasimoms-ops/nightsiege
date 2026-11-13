@@ -152,6 +152,48 @@ class WarShopTest {
         assertEquals(0.0, cfg.warStrengthPerExtraDefender);
     }
 
+    // Chef 13.11. 11:30: the war leader wins at floor(G / warWinStandingDivisor) standing.
+    @Test
+    void winStandingOffIsTodaysRule() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.sanitize();
+        assertEquals(0, cfg.warWinStandingDivisor);
+        for (int g = 1; g <= 10; g++) {
+            assertEquals(0, WarShop.winStanding(g, cfg));
+            assertTrue(WarShop.leaderWins(0, g, cfg));
+            assertFalse(WarShop.leaderWins(1, g, cfg));   // one standing: the round goes on, as before
+        }
+    }
+
+    @Test
+    void winStandingWithThree() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.warWinStandingDivisor = 3;
+        assertTrue(WarShop.leaderWins(0, 2, cfg));
+        assertFalse(WarShop.leaderWins(1, 2, cfg));    // G2: all must fall
+        assertTrue(WarShop.leaderWins(1, 4, cfg));
+        assertFalse(WarShop.leaderWins(2, 4, cfg));    // G4: at most one stands
+        assertTrue(WarShop.leaderWins(2, 6, cfg));
+        assertFalse(WarShop.leaderWins(3, 6, cfg));    // G6: at most two stand
+        int[] expect = {0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3};
+        for (int g = 0; g <= 10; g++) {
+            assertEquals(expect[g], WarShop.winStanding(g, cfg), "G" + g);
+        }
+    }
+
+    @Test
+    void winStandingIsSanitized() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.warWinStandingDivisor = -2;
+        cfg.sanitize();
+        assertEquals(0, cfg.warWinStandingDivisor);
+        cfg.warWinStandingDivisor = 99;
+        cfg.sanitize();
+        assertEquals(10, cfg.warWinStandingDivisor);
+    }
+
     private static SiegeConfig withFactor(SiegeConfig cfg, double f) {
         cfg.warLiveCapFactor = f;
         return cfg;

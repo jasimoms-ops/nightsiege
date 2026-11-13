@@ -588,6 +588,11 @@ public class SiegeConfig {
      * defender beyond the fourth (6 defenders: ×(1 + 2X)); 0 = as before. Not more monsters, only the round.
      */
     public double warStrengthPerExtraDefender = 0.0;
+    /**
+     * Chef 13.11. 11:30: the war leader wins once at most floor(defenders / this) of the round's defenders still stand
+     * (3: 1-2 all fallen, 3-5 one, 6-8 two); 0 = off, all must fall (as before). Only the war leader's round.
+     */
+    public int warWinStandingDivisor = 0;
     /** Who stands this close to the core is in the ready round; after this the leader may go without those not ready. */
     public int warLobbyRadius = 48;
     public int warForceSeconds = 30;
@@ -1808,6 +1813,7 @@ public class SiegeConfig {
         warBossFromWave = clamp(warBossFromWave, 1, 20);
         warLiveCapFactor = Double.isNaN(warLiveCapFactor) ? 1.0 : clampDouble(warLiveCapFactor, 0.25, 4.0);
         warStrengthPerExtraDefender = Double.isNaN(warStrengthPerExtraDefender) ? 0.0 : clampDouble(warStrengthPerExtraDefender, 0.0, 0.5);
+        warWinStandingDivisor = clamp(warWinStandingDivisor, 0, 10);
         warLobbyRadius = clamp(warLobbyRadius, 8, 200);
         warForceSeconds = clamp(warForceSeconds, 0, 300);
         warLevel = clamp(warLevel, 1, 200);

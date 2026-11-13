@@ -343,11 +343,18 @@ public final class WarLeader {
             int left = Math.max(0, waveTicksLeft(cfg, elapsed)) / 20;
             title = Component.translatable("nightsiege.war.bar_wave", leaderName, w, cfg.warWaves, clock(left));
         }
+        Component out = title;
         if (card != null) {
-            return Component.empty().append(title).append(Component.translatable("nightsiege.war.bar_card",
+            out = Component.empty().append(title).append(Component.translatable("nightsiege.war.bar_card",
                     Component.translatable("nightsiege.war.card." + card.id())).withStyle(ChatFormatting.RED));
         }
-        return title;
+        if (cfg.warWinStandingDivisor > 0 && !sandbox) {
+            // Chef 13.11. 11:30: the leader wins at so few standing; how many stand now.
+            int[] st = m.warStanding();
+            out = Component.empty().append(out).append(Component.translatable("nightsiege.war.bar_standing",
+                    WarShop.winStanding(st[1], cfg), st[0]).withStyle(ChatFormatting.GOLD));
+        }
+        return out;
     }
 
     private int currentWave(SiegeConfig cfg, int elapsed) {

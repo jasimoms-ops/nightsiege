@@ -140,6 +140,16 @@ public final class WarShop {
         return 1.0 + cfg.warStrengthPerExtraDefender * Math.max(0, defenders - 4);
     }
 
+    /** Chef 13.11. 11:30: the war leader wins at this many defenders standing or fewer: floor(G / D), 0 when D is off. */
+    public static int winStanding(int defenders, SiegeConfig cfg) {
+        return cfg.warWinStandingDivisor <= 0 ? 0 : Math.max(0, defenders) / cfg.warWinStandingDivisor;
+    }
+
+    /** The war leader's round is lost for the defenders: so few still stand (D off: none). */
+    public static boolean leaderWins(int standing, int defenders, SiegeConfig cfg) {
+        return standing <= winStanding(defenders, cfg);
+    }
+
     public static int roundGold(int level, int players, SiegeConfig cfg, double perPlayer, int maxLive) {
         int perWave = SiegeMath.mobsPerBatch(level, Math.max(1, players), cfg, perPlayer, maxLive);
         double mobs = (double) nightWaves(level, cfg) * perWave;

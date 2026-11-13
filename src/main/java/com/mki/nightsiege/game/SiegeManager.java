@@ -3013,7 +3013,10 @@ public final class SiegeManager {
             scaledFor = presentCount();
             safe("Neu skalieren", () -> rescaleForGroup(scaledFor));
         }
-        if (standing == 0 && !(warRound && warLeader.sandbox())) {   // the sandbox: nobody defends, it goes on
+        // Chef 13.11. 11:30: in the war leader's round the leader wins at floor(G / warWinStandingDivisor) standing
+        // (0 = off: all must fall, as before); the sandbox: nobody defends, it goes on.
+        boolean leaderWins = warRound && com.mki.nightsiege.core.WarShop.leaderWins(standing, participants.size(), config);
+        if ((standing == 0 || leaderWins) && !(warRound && warLeader.sandbox())) {
             if (bossVictoryAt > 0) {
                 finish(server, true);   // the boss fell first
                 return;
@@ -6592,6 +6595,11 @@ public final class SiegeManager {
             }
         }
         liveMobs.clear();
+    }
+
+    /** The war leader's round's bar: {defenders standing now, defenders of the round}. */
+    int[] warStanding() {
+        return new int[]{countStanding(), participants.size()};
     }
 
     private int countStanding() {
