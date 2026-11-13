@@ -1145,64 +1145,45 @@ public class CoreScreen extends Screen {
             };
         }
         // Choosing and playing a class happen in the overview (tab Klassen) now.
-        int footerX = left + 8;
+        // Paket 13.11b: every footer button goes into one row that UiFit lays out (short labels, then smaller
+        // text), so none runs into another or into "Fertig".
+        List<Foot> feet = new ArrayList<>();
         if (isClassTree(activeTab)) {
             // Back to the class overview.
-            Component backLabel = Component.translatable("nightsiege.ui.back_classes");
-            int kw = Math.max(60, font.width(backLabel) + 12);
-            addRenderableWidget(Button.builder(backLabel, b -> {
+            feet.add(new Foot(Component.translatable("nightsiege.ui.back_classes"), null, 60, b -> {
                 activeTab = Tab.CLASSES;
                 rebuildWidgets();
-            }).bounds(footerX, footerY, kw, 18).build());
-            footerX += kw + 4;
+            }, null, false, 9));
         }
         if (stats.funLoan && isClassTree(activeTab)) {
             // The free class pick (Tor 10 / K3): the recommended build, the 20 crates, or another subclass.
-            Component fill = Component.translatable("nightsiege.ui.fun_recommended");
-            int fw = Math.max(70, font.width(fill) + 12);
-            goldButtons.add(addRenderableWidget(Button.builder(fill, b -> send("fun:recommended")).bounds(footerX, footerY, fw, 18)
-                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.ui.fun_recommended_hint")))
-                    .build()));
-            footerX += fw + 4;
+            feet.add(new Foot(Component.translatable("nightsiege.ui.fun_recommended"),
+                    Component.translatable("nightsiege.ui.fun_recommended_short"), 70, b -> send("fun:recommended"),
+                    Component.translatable("nightsiege.ui.fun_recommended_hint"), true, 4));
             if (stats.funCrates > 0) {
-                Component crates = Component.translatable("nightsiege.ui.fun_crates", stats.funCrates);
-                int cw = Math.max(70, font.width(crates) + 12);
-                addRenderableWidget(Button.builder(crates, b -> send("fun:crates")).bounds(footerX, footerY, cw, 18).build());
-                footerX += cw + 4;
+                feet.add(new Foot(Component.translatable("nightsiege.ui.fun_crates", stats.funCrates),
+                        Component.translatable("nightsiege.ui.fun_crates_short", stats.funCrates), 70,
+                        b -> send("fun:crates"), null, false, 3));
             }
-            Component other = Component.translatable("nightsiege.ui.fun_class");
-            int ow = Math.max(70, font.width(other) + 12);
-            addRenderableWidget(Button.builder(other, b -> send("fun:class")).bounds(footerX, footerY, ow, 18).build());
-            footerX += ow + 4;
+            feet.add(new Foot(Component.translatable("nightsiege.ui.fun_class"),
+                    null, 70, b -> send("fun:class"), null, false, 5));   // keeps its words (only "Class" is unclear)
         }
         if (stats.creative && activeTab != Tab.CORE) {
-            Component grant = Component.translatable("nightsiege.ui.dev_grant");
-            Component wipe = Component.translatable("nightsiege.ui.dev_reset");
-            int gw = Math.max(56, font.width(grant) + 12);
-            int rw = Math.max(56, font.width(wipe) + 12);
-            addRenderableWidget(Button.builder(grant, b -> send("dev:50")).bounds(footerX, footerY, gw, 18).build());
-            addRenderableWidget(Button.builder(wipe, b -> send("dev:reset")).bounds(footerX + gw + 4, footerY, rw, 18).build());
-
-            footerX += gw + rw + 8;
+            feet.add(new Foot(Component.translatable("nightsiege.ui.dev_grant"), null, 56, b -> send("dev:50"), null, false, 9));
+            feet.add(new Foot(Component.translatable("nightsiege.ui.dev_reset"), null, 56, b -> send("dev:reset"), null, false, 9));
             if (activeTab == Tab.COLLECTION) {
                 // Creative: start the collection of the shown class over (crate gains for testing).
-                Component gains = Component.translatable("nightsiege.ui.dev_gains");
-                int kw = Math.max(70, font.width(gains) + 12);
                 String clazz = collectionClass();
-                addRenderableWidget(Button.builder(gains, b -> send("dev:gains:" + clazz)).bounds(footerX, footerY, kw, 18).build());
-                footerX += kw + 4;
-                Component take = Component.translatable("nightsiege.ui.dev_crate");
-                int cw = Math.max(60, font.width(take) + 12);
-                addRenderableWidget(Button.builder(take, b -> send("dev:crate:" + clazz)).bounds(footerX, footerY, cw, 18).build());
-                footerX += cw + 4;
+                feet.add(new Foot(Component.translatable("nightsiege.ui.dev_gains"), null, 70,
+                        b -> send("dev:gains:" + clazz), null, false, 9));
+                feet.add(new Foot(Component.translatable("nightsiege.ui.dev_crate"), null, 60,
+                        b -> send("dev:crate:" + clazz), null, false, 9));
             }
         }
         if (stats.admin && activeTab == Tab.COLLECTION) {
             // Operator: every player's crate gains start over; a second click confirms.
-            Component wipeAll = Component.translatable(confirmingGainWipe ? "nightsiege.ui.wipe_gains_confirm"
-                    : "nightsiege.ui.wipe_gains_all");
-            int ww = Math.max(90, font.width(wipeAll) + 12);
-            addRenderableWidget(Button.builder(wipeAll, b -> {
+            feet.add(new Foot(Component.translatable(confirmingGainWipe ? "nightsiege.ui.wipe_gains_confirm"
+                    : "nightsiege.ui.wipe_gains_all"), null, 90, b -> {
                 if (confirmingGainWipe) {
                     confirmingGainWipe = false;
                     send("wipegains:all");
@@ -1210,38 +1191,66 @@ public class CoreScreen extends Screen {
                     confirmingGainWipe = true;
                     rebuildWidgets();
                 }
-            }).bounds(footerX, footerY, ww, 18).build());
-            footerX += ww + 4;
+            }, null, false, 9));
         }
-        int rightEdge = left + W - 66;
-        int pw = primary == null ? 0 : Math.max(primaryMin, font.width(primary) + 12);
         if (stats.classResetAvailable && ownsClassTab()) {
-            Component label = Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_test"
-                    : "nightsiege.ui.class_reset");
-            int rw = Math.max(90, font.width(label) + 12);
-            if (primary != null && footerX + rw + 4 > rightEdge - pw) {
-                primary = primaryShort;   // first the right button gets shorter …
-                pw = Math.max(56, font.width(primary) + 12);
-            }
-            if (footerX + rw + 4 > rightEdge - pw) {
-                label = Component.translatable("nightsiege.ui.class_reset_short");   // … then this one
-                rw = Math.max(50, font.width(label) + 12);
-            }
-            addRenderableWidget(Button.builder(label, b -> {
+            // First the right (gold) button gets shorter, then this one.
+            feet.add(new Foot(Component.translatable(stats.classResetUnlimited ? "nightsiege.ui.class_reset_test"
+                    : "nightsiege.ui.class_reset"), Component.translatable("nightsiege.ui.class_reset_short"), 90, b -> {
                 confirmingReset = true;
                 rebuildWidgets();
-            }).bounds(footerX, footerY, rw, 18).build());
-            footerX += rw + 4;
+            }, null, false, 1));
         }
+        int primaryAt = -1;
         if (primary != null) {
-            int px = Math.max(footerX, rightEdge - pw);
-            goldButtons.add(addRenderableWidget(Button.builder(primary, primaryPress)
-                    .bounds(px, footerY, Math.min(pw, rightEdge - px), 18).build()));
+            primaryAt = feet.size();
+            feet.add(new Foot(primary, primaryShort, primaryMin, primaryPress, null, true, 0));
         }
+        int footerX = left + 8;
+        int rightEdge = left + W - 66;   // "Fertig" sits right of it
+        int n = feet.size();
+        int[] fullW = new int[n];
+        int[] shortW = new int[n];
+        int[] minW = new int[n];
+        Integer[] byRank = new Integer[n];
+        for (int i = 0; i < n; i++) {
+            Foot f = feet.get(i);
+            fullW[i] = font.width(f.label());
+            shortW[i] = f.shortLabel() == null ? fullW[i] : font.width(f.shortLabel());
+            minW[i] = f.min();
+            byRank[i] = i;
+        }
+        java.util.Arrays.sort(byRank, java.util.Comparator.comparingInt(i -> feet.get(i).shortRank()));
+        int[] order = java.util.Arrays.stream(byRank).mapToInt(Integer::intValue).toArray();
+        UiFit.Row row = UiFit.row(fullW, shortW, minW, order, 4, rightEdge - footerX);
+        for (int i = 0; i < n; i++) {
+            Foot f = feet.get(i);
+            int w = row.widths()[i];
+            Component label = row.shortUsed()[i] ? f.shortLabel() : f.label();
+            int bx = i == primaryAt ? Math.max(footerX, rightEdge - w) : footerX;
+            Button.Builder builder = Button.builder(label, f.press()).bounds(bx, footerY, w, 18);
+            Component tip = f.tip() != null ? f.tip() : row.shortUsed()[i] ? f.label() : null;
+            if (tip != null) {
+                builder.tooltip(net.minecraft.client.gui.components.Tooltip.create(tip));
+            }
+            Button button = addRenderableWidget(builder.build());
+            if (f.gold()) {
+                goldButtons.add(button);
+            }
+            footerX = bx + w + 4;
+        }
+    }
+
+    /** One footer button: label, short label (or null), wished width, action, tooltip, gold, when it gets short (low first). */
+    private record Foot(Component label, Component shortLabel, int min, Button.OnPress press, Component tip,
+                        boolean gold, int shortRank) {
     }
 
     /** Set after the first click on the operator's "reset every player's gains" button. */
     private boolean confirmingGainWipe;
+
+    /** For the scenes (13.11b): pixels between "Stufe N" and the chapter line in the last frame (99 = own line below). */
+    public static volatile int testChapterGap = -1000;
 
     private void invisible(Button button) {
         button.setAlpha(0f);
@@ -4765,9 +4774,24 @@ public class CoreScreen extends Screen {
         // Tor 11: "Kapitel 2 · Nacht 1" right of the level
         String chapterLine = Component.translatable(stats.chapterNight % 20 == 0 ? "nightsiege.chapter.finale" : "nightsiege.chapter.night",
                 stats.chapter, stats.chapterNight).getString() + (stats.chapterStars > 0 ? "  \u2605" + stats.chapterStars : "");
-        gui.text(font, chapterLine, x + w - 8 - font.width(chapterLine), cy + (compact ? 1 : 4), GOLD, true);
+        // Paket 13.11b: never over the level – beside it, beside it smaller, or on a line of its own below.
+        int levelW = (int) Math.ceil(font.width(level) * levelScale);
+        int chapterW = font.width(chapterLine);
+        UiFit.Place place = UiFit.beside(levelW, chapterW, w - 16);
+        if (place == UiFit.Place.BELOW) {
+            testChapterGap = 99;
+        } else {
+            int sw = place == UiFit.Place.BESIDE ? chapterW
+                    : (int) Math.ceil(chapterW * UiFit.scaleFor(chapterW, w - 16 - levelW - 6));
+            PurpleUi.fitText(gui, font, chapterLine, x + w - 8 - sw, cy + (compact ? 1 : 4), sw, 8, GOLD, true, false);
+            testChapterGap = (x + w - 8 - sw) - (x + 8 + levelW);
+        }
         // Teil 2: the pool ("Vorrat: X Erfahrung, nutzbar bis Stufe Y") stands at the foot of the record card (fix 13.11.).
         cy += compact ? 11 : 17;
+        if (place == UiFit.Place.BELOW) {
+            PurpleUi.fitText(gui, font, chapterLine, x + 8, cy - (compact ? 1 : 2), w - 16, 8, GOLD, true, false);
+            cy += compact ? 9 : 10;
+        }
         if (stats.siegeActive) {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
             gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),

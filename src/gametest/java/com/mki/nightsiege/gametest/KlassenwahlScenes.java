@@ -185,6 +185,8 @@ final class KlassenwahlScenes {
         });
         context.waitTicks(30);
         shot(context, "klassenwahl_02_tree");
+        // Paket 13.11b: the footer side by side, English and German, GUI 2 and 3.
+        shots += LayoutCheck.matrix(context, "klassenwahl_footer", true, KlassenwahlScenes::check, null);
 
         // 3. The crates: all at once, on the lent profile.
         server(context, "crates", (player, m) -> {

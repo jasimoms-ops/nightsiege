@@ -146,6 +146,13 @@ final class KapitelScenes {
         tab(context, "STATS");
         shot(context, "kapitel_vor_finale");
         shot(context, "kapitel_knoepfe_gesperrt");
+        // Paket 13.11b: "Kapitel 1 · Nacht 20 · Finale" never over "Stufe 20", English and German, GUI 2 and 3.
+        shots += LayoutCheck.matrix(context, "kapitel_finale", true, KapitelScenes::check, tag -> {
+            com.mki.nightsiege.client.CoreScreen.testChapterGap = -1000;
+            context.waitTicks(3);
+            int gap = com.mki.nightsiege.client.CoreScreen.testChapterGap;
+            check(gap >= 2, tag + ": the chapter line clear of the level (gap " + gap + " px, 99 = own line)");
+        });
         EventLookTest.closeScreen(context);
 
         // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.

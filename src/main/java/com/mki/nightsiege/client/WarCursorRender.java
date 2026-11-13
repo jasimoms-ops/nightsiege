@@ -95,7 +95,23 @@ public final class WarCursorRender {
             line(gui, x0, y0, x1, y1, WHITE);
         }
         sign(gui, intent, cx, cy, Math.max(3, Math.min(10, r - 4)), color);
-        // 5. The words: the unit's name and life above, what a click does (or why not) below.
+    }
+
+    /**
+     * 5. The words: the unit's name and life above, what a click does (or why not) below. Drawn after the
+     * screen's panels, so no panel covers them (Paket 13.11b: "Health 84/132" under the shop).
+     */
+    public static void drawWords(GuiGraphicsExtractor gui, Font font) {
+        if (!WarCursor.shown()) {
+            return;
+        }
+        WarCursor.Intent intent = WarCursor.intent();
+        int color = color(intent);
+        int cx = (int) Math.round(WarCursor.screenX());
+        int cy = (int) Math.round(WarCursor.screenY());
+        int r = spreadRadius() > 0 ? spreadRadius() : radius();
+        int tick = Math.max(3, r / 3);
+        WarCursor.Hover h = WarCursor.hover();
         if (h != null) {
             label(gui, font, cx, cy - r - tick - 12, h, color);
         }

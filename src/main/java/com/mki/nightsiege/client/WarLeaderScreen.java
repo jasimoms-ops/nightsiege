@@ -1269,6 +1269,7 @@ public class WarLeaderScreen extends Screen {
         drawShop(gui, font, mouseX, mouseY);
         drawSide(gui, font, mouseX, mouseY);
         drawHint(gui, font);
+        WarCursorRender.drawWords(gui, font);   // 13.11b: over the panels, not under them
         if (menu) {
             drawMenu(gui, font, mouseX, mouseY);
         } else if (!WarCursor.shown()) {
@@ -1307,11 +1308,12 @@ public class WarLeaderScreen extends Screen {
         String head = tr("nightsiege.war.lobby_title");
         gui.text(font, head, (this.width - font.width(head)) / 2, y, GOLD, true);
         y += 13;
-        small(gui, font, tr("nightsiege.war.lobby_sub", data.radius), x, y, GREY, 0.75f);
-        y += 12;
+        // Paket 13.11b: wrapped inside the window instead of running over its edge.
+        y += PurpleUi.wrapSmall(gui, font, tr("nightsiege.war.lobby_sub", data.radius), x, y, b[0] + b[2] - 10 - x, GREY, 0.75f, false);
+        y += 4;
         if (data.lobby.isEmpty()) {
-            small(gui, font, tr("nightsiege.war.lobby_nobody", data.radius), x, y, ORANGE, 0.8f);
-            y += 12;
+            y += PurpleUi.wrapSmall(gui, font, tr("nightsiege.war.lobby_nobody", data.radius), x, y, b[0] + b[2] - 10 - x, ORANGE, 0.8f, false);
+            y += 4;
         }
         for (WarLeaderData.Mate mate : data.lobby) {
             gui.fill(x, y, b[0] + b[2] - 10, y + 11, PurpleUi.BOX);

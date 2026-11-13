@@ -207,6 +207,8 @@ final class BastionScenes {
         });
         context.waitTicks(20);
         context.takeScreenshot("bastion_02_tree");
+        // Paket 13.11b: the footer (classes, recommended build, crates, other class, ready, done) side by side.
+        LayoutCheck.matrix(context, "bastion_footer", true, BastionScenes::check, null);
         server(context, "fill", (player, m) -> {
             PlayerSkills lent = m.save().skillsOf(id(player));
             m.onFunAction(player, "recommended");

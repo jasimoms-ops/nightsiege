@@ -63,9 +63,51 @@ public final class PurpleUi {
             gui.fill(x, y, x + w, y + h, edge);
             gui.fill(x + 1, y + 1, x + w - 1, y + h - 1, !active ? BOX_DARK : hover ? BOX_HOVER : BOX);
         }
-        String shown = font.plainSubstrByWidth(text, w - 6);
         int color = primary && active ? GOLD_TEXT : !active ? DIM : hover ? GOLD : LIGHT;
-        gui.text(font, shown, x + (w - font.width(shown)) / 2, y + (h - 8) / 2, color, primary && active ? false : true);
+        fitText(gui, font, text, x + 3, y, w - 6, h, color, primary && active ? false : true, true);
+    }
+
+    /**
+     * One line of text in a box {@code maxW} x {@code h} (vertically centred): too long, it gets smaller (down to
+     * {@link UiFit#MIN_SCALE}) instead of being cut; only beyond that it is cut (Paket 13.11b).
+     */
+    public static void fitText(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int maxW, int h,
+                               int color, boolean shadow, boolean centred) {
+        int tw = font.width(text);
+        float s = Math.max(UiFit.MIN_SCALE, UiFit.scaleFor(tw, maxW));
+        if (s >= 1f) {
+            gui.text(font, text, centred ? x + (maxW - tw) / 2 : x, y + (h - 8) / 2, color, shadow);
+            return;
+        }
+        String shown = tw * s > maxW ? font.plainSubstrByWidth(text, (int) (maxW / s)) : text;
+        float sw = font.width(shown) * s;
+        gui.pose().pushMatrix();
+        gui.pose().translate(centred ? x + (maxW - sw) / 2f : x, y + (h - 8 * s) / 2f);
+        gui.pose().scale(s, s);
+        gui.text(font, shown, 0, 0, color, shadow);
+        gui.pose().popMatrix();
+    }
+
+    /** True when a button {@code w} wide shows {@code text} whole (at most shrunk to {@link UiFit#MIN_SCALE}). */
+    public static boolean fitsButton(Font font, String text, int w) {
+        return font.width(text) * UiFit.MIN_SCALE <= w - 6;
+    }
+
+    /** A small text wrapped into {@code maxW}; returns the height used. */
+    public static int wrapSmall(GuiGraphicsExtractor gui, Font font, String text, int x, int y, int maxW, int color,
+                                float scale, boolean shadow) {
+        int lineH = Math.round(10 * scale);
+        int dy = 0;
+        for (net.minecraft.util.FormattedCharSequence part
+                : font.split(net.minecraft.network.chat.FormattedText.of(text), (int) (maxW / scale))) {
+            gui.pose().pushMatrix();
+            gui.pose().translate(x, y + dy);
+            gui.pose().scale(scale, scale);
+            gui.text(font, part, 0, 0, color, shadow);
+            gui.pose().popMatrix();
+            dy += lineH;
+        }
+        return dy;
     }
 
     /**

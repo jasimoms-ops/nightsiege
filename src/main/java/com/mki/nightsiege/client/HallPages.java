@@ -226,9 +226,10 @@ final class HallPages {
                 gui.pose().popMatrix();
                 tx = bx + 20;
             }
-            String shown = font.plainSubstrByWidth(label, bx + bw - 3 - tx);
             int color = active ? GOLD : hover ? WHITE : PurpleUi.LIGHT;
-            gui.text(font, shown, icons ? tx : bx + (bw - font.width(shown)) / 2, y + 5, color, true);
+            // Paket 13.11b: a long name gets smaller instead of cut ("Curiositie").
+            int room = icons ? bx + bw - 3 - tx : bw - 6;
+            PurpleUi.fitText(gui, font, label, icons ? tx : bx + 3, y + 1, room, 16, color, true, !icons);
             Page target = p;
             hit(bx, y, bx + bw, y + 18, () -> {
                 page = target;

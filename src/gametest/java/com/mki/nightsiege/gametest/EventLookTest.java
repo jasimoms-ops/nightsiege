@@ -10903,6 +10903,9 @@ public class EventLookTest implements FabricClientGameTest {
         context.runOnClient(client -> System.out.println("[Night Siege test] war lobby screen="
                 + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w ? w.testPhase() : String.valueOf(client.gui.screen()))));
         context.takeScreenshot("war_01_lobby");
+        // Paket 13.11b: the subtitle wrapped inside the window, English and German, GUI 2 and 3.
+        LayoutCheck.matrix(context, "war_01_lobby", false, (ok, what) -> System.out.println("[Night Siege test] war lobby layout: "
+                + what + (ok ? " OK" : " FAIL")), null);
         final double[] before = new double[4];
         onServer(context, (player, manager) -> {
             before[0] = player.getX();
