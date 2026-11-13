@@ -67,6 +67,11 @@ final class LeisteScenes {
         context.waitTicks(15);
         int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
         int[] window = context.computeOnClient(client -> new int[]{client.getWindow().getWidth(), client.getWindow().getHeight()});
+        String stateBefore = state(context);
+        log("state before: " + stateBefore);
+        // The very window is shut and opened again later (camera, zoom, picks stay), no new one.
+        final Object[] view = new Object[1];
+        context.runOnClient(client -> view[0] = client.gui.screen());
         // 1. The leader's window as it is: the head with the new line.
         String seen = context.computeOnClient(client -> {
             if (!(client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w)) {
@@ -107,9 +112,53 @@ final class LeisteScenes {
             }
             manager.config().warWinStandingDivisor = before[0];
         });
-        reopen(context, 0L);   // the view comes back with the next update of the round
-        context.waitTicks(30);
-        context.runOnClient(client -> log("view back=" + (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen)));
+        context.waitTicks(5);
+        context.runOnClient(client -> {
+            if (view[0] instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                client.setScreenAndShow(w);
+            }
+            try {
+                java.lang.reflect.Field p = com.mki.nightsiege.client.WarLeaderScreen.class.getDeclaredField("pending");
+                p.setAccessible(true);
+                p.set(null, null);
+            } catch (ReflectiveOperationException e) {
+                log("pending: " + e);
+            }
+        });
+        reopen(context, 0L);
+        context.waitTicks(20);
+        String stateAfter = state(context);
+        log("state after: " + stateAfter + (stateAfter.equals(stateBefore) ? " OK" : " FAIL"));
+    }
+
+    /** Window, GUI scale, the open window (same one), its camera, zoom and pick. */
+    private static String state(ClientGameTestContext context) {
+        return context.computeOnClient(client -> {
+            String view = "none";
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.WarLeaderScreen w) {
+                double zoom = -1;
+                double x = 0;
+                double z = 0;
+                try {
+                    java.lang.reflect.Field f = com.mki.nightsiege.client.WarLeaderScreen.class.getDeclaredField("zoomH");
+                    f.setAccessible(true);
+                    zoom = f.getDouble(w);
+                    f = com.mki.nightsiege.client.WarLeaderScreen.class.getDeclaredField("camX");
+                    f.setAccessible(true);
+                    x = f.getDouble(w);
+                    f = com.mki.nightsiege.client.WarLeaderScreen.class.getDeclaredField("camZ");
+                    f.setAccessible(true);
+                    z = f.getDouble(w);
+                } catch (ReflectiveOperationException e) {
+                    zoom = -2;
+                }
+                view = String.format(Locale.ROOT, "war#%x cam=%.1f,%.1f zoom=%.1f squad=%d", System.identityHashCode(w), x, z, zoom, w.testSquad());
+            } else if (client.gui.screen() != null) {
+                view = client.gui.screen().getClass().getSimpleName();
+            }
+            return String.format(Locale.ROOT, "window=%dx%d gui=%d option=%d view=%s", client.getWindow().getWidth(),
+                    client.getWindow().getHeight(), client.getWindow().getGuiScale(), client.options.guiScale().get(), view);
+        });
     }
 
     /** One picture in GUI 2 (the CI window, 854 x 480) and one in GUI 3 (1280 x 720), the mouse in an empty corner. */
