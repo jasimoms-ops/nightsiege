@@ -45,6 +45,15 @@ public final class WarCursorRender {
         return (int) Math.round(Math.max(MIN_R[size], Math.min(MAX_R[size], r)));
     }
 
+    /** The machine's spread round the cross on the screen (GUI pixels, at least 6), 0 without an aiming machine. */
+    public static int spreadRadius() {
+        double spread = WarCursor.spread();
+        if (WarCursor.machine() == null || spread <= 0 || !WarCursor.onGround()) {
+            return 0;
+        }
+        return (int) Math.max(6, Math.round(spread * WarCursor.pixelsPerBlock(WarCursor.worldY())));
+    }
+
     public static void draw(GuiGraphicsExtractor gui, Font font) {
         if (!WarCursor.shown()) {
             return;
@@ -53,7 +62,8 @@ public final class WarCursorRender {
         int color = color(intent);
         int cx = (int) Math.round(WarCursor.screenX());
         int cy = (int) Math.round(WarCursor.screenY());
-        int r = radius();
+        // With an aiming machine the ring is its spread (where the shots land, at every zoom), else the cross size.
+        int r = spreadRadius() > 0 ? spreadRadius() : radius();
         // 1. The machine: its reach round it, a dotted line to the cross, the spread round the cross.
         if (WarCursor.machine() != null) {
             drawMachine(gui, font, cx, cy, color);
@@ -84,7 +94,7 @@ public final class WarCursorRender {
             thick(gui, x0, y0, x1, y1, BLACK, 3);
             line(gui, x0, y0, x1, y1, WHITE);
         }
-        sign(gui, intent, cx, cy, Math.max(3, r - 4), color);
+        sign(gui, intent, cx, cy, Math.max(3, Math.min(10, r - 4)), color);
         // 5. The words: the unit's name and life above, what a click does (or why not) below.
         if (h != null) {
             label(gui, font, cx, cy - r - tick - 12, h, color);
@@ -118,10 +128,7 @@ public final class WarCursorRender {
         }
         double spread = WarCursor.spread();
         if (spread > 0 && WarCursor.onGround()) {
-            int sr = (int) Math.round(spread * WarCursor.pixelsPerBlock(WarCursor.worldY()));
-            ring(gui, cx, cy, sr + 1, 1, BLACK, true);
-            ring(gui, cx, cy, sr, 1, color, true);
-            ring(gui, cx, cy, sr - 1, 1, BLACK, true);
+            int sr = spreadRadius();
             String s = "±" + WarCursor.number(spread);
             int w = (int) Math.ceil(font.width(s) * 0.7f);
             int x = cx + (int) Math.round(sr * 0.72) + 2;
