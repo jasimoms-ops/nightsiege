@@ -11010,6 +11010,7 @@ public class EventLookTest implements FabricClientGameTest {
         });
         context.waitTicks(100);
         context.takeScreenshot("war_05_battle");
+        LeisteScenes.run(context);   // Chef 13.11.: warWinStandingDivisor on the bar (D = 3 for the check, then back)
         context.waitTicks(200);
         onServer(context, (player, manager) -> System.out.println("[Night Siege test] war ways in: breaches=" + manager.besiegerBreaches()
                 + " ladders=" + com.mki.nightsiege.game.TempBlocks.all((net.minecraft.server.level.ServerLevel) player.level(),
