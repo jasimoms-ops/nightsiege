@@ -22,8 +22,8 @@ public final class WarCursorRender {
     /** World radius of the cross (blocks) for small, normal, large. */
     private static final double[] SIZE = {0.55, 0.8, 1.1};
     /** And its bounds on the screen (GUI pixels), so it stays usable far out and close in. */
-    private static final int[] MIN_R = {5, 7, 9};
-    private static final int[] MAX_R = {14, 20, 27};
+    private static final int[] MIN_R = {7, 10, 13};
+    private static final int[] MAX_R = {16, 22, 30};
 
     private WarCursorRender() {
     }
@@ -161,33 +161,44 @@ public final class WarCursorRender {
             }
             text = WarCursor.tr("nightsiege.war.cursor.ladder");
         }
-        words(gui, font, text, px, py - (int) Math.round(Math.max(5, ppb)) - 12, YELLOW);
+        // Beside the preview (above and below the cross stand its own words).
+        float scale = 0.75f;
+        int lx = px + (int) Math.round(Math.max(5, (WarCursor.preview() == WarCursor.Preview.BLAST ? WarCursor.previewR() : 1.0) * ppb)) + 4;
+        int lw = (int) Math.ceil(font.width(text) * scale);
+        lx = Math.min(WarCursor.width() - lw - 4, lx);
+        gui.fill(lx - 3, py - 6, lx + lw + 3, py + 4, LABEL_BG);
+        small(gui, font, text, lx, py - 4, YELLOW, scale);
     }
 
     /** The sign of the intent inside the ring. */
     private static void sign(GuiGraphicsExtractor gui, WarCursor.Intent intent, int cx, int cy, int s, int color) {
         switch (intent) {
             case MOVE -> {
-                // An arrow down onto the spot.
-                thick(gui, cx, cy - s, cx, cy + s - 1, BLACK, 4);
-                for (int k = 0; k <= s / 2 + 1; k++) {
-                    gui.fill(cx - k - 1, cy + s - k - 2, cx + k + 2, cy + s - k + 1, BLACK);
+                // An arrow down onto the spot: a shaft and a wide head.
+                int head = Math.max(3, s / 2 + 1);
+                int tip = cy + s;
+                gui.fill(cx - 2, cy - s - 1, cx + 2, tip - head + 1, BLACK);
+                for (int k = 0; k <= head; k++) {
+                    gui.fill(cx - k - 1, tip - k - 1, cx + k + 1, tip - k + 1, BLACK);
                 }
-                gui.fill(cx, cy - s + 1, cx + 1, cy + s - 1, color);
-                gui.fill(cx - 1, cy - s + 1, cx, cy + s - 2, color);
-                for (int k = 0; k <= s / 2; k++) {
-                    gui.fill(cx - k, cy + s - k - 1, cx + k + 1, cy + s - k, color);
+                gui.fill(cx - 1, cy - s, cx + 1, tip - head, color);
+                for (int k = 0; k < head; k++) {
+                    gui.fill(cx - k, tip - k - 1, cx + k, tip - k, color);
                 }
             }
             case ATTACK -> {
-                // A sword, point up right: the blade, the guard across, the grip.
-                int a = s;
-                thick(gui, cx - a / 2, cy + a / 2, cx + a, cy - a, BLACK, 4);
-                thick(gui, cx - a + 1, cy, cx, cy + a - 1, BLACK, 4);
-                thick(gui, cx - a / 2, cy + a / 2, cx - a, cy + a, BLACK, 4);
-                thick(gui, cx - a / 2, cy + a / 2, cx + a, cy - a, color, 2);
-                line(gui, cx - a + 1, cy, cx, cy + a - 1, color);
-                line(gui, cx - a / 2, cy + a / 2, cx - a, cy + a, 0xFFC08040);
+                // An upright sword: the blade with its point, the guard across, the grip and the pommel.
+                int guard = cy + s / 3;
+                int half = Math.max(3, s / 2 + 1);
+                int end = cy + s;
+                gui.fill(cx - 2, cy - s - 1, cx + 2, guard + 1, BLACK);
+                gui.fill(cx - half - 1, guard - 1, cx + half + 1, guard + 3, BLACK);
+                gui.fill(cx - 2, guard + 2, cx + 2, end + 1, BLACK);
+                gui.fill(cx - 1, cy - s, cx + 1, guard, color);
+                gui.fill(cx - 1, cy - s - 1 + 1, cx + 1, cy - s + 1, WHITE);
+                gui.fill(cx - half, guard, cx + half, guard + 2, color);
+                gui.fill(cx - 1, guard + 2, cx + 1, end - 1, 0xFFB07A40);
+                gui.fill(cx - 1, end - 1, cx + 1, end, color);
             }
             case SPECIAL -> {
                 // A diamond with a point.
