@@ -447,7 +447,7 @@ public final class WarLeader {
         leaderName = player.getScoreboardName();
         bot = false;
         sandbox = true;
-        forcedLevel = wantedLevel > 0 ? Math.min(20, wantedLevel) : 0;
+        forcedLevel = wantedLevel > 0 ? Math.min(Math.max(25, m.config().warLevel), wantedLevel) : 0;
         round = null;
         roster.clear();
         rosterNames.clear();
@@ -669,8 +669,8 @@ public final class WarLeader {
             cancelLobby(server, "nightsiege.war.go_nobody");
             return;
         }
-        // Simon 06.11.: "immer Stufe 20" - the defenders play full lent profiles (the fun mode, Update 7).
-        level = forcedLevel > 0 ? forcedLevel : cfg.funModeLoans ? Math.max(1, cfg.warLevel) : Math.max(1, m.currentLevel());
+        // Simon 06.11.: "immer Stufe 20" - the defenders play full lent profiles (the fun mode, Update 7); the round fights at warLevel.
+        level = FreeClassPick.roundLevel(cfg, forcedLevel, m.currentLevel());   // K3: warLevel 25, not the world's level
         // The leader's place and the time of day, kept for a crash.
         SiegeSave.WarRestore keep = new SiegeSave.WarRestore();
         if (lead != null) {

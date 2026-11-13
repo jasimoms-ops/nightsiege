@@ -232,6 +232,8 @@ public class CoreStats {
     /** The viewer plays the fun mode's lent profile in a ready round (the tree's "Alles lernen" and "Bereit"), and is ready. */
     public boolean funLoan;
     public boolean funReady;
+    /** Tor 10 / K3: crates of the free class pick still to open (the tree's "Kisten öffnen (N)"). */
+    public int funCrates;
     public boolean extraSiegeToday;
     public String extraSiegeBy = "";
 

@@ -276,7 +276,7 @@ public final class SiegeCommands {
                                     SiegeManager.get().warLeader().requestSandbox(ctx.getSource().getPlayerOrException(), 0);
                                     return 1;
                                 })
-                                .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 20)).executes(ctx -> {
+                                .then(Commands.argument("stufe", IntegerArgumentType.integer(1, 25)).executes(ctx -> {
                                     SiegeManager.get().warLeader().requestSandbox(ctx.getSource().getPlayerOrException(),
                                             IntegerArgumentType.getInteger(ctx, "stufe"));
                                     return 1;

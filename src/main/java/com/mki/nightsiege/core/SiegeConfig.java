@@ -578,14 +578,17 @@ public class SiegeConfig {
     public int warForceSeconds = 30;
     /**
      * The level the war leader's round fights at (Simon 06.11.: "immer Stufe 20"): the defenders play full
-     * lent profiles (the fun mode), so the round no longer goes by the world's level.
+     * lent profiles (the fun mode), so the round no longer goes by the world's level. Tor 10 / K3 (Chef 13.11.):
+     * level 25 (monsters, war gold, every "from level" open), the defenders on level 20; settings 29.
      */
-    public int warLevel = 20;
+    public int warLevel = 25;
     // ---- the fun mode's lent profiles (Update 7, Simon 06.11.: "jede Klasse ... immer komplett durchgelevelt")
     /** Rounds of the Letzte Bastion and the war leader: every defender plays a full lent profile of any subclass. */
     public boolean funModeLoans = true;
     /** The kit level of the fun mode (infernite from 20 on). */
     public int funKitLevel = 20;
+    /** Tor 10 / K3 (Simon 13.11. 02:13): crates of the free class pick, as in the playtest ("Alle öffnen"), per class. */
+    public int funCrates = 20;
     // ---- the Letzte Bastion (Update 7, Simon 29.10. and 06.11.)
     /** The round can be started from the core window. */
     public boolean bastionEnabled = true;
@@ -1519,7 +1522,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 28;
+    public static final int SETTINGS_VERSION = 29;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1792,6 +1795,7 @@ public class SiegeConfig {
         warForceSeconds = clamp(warForceSeconds, 0, 300);
         warLevel = clamp(warLevel, 1, 200);
         funKitLevel = clamp(funKitLevel, 1, 200);
+        funCrates = clamp(funCrates, 0, 100);
         bastionFromLevel = clamp(bastionFromLevel, 1, 1000);
         bastionAccepts = clamp(bastionAccepts, 1, 20);
         bastionLobbyRadius = clamp(bastionLobbyRadius, 8, 200);
@@ -2252,6 +2256,14 @@ public class SiegeConfig {
                 bossPreWaveFactor = BOSS_PRE_WAVE;
             }
             settingsVersion = 28;
+        }
+        if (settingsVersion < 29) {
+            // Tor 10 / K3 (Chef 13.11. 02:20): the war leader's round fights at level 25. The old default becomes the
+            // target, an own value stays. funCrates is a new field with its default (20).
+            if (warLevel == 20) {
+                warLevel = 25;
+            }
+            settingsVersion = 29;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
