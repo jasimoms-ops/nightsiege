@@ -274,12 +274,13 @@ final class KriegsBefehleScenes {
                     }
                 }
             }
+            String cross = com.mki.nightsiege.client.WarCursor.testState();   // the cross before the click (mouse, snap)
             if (onFlag != null) {
                 click(w, onFlag);
             }
             check(onFlag != null && nearGap < 10 && w.testPicked().equals(String.valueOf(id[1])),
-                    String.format(Locale.ROOT, "click on flag squad picks squad: picked=%s (want %d), flag %.0f px away (< 10)",
-                            w.testPicked(), id[1], nearGap));
+                    String.format(Locale.ROOT, "click on flag squad picks squad: picked=%s (want %d), flag %.0f px away (< 10), click at %d,%d, cross %s",
+                            w.testPicked(), id[1], nearGap, onFlag == null ? 0 : onFlag[0], onFlag == null ? 0 : onFlag[1], cross));
             click(w, at);
             boolean clicked = w.testPicked().equals(String.valueOf(id[1]));
             key(w, GLFW.GLFW_KEY_2, GLFW.GLFW_MOD_CONTROL);

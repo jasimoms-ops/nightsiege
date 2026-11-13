@@ -13,6 +13,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -400,21 +402,37 @@ public final class WarCursor {
         }
         double best = SNAP * SNAP;
         Minecraft client = Minecraft.getInstance();
+        // The squad whose monster (or middle) is nearest on the screen, within 9 pixels: the one the click picks
+        // (WarLeaderScreen.nearestSquad) - two squads on one flag go by their monsters, not by their middles.
+        WarLeaderData.Squad mine = null;
+        double minePx = 9 * 9;
         for (WarLeaderData.Squad q : data.squads) {
             if ("coming".equals(q.order)) {
                 continue;
             }
-            double d = sq(q.x - worldX) + sq(q.z - worldZ);
-            if (d <= best) {
-                best = d;
-                double gy = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(q.x), (int) Math.floor(q.z));
-                String name = itemName(q.item);
-                hover = q.machine
-                        ? new Hover(Kind.MACHINE, name, q.maxHealth <= 0 ? "" : tr("nightsiege.war.cursor.life", Math.round(q.health),
-                        Math.round(q.maxHealth)), q.maxHealth <= 0 ? -1f : Math.max(0f, Math.min(1f, q.health / q.maxHealth)), q.x, gy, q.z, q.id)
-                        : new Hover(Kind.SQUAD, name, tr("nightsiege.war.cursor.alive", q.alive, Math.max(q.alive, q.total)),
-                        q.total <= 0 ? -1f : q.alive / (float) q.total, q.x, gy, q.z, q.id);
+            List<double[]> spots = new ArrayList<>();
+            spots.add(new double[]{q.x, client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(q.x), (int) Math.floor(q.z)), q.z});
+            for (WarLeaderData.Unit u : q.units) {
+                spots.add(new double[]{u.x, u.y, u.z});
             }
+            for (double[] w : spots) {
+                double[] s = project(w[0], w[1], w[2]);
+                if (s != null && sq(s[0] - mouseX) + sq(s[1] - mouseY) < minePx) {
+                    minePx = sq(s[0] - mouseX) + sq(s[1] - mouseY);
+                    mine = q;
+                }
+            }
+        }
+        Hover squad = null;
+        if (mine != null) {
+            WarLeaderData.Squad q = mine;
+            double gy = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, (int) Math.floor(q.x), (int) Math.floor(q.z));
+            String name = itemName(q.item);
+            squad = q.machine
+                    ? new Hover(Kind.MACHINE, name, q.maxHealth <= 0 ? "" : tr("nightsiege.war.cursor.life", Math.round(q.health),
+                    Math.round(q.maxHealth)), q.maxHealth <= 0 ? -1f : Math.max(0f, Math.min(1f, q.health / q.maxHealth)), q.x, gy, q.z, q.id)
+                    : new Hover(Kind.SQUAD, name, tr("nightsiege.war.cursor.alive", q.alive, Math.max(q.alive, q.total)),
+                    q.total <= 0 ? -1f : q.alive / (float) q.total, q.x, gy, q.z, q.id);
         }
         for (WarLeaderData.Mate m : data.defenders) {
             if (m.fallen || (m.x == 0 && m.z == 0)) {
@@ -435,6 +453,13 @@ public final class WarCursor {
                         t.state == null || t.state.isEmpty() ? "" : tr("nightsiege.war.cursor.gate_" + t.state),
                         "closed".equals(t.state) ? 1f : "broken".equals(t.state) ? 0f : -1f,
                         t.x + 0.5, t.y + 1, t.z + 0.5, -1);
+            }
+        }
+        if (squad != null) {
+            // The squad goes before a defender or gate unless that one is nearer on the screen.
+            double[] hs = hover == null ? null : project(hover.x(), hover.y(), hover.z());
+            if (hs == null || sq(hs[0] - mouseX) + sq(hs[1] - mouseY) >= minePx) {
+                hover = squad;
             }
         }
         if (flag != null && (hover == null || (hover.kind() != Kind.SQUAD && hover.kind() != Kind.MACHINE))) {
