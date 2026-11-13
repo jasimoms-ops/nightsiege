@@ -559,7 +559,7 @@ public class SiegeConfig {
      * hard at higher levels and too easy at low ones. Bots held 53 % of normal nights (levels 3-20,
      * 2 and 4 players); war rounds at 0.12: 59 %, at 0.10: 79 %.
      */
-    public double warGoldShare = 0.11;
+    public double warGoldShare = 1.2;
     /** What one monster of a normal night is worth in gold, and the shares of machines and boss in the night's worth. */
     public double warGoldPerMob = 1.2;
     public double warMachineShare = 0.35;
@@ -582,7 +582,7 @@ public class SiegeConfig {
      * Tor 10 botkauf (Chef 13.11.): the war leader's round may hold this many times the night's live cap at once
      * (1.0 = as a night, as before), at most maxLiveMobsCap (the lag limit). Only the war leader's round reads it.
      */
-    public double warLiveCapFactor = 1.0;
+    public double warLiveCapFactor = 3.3;
     /**
      * Chef 13.11. 09:20: in the war leader's round the bought monsters get this much more life and damage for every
      * defender beyond the fourth (6 defenders: ×(1 + 2X)); 0 = as before. Not more monsters, only the round.
@@ -592,7 +592,7 @@ public class SiegeConfig {
      * Chef 13.11. 11:30: the war leader wins once at most floor(defenders / this) of the round's defenders still stand
      * (3: 1-2 all fallen, 3-5 one, 6-8 two); 0 = off, all must fall (as before). Only the war leader's round.
      */
-    public int warWinStandingDivisor = 0;
+    public int warWinStandingDivisor = 3;
     /** Who stands this close to the core is in the ready round; after this the leader may go without those not ready. */
     public int warLobbyRadius = 48;
     public int warForceSeconds = 30;
@@ -2299,6 +2299,11 @@ public class SiegeConfig {
             // is a new field with its default 1.0 (the round's live cap as before).
             if (chapterScaling == null || chapterScaling.isEmpty()) {
                 chapterScaling = new ArrayList<>(List.of(0.0, 0.0, 0.10, 0.20, 0.30));
+            }
+            // Tor 10 sim (krieg10, Können 0,55; Chef 05:20/07:20/11:30): war gold 0.11 -> 1.2 (an own value stays),
+            // warLiveCapFactor 3.3 and warWinStandingDivisor 3 come as new fields with their defaults.
+            if (Math.abs(warGoldShare - 0.11) < 1e-9) {
+                warGoldShare = 1.2;
             }
             settingsVersion = 30;
         }

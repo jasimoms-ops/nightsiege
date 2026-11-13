@@ -61,7 +61,12 @@ class WarShopTest {
                         + WarShop.SAPPER_PRICE * WarShop.nightSappers(level, cfg)
                         + WarShop.MACHINE_PRICE * SiegeMachineKind.countFor(level) * cfg.warMachineShare
                         + WarShop.BOSS_PRICE * cfg.warBossShare;
-                assertTrue(gold <= Math.max(10, Math.round(night)), "less than the whole night: level " + level);
+                // Since v30 (Tor 10 sim krieg10, Chef 05:20): the round's gold is the night's worth times warGoldShare
+                // (1.2: a little more than a whole night, the round runs five long waves against a free class at 20).
+                double pace = (double) cfg.warWaves * cfg.warWaveSeconds
+                        / Math.max(60.0, SiegeMath.durationSeconds(level, cfg));
+                assertEquals(Math.max(10, Math.round(night * pace * cfg.warGoldShare)), gold, 1,
+                        "night worth per minute over the round, times warGoldShare: level " + level);
                 System.out.println("[WarShopTest] level " + level + " players " + players + ": waves " + WarShop.nightWaves(level, cfg)
                         + " x " + perWave + " monsters, round gold " + gold + " (night worth " + Math.round(night) + ")");
             }
@@ -80,6 +85,8 @@ class WarShopTest {
     void warLiveCapFactorDefaultChangesNothing() {
         SiegeConfig cfg = new SiegeConfig();
         cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        assertEquals(3.3, cfg.warLiveCapFactor);   // Tor 10 sim krieg10: the default since v30
+        cfg.warLiveCapFactor = 1.0;                // factor 1.0: the round's cap as the night's
         cfg.sanitize();
         assertEquals(1.0, cfg.warLiveCapFactor);
         for (int cap : new int[]{9, 15, 26, 36, 40, 120, 150}) {
@@ -157,6 +164,8 @@ class WarShopTest {
     void winStandingOffIsTodaysRule() {
         SiegeConfig cfg = new SiegeConfig();
         cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        assertEquals(3, cfg.warWinStandingDivisor);   // Tor 10 sim krieg10: the default since v30
+        cfg.warWinStandingDivisor = 0;                // 0: off, all must fall (the old rule)
         cfg.sanitize();
         assertEquals(0, cfg.warWinStandingDivisor);
         for (int g = 1; g <= 10; g++) {
