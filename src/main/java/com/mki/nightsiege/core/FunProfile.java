@@ -20,6 +20,14 @@ public final class FunProfile {
      * the player has one) played first, its whole tree's points to spend.
      */
     public static PlayerSkills build(SkillTree tree, PlayerSkills own, Predicate<SkillClass> allowed) {
+        return build(tree, own, allowed, -1);
+    }
+
+    /**
+     * Tor 10 / K3 (Chef 13.11. 02:20: level 20 is the top): as {@link #build(SkillTree, PlayerSkills, Predicate)},
+     * but with the points of that level ({@code budget}) to spend freely; a budget below 0 = the whole tree.
+     */
+    public static PlayerSkills build(SkillTree tree, PlayerSkills own, Predicate<SkillClass> allowed, int budget) {
         PlayerSkills lent = new PlayerSkills();
         lent.profileVersion = PlayerSkills.PROFILE_VERSION;
         lent.freeSubclassVersion = PlayerSkills.FREE_SUBCLASS_VERSION;
@@ -50,7 +58,7 @@ public final class FunProfile {
         String start = wanted != null ? wanted : first;
         if (start != null) {
             lent.playOpened(start);
-            lent.points = remaining(tree, lent, start);
+            lent.points = budget < 0 ? remaining(tree, lent, start) : left(tree, lent, start, budget);
         }
         return lent;
     }
@@ -62,12 +70,22 @@ public final class FunProfile {
 
     /** Plays another lent profile: its whole rest to spend (the points are one account, so they are set anew). */
     public static boolean play(SkillTree tree, PlayerSkills lent, String key) {
+        return play(tree, lent, key, -1);
+    }
+
+    /** {@link #play(SkillTree, PlayerSkills, String)} with the points of one level (K3); below 0 = the whole tree. */
+    public static boolean play(SkillTree tree, PlayerSkills lent, String key, int budget) {
         if (lent == null || key == null || !lent.hasProfile(key)) {
             return false;
         }
         lent.switchToProfile(key);
-        lent.points = remaining(tree, lent, key);
+        lent.points = budget < 0 ? remaining(tree, lent, key) : left(tree, lent, key, budget);
         return true;
+    }
+
+    /** The points of a budget a profile has not spent yet (K3: the level's points, one account per profile). */
+    public static int left(SkillTree tree, PlayerSkills lent, String key, int budget) {
+        return Math.max(0, budget - tree.pointsSpentProfile(lent, key));
     }
 
     /**

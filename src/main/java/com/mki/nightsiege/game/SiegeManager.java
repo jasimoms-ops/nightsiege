@@ -179,6 +179,8 @@ public final class SiegeManager {
     private boolean warRound;
     /** The Letzte Bastion (Update 7, 07.11.): endless waves from level 20, a fun mode with lent full profiles. */
     private final Bastion bastion = new Bastion(this);
+    /** Tor 10 / K3: the free class pick on level 20 of the war leader's round and the bastion (crates, recommended build). */
+    private final FreeClassPick freeClassPick = new FreeClassPick(this);
     /** The running night is a round of the Letzte Bastion: its waves, no clock. */
     private boolean bastionRound;
     /** Where the boss of a war round comes (a gathering point), while it is set up; else null. */
@@ -329,6 +331,15 @@ public final class SiegeManager {
 
     public Bastion bastion() {
         return bastion;
+    }
+
+    public FreeClassPick freeClassPick() {
+        return freeClassPick;
+    }
+
+    /** Tor 10 / K3, the entry for Tor 11: the free class pick on level 20 (lent profile, crates, class window). */
+    public void openFreeClassPick(ServerPlayer player, FreeClassPick.Mode mode) {
+        freeClassPick.open(player, mode);
     }
 
     /** True while a round of the Letzte Bastion runs (its night). */
@@ -589,10 +600,12 @@ public final class SiegeManager {
             return;
         }
         PlayerSkills own = save.realSkillsOf(id);
-        PlayerSkills lent = com.mki.nightsiege.core.FunProfile.build(skillTree, own, c -> mayChoose(player, c));
+        int budget = FreeClassPick.budget(config);   // K3: the points of level 20, spent freely
+        PlayerSkills lent = com.mki.nightsiege.core.FunProfile.build(skillTree, own, c -> mayChoose(player, c), budget);
         save.lend(id, lent);
         if (SimBots.isBot(player)) {
-            com.mki.nightsiege.core.FunProfile.fill(skillTree, lent);   // the bots play the whole tree at once
+            FreeClassPick.recommend(skillTree, lent, budget);   // the bots take the recommended build and their crates
+            freeClassPick.openAll(player, false);
         }
         SkillService.clear(player);
         MinecraftServer server = player.level().getServer();
@@ -608,6 +621,7 @@ public final class SiegeManager {
         if (id == null || !save.endLoan(id.toString())) {
             return;
         }
+        freeClassPick.forget(id);
         ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(id);
         if (p != null) {
             if (!(active && participants.contains(id))) {
@@ -664,12 +678,14 @@ public final class SiegeManager {
         }
         PlayerSkills lent = save.skillsOf(player.getUUID().toString());
         switch (argument == null ? "" : argument) {
-            case "fill" -> {
-                int n = com.mki.nightsiege.core.FunProfile.fill(skillTree, lent);
-                player.sendSystemMessage(Component.translatable("nightsiege.fun.filled", n, profileName(lent, lent.chosenClass))
+            case "fill", "recommended" -> {
+                // K3: "Empfohlener Aufbau" (was "Alles lernen"): the fixed build of the subclass with the points of level 20.
+                int n = FreeClassPick.recommend(skillTree, lent, FreeClassPick.budget(config));
+                player.sendSystemMessage(Component.translatable("nightsiege.fun.recommended", n, profileName(lent, lent.chosenClass))
                         .withStyle(ChatFormatting.GREEN));
                 openCoreWindow(player);
             }
+            case "crates" -> freeClassPick.openAll(player, true);   // K3: the 20 crates, "Alle öffnen"
             case "ready" -> {
                 if (!inFunRound(player)) {
                     return;
@@ -7263,7 +7279,7 @@ public final class SiegeManager {
                 player.sendSystemMessage(Component.translatable("nightsiege.msg.play_not_now").withStyle(ChatFormatting.RED));
                 return;
             }
-            com.mki.nightsiege.core.FunProfile.play(skillTree, own, key);
+            com.mki.nightsiege.core.FunProfile.play(skillTree, own, key, FreeClassPick.budget(config));
             SkillService.clear(player);
             closeClassPick(player);
             ClassTags.update(player.level().getServer(), player, own, skillTree.subclassOfProfile(own, own.chosenClass));

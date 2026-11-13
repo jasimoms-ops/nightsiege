@@ -1136,13 +1136,19 @@ public class CoreScreen extends Screen {
             footerX += kw + 4;
         }
         if (stats.funLoan && isClassTree(activeTab)) {
-            // The fun mode: learn the whole rest at once, or pick another subclass in the class window.
-            Component fill = Component.translatable("nightsiege.ui.fun_fill");
+            // The free class pick (Tor 10 / K3): the recommended build, the 20 crates, or another subclass.
+            Component fill = Component.translatable("nightsiege.ui.fun_recommended");
             int fw = Math.max(70, font.width(fill) + 12);
-            goldButtons.add(addRenderableWidget(Button.builder(fill, b -> send("fun:fill")).bounds(footerX, footerY, fw, 18)
-                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.ui.fun_fill_hint")))
+            goldButtons.add(addRenderableWidget(Button.builder(fill, b -> send("fun:recommended")).bounds(footerX, footerY, fw, 18)
+                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.ui.fun_recommended_hint")))
                     .build()));
             footerX += fw + 4;
+            if (stats.funCrates > 0) {
+                Component crates = Component.translatable("nightsiege.ui.fun_crates", stats.funCrates);
+                int cw = Math.max(70, font.width(crates) + 12);
+                addRenderableWidget(Button.builder(crates, b -> send("fun:crates")).bounds(footerX, footerY, cw, 18).build());
+                footerX += cw + 4;
+            }
             Component other = Component.translatable("nightsiege.ui.fun_class");
             int ow = Math.max(70, font.width(other) + 12);
             addRenderableWidget(Button.builder(other, b -> send("fun:class")).bounds(footerX, footerY, ow, 18).build());

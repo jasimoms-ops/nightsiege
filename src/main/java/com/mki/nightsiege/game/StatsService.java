@@ -152,6 +152,7 @@ public final class StatsService {
         // The fun mode's lent profile: the tree shows "Alles lernen" and "Bereit".
         stats.funLoan = manager.playsLent(viewer) && (manager.bastion().inRound(viewer) || manager.warLeader().inRound(viewer));
         stats.funReady = stats.funLoan && (manager.bastion().roundReady(viewer.getUUID()) || manager.warLeader().roundReady(viewer.getUUID()));
+        stats.funCrates = stats.funLoan ? manager.freeClassPick().due(viewer) : 0;
         stats.extraSiegeToday = manager.extraSiegeToday(server);
         stats.extraSiegeBy = stats.extraSiegeToday && save.extraCalledBy != null ? save.extraCalledBy : "";
         stats.playersNear = stats.accepted;
