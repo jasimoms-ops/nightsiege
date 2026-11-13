@@ -1697,7 +1697,10 @@ public final class WarLeader {
     private void walk(Mob mob, double x, double z, double speed) {
         double ox = random.nextInt(3) - 1;
         double oz = random.nextInt(3) - 1;
-        mover(mob).getNavigation().moveTo(x + ox, groundY(x + ox, z + oz), z + oz, speed);
+        if (!mover(mob).getNavigation().moveTo(x + ox, groundY(x + ox, z + oz), z + oz, speed)) {
+            // The spread spot has no way (a wall, a tree): the spot itself, so the order takes hold at once.
+            mover(mob).getNavigation().moveTo(x, groundY(x, z), z, speed);
+        }
     }
 
     private double groundY(double x, double z) {
