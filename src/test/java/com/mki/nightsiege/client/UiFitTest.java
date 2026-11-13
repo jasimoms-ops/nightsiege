@@ -102,7 +102,7 @@ class UiFitTest {
                 UiFit.Place p = UiFit.beside(level, text, row);
                 if (p != UiFit.Place.BELOW) {
                     float s = UiFit.scaleFor(text, row - level - 6);
-                    assertTrue(Math.ceil(text * s) <= row - level - 6 + 1e-3, "beside: room " + (row - level - 6) + " text " + text);
+                    assertTrue(Math.floor(text * s) <= row - level - 6, "beside: room " + (row - level - 6) + " text " + text);
                 }
             }
         }

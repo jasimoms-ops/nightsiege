@@ -4782,7 +4782,7 @@ public class CoreScreen extends Screen {
             testChapterGap = 99;
         } else {
             int sw = place == UiFit.Place.BESIDE ? chapterW
-                    : (int) Math.ceil(chapterW * UiFit.scaleFor(chapterW, w - 16 - levelW - 6));
+                    : (int) Math.floor(chapterW * UiFit.scaleFor(chapterW, w - 16 - levelW - 6));
             PurpleUi.fitText(gui, font, chapterLine, x + w - 8 - sw, cy + (compact ? 1 : 4), sw, 8, GOLD, true, false);
             testChapterGap = (x + w - 8 - sw) - (x + 8 + levelW);
         }
