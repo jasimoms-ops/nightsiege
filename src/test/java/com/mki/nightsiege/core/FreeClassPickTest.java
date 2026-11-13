@@ -133,7 +133,7 @@ class FreeClassPickTest {
     @Test
     void migration29BringsWarLevel25() {
         SiegeConfig fresh = cfg();
-        assertEquals(29, SiegeConfig.SETTINGS_VERSION);
+        assertTrue(SiegeConfig.SETTINGS_VERSION >= 29);   // 30 since Tor 11 (chapters), the 29 step still runs
         assertEquals(25, fresh.warLevel);
         assertEquals(20, fresh.funKitLevel);
         SiegeConfig server = new SiegeConfig();
