@@ -24,6 +24,7 @@ final class WarCursorScenes {
     private static final int ZOMBIES = 1;
     private static final int MORTAR = 2;
     private static final int OWN = 4;
+    private static final int SLING = 5;
 
     private static int bx;
     private static int by;
@@ -129,6 +130,9 @@ final class WarCursorScenes {
                 c -> WarCursor.setPreview(WarCursor.Preview.LADDER, bx + 7.4, by + 2, bz + 3.5, 0));
         shot(context, "kreuz_" + g + "_stein_5_weit", bx + 13.5, bz + 0.5, MORTAR, null, null);
         shot(context, "kreuz_" + g + "_gras_1_trupp", bx - 4.2, bz + 5.4, -1, null, null);
+        // Tor 10 (Chef 03:20): machine and gate highlighted with their life or state.
+        shot(context, "kreuz_" + g + "_maschine_leben", bx - 15.0, bz - 3.0, -1, null, null);
+        shot(context, "kreuz_" + g + "_tor_leben", bx + 7.6, bz - 6.0, -1, null, null);
     }
 
     /** One picture: the cross over a spot with a squad picked, maybe an intent and a preview from outside (K1). */
@@ -257,10 +261,15 @@ final class WarCursorScenes {
         gate.x = bx + 8;
         gate.y = by;
         gate.z = bz - 6;
+        gate.state = "closed";
         d.targets.add(gate);
         d.squads.add(squad(ZOMBIES, "zombies", bx - 4.5, bz + 5.5, false, false));
         d.squads.add(squad(MORTAR, "machine.mortar", bx - 100.5, bz + 0.5, true, false));
         d.squads.add(squad(OWN, "zombies", bx - 10.5, bz + 6.5, false, true));
+        WarLeaderData.Squad sling = squad(SLING, "machine.fire", bx - 15.5, bz - 3.5, true, false);
+        sling.health = 84;
+        sling.maxHealth = 132;
+        d.squads.add(sling);
         d.defenders.add(mate("Ritter", bx + 3.5, by, bz + 5.0, 14, 20));
         d.defenders.add(mate("Bogner", bx + 8.5, by + 4, bz + 9.5, 6, 20));
         return d;

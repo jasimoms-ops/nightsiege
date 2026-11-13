@@ -2520,6 +2520,10 @@ public final class WarLeader {
                 t.x = g.pos().getX();
                 t.y = g.pos().getY();
                 t.z = g.pos().getZ();
+                net.minecraft.world.level.block.state.BlockState door = world == null ? null : world.getBlockState(g.pos());
+                t.state = door == null ? "" : WarLeaderData.gateState(g.arch(), BaseScan.isDoor(door),
+                        door.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN)
+                                && door.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN));
                 d.targets.add(t);
             }
         }
