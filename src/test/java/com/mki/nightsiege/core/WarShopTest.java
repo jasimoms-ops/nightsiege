@@ -74,4 +74,46 @@ class WarShopTest {
         assertEquals(WarShop.BOSS_OFFERS, offers.size());
         assertEquals(offers.size(), new HashSet<>(offers).size());
     }
+
+    // Tor 10 botkauf: warLiveCapFactor widens only the war leader's round's live cap.
+    @Test
+    void warLiveCapFactorDefaultChangesNothing() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.sanitize();
+        assertEquals(1.0, cfg.warLiveCapFactor);
+        for (int cap : new int[]{9, 15, 26, 36, 40, 120, 150}) {
+            assertEquals(cap, WarShop.liveCap(cap, cfg));
+        }
+    }
+
+    @Test
+    void warLiveCapFactorWorksOnlyInTheWarRound() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.liveCapByPlayers = new java.util.ArrayList<>(List.of(9, 15, 20, 26, 30, 36));
+        int night = SiegeMath.liveCap(2, cfg);
+        cfg.warLiveCapFactor = 2.0;
+        assertEquals(night, SiegeMath.liveCap(2, cfg));             // the night's cap stays
+        assertEquals(15, night);
+        assertEquals(30, WarShop.liveCap(night, cfg));               // the round's doubles
+        assertEquals(108, WarShop.liveCap(36, withFactor(cfg, 3.0)));
+        assertEquals(120, WarShop.liveCap(60, withFactor(cfg, 3.0)));  // the lag limit maxLiveMobsCap
+    }
+
+    @Test
+    void warLiveCapFactorIsSanitized() {
+        SiegeConfig cfg = new SiegeConfig();
+        cfg.settingsVersion = SiegeConfig.SETTINGS_VERSION;
+        cfg.warLiveCapFactor = Double.NaN;
+        cfg.sanitize();
+        assertEquals(1.0, cfg.warLiveCapFactor);
+        cfg.warLiveCapFactor = 99;
+        cfg.sanitize();
+        assertEquals(4.0, cfg.warLiveCapFactor);
+    }
+
+    private static SiegeConfig withFactor(SiegeConfig cfg, double f) {
+        cfg.warLiveCapFactor = f;
+        return cfg;
+    }
 }
