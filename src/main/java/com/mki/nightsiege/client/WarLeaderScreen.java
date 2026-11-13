@@ -496,7 +496,10 @@ public class WarLeaderScreen extends Screen {
             }
             return true;
         }
-        int[] flag = nearestFlag(x, y);
+        // A squad under the click goes before its flag (the points also by F1-F8); as the cross snaps (WarCursor.snap).
+        WarCursor.Hover under = atCross(x, y) ? WarCursor.hover() : null;
+        int[] flag = under != null ? (under.kind() == WarCursor.Kind.FLAG ? new int[]{under.id()} : null)
+                : nearestSquad(x, y) >= 0 ? null : nearestFlag(x, y);
         if (flag != null) {
             point = flag[0];
             click(1.3f);
