@@ -908,6 +908,11 @@ public class CoreScreen extends Screen {
                 // From world level 20 on: call an extra siege for tonight (greyed out with the reason otherwise).
                 Component call = Component.translatable("nightsiege.ui.extra_call");
                 int cw = Math.max(80, font.width(call) + 12);
+                if (cw > (W - 74) * 35 / 100) {
+                    // 13.11b: the long words take a third of the row; short, the start button keeps its word.
+                    call = Component.translatable("nightsiege.ui.extra_call_short");
+                    cw = Math.max(60, font.width(call) + 12);
+                }
                 boolean free = "NONE".equals(stats.extraSiegeBlock);
                 Button cb = Button.builder(call, b -> send("extrasiege")).bounds(bx, footerY, cw, 18)
                         .tooltip(net.minecraft.client.gui.components.Tooltip.create(free
@@ -924,6 +929,11 @@ public class CoreScreen extends Screen {
                         ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
                 Component label = Component.translatable("nightsiege.round.button");
                 int rw = Math.max(80, font.width(label) + 12);
+                if (bx + rw > rightLimit) {
+                    // 13.11b: first the short word ("Starten"), the symbol only when no word fits.
+                    label = Component.translatable("nightsiege.round.button_short");
+                    rw = font.width(label) + UiFit.PAD_TIGHT;
+                }
                 if (bx + rw > rightLimit) {
                     label = Component.literal("\u2694\u2605");
                     rw = 26;
@@ -4931,12 +4941,12 @@ public class CoreScreen extends Screen {
                 int vw = font.width(value);
                 // "Streak (best)" did not fit beside its value (fix 13.11.): the short word here.
                 String key = cells[i][0].equals("nightsiege.ui.rec_streak") ? "nightsiege.ui.rec_streak_short" : cells[i][0];
-                String label = font.plainSubstrByWidth(Component.translatable(key).getString(), cellW - vw - 8);
-                gui.text(font, label, cx, ry, 0xFF8C8894, true);
+                // 13.11b: a long label gets smaller instead of cut ("Höchstes Le").
+                PurpleUi.fitText(gui, font, Component.translatable(key).getString(), cx, ry - 4, cellW - vw - 8, 16, 0xFF8C8894, true, false);
                 gui.text(font, value, cx + cellW - 6 - vw, ry, color, true);
             } else {
                 int ry = cy + (i / 2) * 21;
-                gui.text(font, Component.translatable(cells[i][0]).getString(), cx, ry, 0xFF8C8894, true);
+                PurpleUi.fitText(gui, font, Component.translatable(cells[i][0]).getString(), cx, ry - 4, cellW - 6, 16, 0xFF8C8894, true, false);
                 gui.text(font, cells[i][1], cx, ry + 10, color, true);
             }
         }

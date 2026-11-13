@@ -34,41 +34,45 @@ final class LayoutCheck {
         context.getInput().resizeWindow(1280, 720);
         context.waitTicks(5);
         int pics = 0;
-        for (String lang : new String[] {"en_us", "de_de"}) {
-            language(context, lang);
-            for (int scale : new int[] {2, 3}) {
-                context.runOnClient(client -> {
-                    client.options.guiScale().set(scale);
-                    client.resizeGui();
-                });
-                context.waitTicks(5);
-                int real = context.computeOnClient(client -> client.getWindow().getGuiScale());
-                String tag = name + " " + lang + " gui " + scale;
-                check.accept(real == scale, tag + ": real GUI scale " + real);
-                boolean open = context.computeOnClient(client -> client.gui.screen() != null);
-                check.accept(open, tag + ": the window is open");
-                if (footer && open) {
-                    List<String> problems = footer(context);
-                    check.accept(problems.isEmpty(), tag + ": footer without overlap or cut text " + problems);
+        try {
+            for (String lang : new String[] {"en_us", "de_de"}) {
+                language(context, lang);
+                for (int scale : new int[] {2, 3}) {
+                    context.runOnClient(client -> {
+                        client.options.guiScale().set(scale);
+                        client.resizeGui();
+                    });
+                    context.waitTicks(5);
+                    int real = context.computeOnClient(client -> client.getWindow().getGuiScale());
+                    String tag = name + " " + lang + " gui " + scale;
+                    check.accept(real == scale, tag + ": real GUI scale " + real);
+                    boolean open = context.computeOnClient(client -> client.gui.screen() != null);
+                    check.accept(open, tag + ": the window is open");
+                    if (footer && open) {
+                        List<String> problems = footer(context);
+                        check.accept(problems.isEmpty(), tag + ": footer without overlap or cut text " + problems);
+                    }
+                    if (each != null) {
+                        each.accept(tag);
+                    }
+                    int windowH = context.computeOnClient(client -> client.getWindow().getScreenHeight());
+                    context.getInput().setCursorPos(2, Math.max(2, windowH - 2));   // no tooltip in the picture
+                    context.waitTicks(3);
+                    Path p = context.takeScreenshot(name + "_" + lang + "_gui" + scale);
+                    pics += p != null && Files.exists(p) ? 1 : 0;
                 }
-                if (each != null) {
-                    each.accept(tag);
-                }
-                int windowH = context.computeOnClient(client -> client.getWindow().getScreenHeight());
-                context.getInput().setCursorPos(2, Math.max(2, windowH - 2));   // no tooltip in the picture
-                context.waitTicks(3);
-                Path p = context.takeScreenshot(name + "_" + lang + "_gui" + scale);
-                pics += p != null && Files.exists(p) ? 1 : 0;
             }
+        } finally {
+            // Language, scale and window back even when a step throws (Pruefer 13.11b).
+            language(context, langBefore);
+            context.runOnClient(client -> {
+                client.options.guiScale().set(scaleBefore);
+                client.resizeGui();
+            });
+            context.getInput().resizeWindow(window[0], window[1]);
+            context.waitTicks(5);
         }
         check.accept(pics == 4, name + ": " + pics + " of 4 pictures written");
-        language(context, langBefore);
-        context.runOnClient(client -> {
-            client.options.guiScale().set(scaleBefore);
-            client.resizeGui();
-        });
-        context.getInput().resizeWindow(window[0], window[1]);
-        context.waitTicks(5);
         return pics;
     }
 
