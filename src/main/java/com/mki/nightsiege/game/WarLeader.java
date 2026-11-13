@@ -2547,6 +2547,12 @@ public final class WarLeader {
         d.machines = machinesStanding();
         d.machinesMax = sandbox ? SANDBOX_MACHINES : cfg.warMaxMachines;
         d.sandbox = sandbox;
+        if (cfg.warWinStandingDivisor > 0 && !sandbox) {
+            // Chef 13.11.: the same as the defenders' bar, for the leader (who does not get that bar).
+            int[] st = m.warStanding();
+            d.winStanding = WarShop.winStanding(st[1], cfg);
+            d.standing = st[0];
+        }
         for (int i = 0; i < points.size(); i++) {
             WarLeaderData.Point pt = new WarLeaderData.Point();
             pt.index = i;
