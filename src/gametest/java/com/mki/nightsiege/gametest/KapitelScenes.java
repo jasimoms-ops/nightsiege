@@ -1,0 +1,300 @@
+package com.mki.nightsiege.gametest;
+
+import com.mki.nightsiege.core.BossPlan;
+import com.mki.nightsiege.core.Chapters;
+import com.mki.nightsiege.core.HallOfFame;
+import com.mki.nightsiege.core.PlayerSkills;
+import com.mki.nightsiege.core.SkillClass;
+import com.mki.nightsiege.game.SiegeManager;
+import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Scene "kapitel" (Tor 11, Simon 13.11.): chapter 1 at night 20 (the finale), the finale won → the character is a
+ * veteran, chapter 2 starts at "Nacht 1" on world level 1, the class pick locks the veteran's class, the chapter
+ * bar, the finale's chest and banner, the star at the name and the veteran in the hall. Pictures "kapitel_*".
+ * Log lines start with "[kapitel]".
+ */
+final class KapitelScenes {
+
+    private static final List<String> FAILS = Collections.synchronizedList(new ArrayList<>());
+    private static int checks;
+    private static int shots;
+
+    private KapitelScenes() {
+    }
+
+    private static void log(String line) {
+        System.out.println("[kapitel] " + line);
+    }
+
+    private static void check(boolean ok, String what) {
+        checks++;
+        log((ok ? "OK   " : "FAIL ") + what);
+        if (!ok) {
+            FAILS.add(what);
+        }
+    }
+
+    private static void server(ClientGameTestContext context, String step, EventLookTest.OnServer action) {
+        EventLookTest.onServer(context, (player, manager) -> {
+            try {
+                action.run(player, manager);
+            } catch (Throwable t) {
+                FAILS.add(step + ": " + t);
+                log("ERROR in " + step + ": " + t);
+                t.printStackTrace(System.out);
+            }
+        });
+    }
+
+    private static void tab(ClientGameTestContext context, String tab) {
+        context.runOnClient(client -> {
+            try {
+                java.lang.reflect.Field field = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                field.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object value = Enum.valueOf((Class) field.getType(), tab);
+                field.set(null, value);
+            } catch (ReflectiveOperationException e) {
+                log("could not set the tab: " + e);
+            }
+        });
+        EventLookTest.onServer(context, (player, manager) -> manager.onCoreAction(player, "open"));
+        context.waitTicks(30);
+    }
+
+    private static void shot(ClientGameTestContext context, String name) {
+        context.takeScreenshot(name);
+        shots++;
+    }
+
+    static void run(ClientGameTestContext context, TestSingleplayerContext game) {
+        FAILS.clear();
+        checks = 0;
+        shots = 0;
+        EventLookTest.ensureCore(context, game);
+        game.getServer().runCommand("gamemode survival @p");
+        game.getServer().runCommand("time set 6000");
+        context.waitTicks(10);
+        // What the world had before, to give it back at the end.
+        final Object[] before = new Object[8];
+        final int[] beforeN = new int[3];
+        server(context, "setup", (player, m) -> {
+            String uuid = player.getUUID().toString();
+            if (!m.isRegistered(player)) {
+                m.register(player);
+            }
+            var save = m.save();
+            beforeN[0] = save.siegesWon;
+            beforeN[1] = save.bossNights;
+            beforeN[2] = save.season;
+            before[0] = save.chapters;
+            before[1] = save.skills.get(uuid);
+            before[2] = new ArrayList<>(save.groupBosses);
+            before[3] = save.bossBag == null ? null : new ArrayList<>(save.bossBag);
+            before[4] = save.nextBoss;
+            HallOfFame.Hero h = save.hall == null ? null : save.hall.heroes.get(uuid);
+            before[5] = h == null || h.veterans == null ? null : new ArrayList<>(h.veterans);
+            // Chapter 1, the finale comes: 19 nights held and won, a warrior of level 20.
+            save.chapters = new Chapters.Progress();
+            save.siegesWon = 19;
+            save.bossNights = 19;
+            PlayerSkills own = new PlayerSkills();
+            String key = own.addProfile(SkillClass.WARRIOR, "");
+            own.playOpened(key);
+            own.earned = 500;
+            save.skills.put(uuid, own);
+            check(m.chapter() == 1, "chapter 1 (" + m.chapter() + ")");
+            check(m.chapterNight() == 20, "the coming night is night 20 (" + m.chapterNight() + ")");
+            check(Chapters.nightKind(m.chapterNight(), m.config()) == BossPlan.NightKind.GROUP, "night 20 is the finale");
+            check(Chapters.finaleBosses(1, save.groupBosses).equals(Chapters.GROUP_ONE), "the finale brings the four of chapter 1");
+            check(m.currentLevel() == 20, "world level 20 (" + m.currentLevel() + ")");
+            check(!save.chapters().firstFinaleWon, "no finale won yet (Welt-Merker off)");
+        });
+        context.waitTicks(10);
+        tab(context, "STATS");
+        shot(context, "kapitel_vor_finale");
+        EventLookTest.closeScreen(context);
+
+        // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.
+        server(context, "finale", (player, m) -> {
+            String uuid = player.getUUID().toString();
+            var save = m.save();
+            save.bossNights = 20;
+            save.siegesWon = 20;
+            m.closeChapter(player.level().getServer(), Set.of(player.getUUID()), 20);
+            Chapters.Progress p = save.chapters();
+            check(p.chapter == 2, "chapter 2 started (" + p.chapter + ")");
+            check(m.chapterNight() == 1, "it starts at night 1 (" + m.chapterNight() + ")");
+            check(m.currentLevel() == 1, "world level 1 again (" + m.currentLevel() + ")");
+            check(p.firstFinaleWon, "Welt-Merker: first finale won");
+            check(Chapters.nightKind(4, m.config()) == BossPlan.NightKind.BOSS
+                    && Chapters.bossGroup(2).equals(Chapters.GROUP_TWO), "chapter 2: boss night 4 from the second group");
+            List<Chapters.Veteran> vets = p.veteransOf(uuid);
+            check(vets.size() == 1 && "WARRIOR".equals(vets.get(0).clazz) && vets.get(0).finale && vets.get(0).level == 20,
+                    "the warrior is a veteran (level 20, finale)");
+            check(vets.size() == 1 && vets.get(0).skills != null && vets.get(0).skills.earned == 500, "the veteran keeps its character");
+            PlayerSkills fresh = save.skillsOf(uuid);
+            check(!fresh.hasClass() && fresh.earned == 0, "a new character at level 1, no class yet");
+            check(m.veteranLocked(player, SkillClass.WARRIOR) && !m.veteranLocked(player, SkillClass.ARCHER),
+                    "the class pick locks the warrior, not the archer");
+            m.onChooseClass(player, "WARRIOR");
+            check(!save.skillsOf(uuid).hasClass(), "the warrior cannot be chosen again");
+            int ingots = 0;
+            boolean banner = false;
+            for (ItemStack stack : player.getInventory().getNonEquipmentItems()) {
+                if (stack.is(Items.CHEST) && stack.has(DataComponents.CONTAINER) && stack.has(DataComponents.CUSTOM_NAME)) {
+                    ingots += stack.get(DataComponents.CONTAINER).nonEmptyItemCopyStream().mapToInt(ItemStack::getCount).sum();
+                }
+                if (com.mki.nightsiege.game.ClassBanners.isClassBanner(stack) && stack.has(DataComponents.CUSTOM_NAME)) {
+                    banner = true;
+                }
+            }
+            check(ingots == m.config().chapterFinaleInfernite, "the finale chest holds " + ingots + " infernite");
+            check(banner, "the crest of the warrior as a banner");
+            var team = player.level().getServer().getScoreboard().getPlayersTeam(player.getScoreboardName());
+            check(team != null && team.getPlayerPrefix().getString().contains("★"), "the chapter star at the name");
+            HallOfFame.Hero h = save.hall.heroes.get(uuid);
+            check(h != null && h.veterans != null && !h.veterans.isEmpty() && h.veterans.get(h.veterans.size() - 1).chapter == 1,
+                    "the hall of fame has the veteran");
+        });
+        context.waitTicks(10);
+        tab(context, "CLASSES");
+        shot(context, "kapitel_klassenwahl");
+        tab(context, "STATS");
+        shot(context, "kapitel_core_leiste");
+        EventLookTest.closeScreen(context);
+
+        // The chapter bar of a night: a test night shows it here like a real one.
+        final int[] saved = new int[2];
+        server(context, "night", (player, m) -> {
+            SiegeManager.chapterBarInTests = true;
+            saved[0] = m.config().testPrepSeconds;
+            saved[1] = m.config().batchIntervalSeconds;
+            m.config().testPrepSeconds = 1;
+            m.config().batchIntervalSeconds = 600;
+            BlockPos at = player.blockPosition();
+            boolean ok = m.prepareTest(player.level().getServer(), (ServerLevel) player.level(), at.offset(4, 0, 4), 1,
+                    com.mki.nightsiege.core.SiegeEvent.NONE);
+            log("night prepared=" + ok);
+        });
+        context.waitTicks(80);
+        EventLookTest.closeScreen(context);
+        context.waitTicks(10);
+        server(context, "bar", (player, m) -> {
+            String name = "";
+            try {
+                java.lang.reflect.Field f = SiegeManager.class.getDeclaredField("bossBar");
+                f.setAccessible(true);
+                Object bar = f.get(m);
+                if (bar instanceof net.minecraft.server.level.ServerBossEvent e) {
+                    name = e.getName().getString();
+                }
+            } catch (ReflectiveOperationException e) {
+                log("bar not read: " + e);
+            }
+            log("bar: " + name);
+            check(m.isActive() && (name.contains("Kapitel 2 · Nacht 1") || name.contains("Chapter 2 · Night 1")),
+                    "the bar shows chapter 2, night 1");
+        });
+        context.waitTicks(5);
+        shot(context, "kapitel_leiste");
+        server(context, "night end", (player, m) -> {
+            if (m.isActive()) {
+                m.abort(player.level().getServer());
+            }
+            SiegeManager.chapterBarInTests = false;
+            m.config().testPrepSeconds = saved[0];
+            m.config().batchIntervalSeconds = saved[1];
+        });
+        context.waitTicks(20);
+
+        // The new character: the archer is free.
+        server(context, "archer", (player, m) -> {
+            m.onChooseClass(player, "ARCHER");
+            PlayerSkills own = m.save().skillsOf(player.getUUID().toString());
+            check(own.hasClass() && own.clazz() == SkillClass.ARCHER, "the new character is an archer");
+        });
+        EventLookTest.closeScreen(context);
+        context.waitTicks(10);
+        // The hall: the chronicle of this player with the veteran card.
+        context.runOnClient(client -> {
+            try {
+                Class<?> pages = Class.forName("com.mki.nightsiege.client.HallPages");
+                java.lang.reflect.Field page = pages.getDeclaredField("page");
+                page.setAccessible(true);
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object chronicle = Enum.valueOf((Class) page.getType(), "CHRONICLE");
+                page.set(null, chronicle);
+                java.lang.reflect.Field hero = pages.getDeclaredField("shownHero");
+                hero.setAccessible(true);
+                hero.set(null, client.player.getUUID().toString());
+            } catch (ReflectiveOperationException e) {
+                log("hall page not set: " + e);
+            }
+        });
+        tab(context, "HALL");
+        context.waitTicks(20);
+        shot(context, "kapitel_ruhmeshalle");
+        EventLookTest.closeScreen(context);
+
+        server(context, "end", (player, m) -> {
+            String uuid = player.getUUID().toString();
+            var save = m.save();
+            save.siegesWon = beforeN[0];
+            save.bossNights = beforeN[1];
+            save.season = beforeN[2];
+            save.chapters = (Chapters.Progress) before[0];
+            if (before[1] != null) {
+                save.skills.put(uuid, (PlayerSkills) before[1]);
+            } else {
+                save.skills.remove(uuid);
+            }
+            save.groupBosses.clear();
+            @SuppressWarnings("unchecked")
+            List<String> came = (List<String>) before[2];
+            save.groupBosses.addAll(came);
+            @SuppressWarnings("unchecked")
+            List<String> bag = (List<String>) before[3];
+            save.bossBag = bag;
+            save.nextBoss = (String) before[4];
+            HallOfFame.Hero h = save.hall.heroes.get(uuid);
+            if (h != null) {
+                @SuppressWarnings("unchecked")
+                List<HallOfFame.VeteranLine> lines = (List<HallOfFame.VeteranLine>) before[5];
+                h.veterans = lines == null ? new ArrayList<>() : lines;
+            }
+            for (ItemStack stack : player.getInventory().getNonEquipmentItems()) {
+                if (stack.has(DataComponents.CUSTOM_NAME) && (stack.is(Items.CHEST) || com.mki.nightsiege.game.ClassBanners.isClassBanner(stack))) {
+                    stack.setCount(0);
+                }
+            }
+            if (save.pendingBanners != null) {
+                save.pendingBanners.remove(uuid);
+            }
+            com.mki.nightsiege.game.ClassTags.update(player.level().getServer(), player, save.skillsOf(uuid), "");
+            m.persist();
+        });
+        context.waitTicks(10);
+        if (shots == 0) {
+            FAILS.add("no pictures");
+        }
+        log("summary: " + checks + " checks, " + shots + " pictures, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
+        System.out.println("[Night Siege test] kapitel: " + (checks - FAILS.size()) + " von " + checks);
+        if (checks == 0 || !FAILS.isEmpty()) {
+            throw new AssertionError("kapitel: " + (checks == 0 ? "no checks" : String.join("; ", FAILS)));
+        }
+    }
+}

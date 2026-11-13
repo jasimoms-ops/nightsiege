@@ -273,6 +273,26 @@ public final class HallService {
         }
     }
 
+    /** Tor 11: a character became a veteran (the hall keeps it beside its numbers). */
+    public static void veteran(SiegeManager m, String uuid, com.mki.nightsiege.core.Chapters.Veteran v) {
+        if (uuid == null || uuid.isEmpty() || v == null) {
+            return;
+        }
+        PlayerStats ps = m.save().playerStats == null ? null : m.save().playerStats.get(uuid);
+        HallOfFame.Hero h = hall(m).hero(uuid, ps == null ? null : ps.name);
+        if (h.veterans == null) {
+            h.veterans = new java.util.ArrayList<>();
+        }
+        HallOfFame.VeteranLine line = new HallOfFame.VeteranLine();
+        line.clazz = v.clazz;
+        line.sub = v.subclass;
+        line.chapter = v.chapter;
+        line.level = v.level;
+        line.date = v.date;
+        line.finale = v.finale;
+        h.veterans.add(line);
+    }
+
     /** A crate was opened. */
     public static void addCrate(SiegeManager m, MinecraftServer server, String uuid, String name, String rarity, boolean live) {
         if (uuid == null || uuid.isEmpty()) {

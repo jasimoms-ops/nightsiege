@@ -80,6 +80,8 @@ public class HallOfFame {
         public Map<String, Integer> badges = new LinkedHashMap<>();
         /** The chosen title: a badge in gold, or empty. */
         public String title = "";
+        /** Tor 11: the characters frozen as veterans after a won finale, oldest first. */
+        public List<VeteranLine> veterans = new ArrayList<>();
         /** The last nights, newest last. */
         public List<NightMini> recent = new ArrayList<>();
     }
@@ -107,6 +109,16 @@ public class HallOfFame {
     }
 
     /** One monster type of the server. */
+    /** A veteran in the hall (Tor 11): class, subclass, chapter, date, level; with a star when the finale was theirs. */
+    public static class VeteranLine {
+        public String clazz = "";
+        public String sub = "";
+        public int chapter;
+        public int level;
+        public String date = "";
+        public boolean finale;
+    }
+
     public static class Beast {
         public int seen;
         public int killed;

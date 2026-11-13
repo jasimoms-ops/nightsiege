@@ -260,6 +260,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     FehlerScenes.run(context, game);   // Fehler-Stichprobe 05.11. abends: nemesis after the drone, vexes go with the night
                 }
+                if (want.contains("kapitel")) {
+                    alive(context);
+                    KapitelScenes.run(context, game);   // Tor 11: chapters instead of level 21+ (Simon 13.11.)
+                }
                 if (want.contains("richtung")) {
                     alive(context);
                     RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east

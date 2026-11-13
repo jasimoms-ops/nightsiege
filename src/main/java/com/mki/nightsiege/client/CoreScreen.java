@@ -3100,7 +3100,7 @@ public class CoreScreen extends Screen {
     /** True when this class may be chosen now: the first class, or the next one after an ultimate at level 3. */
     private boolean choosableNow(CoreStats.ClassLine line) {
         // A new class needs a free unlock (an ult at level 3) that may open this class.
-        return !line.unlocked && !stats.siegeActive
+        return !line.unlocked && !stats.siegeActive && !line.veteranLock
                 && (!hasClass() || (stats.unlocksFree > 0 && stats.unlockClasses.contains(line.id)));
     }
 
@@ -3139,7 +3139,13 @@ public class CoreScreen extends Screen {
                 rebuildWidgets();
             }).bounds(x + 4, by, bw, 14).build());
             Button action = null;
-            if (!line.unlocked && choosableNow(line)) {
+            if (!line.unlocked && line.veteranLock) {
+                // Tor 11: done as a veteran; another class first (all done: free again)
+                action = Button.builder(Component.translatable("nightsiege.chapter.class_veteran"), b -> { })
+                        .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("nightsiege.chapter.class_veteran_tip")))
+                        .bounds(x + 4, by - 16, bw, 14).build();
+                action.active = false;
+            } else if (!line.unlocked && choosableNow(line)) {
                 Component label = Component.translatable(hasClass() ? "nightsiege.ui.class_unlock" : "nightsiege.ui.class_pick");
                 action = Button.builder(label, b -> openSubclassPick(clazz)).bounds(x + 4, by - 16, bw, 14).build();
             } else if (line.unlocked && (line.subclass == null || line.subclass.isBlank())) {
@@ -4735,6 +4741,10 @@ public class CoreScreen extends Screen {
         String level = Component.translatable("nightsiege.ui.stat_level", stats.level).getString();
         gui.text(font, level, 0, 0, stats.siegeActive ? RED : WHITE, true);
         gui.pose().popMatrix();
+        // Tor 11: "Kapitel 2 · Nacht 1" right of the level
+        String chapterLine = Component.translatable(stats.chapterNight % 20 == 0 ? "nightsiege.chapter.finale" : "nightsiege.chapter.night",
+                stats.chapter, stats.chapterNight).getString() + (stats.chapterStars > 0 ? "  \u2605" + stats.chapterStars : "");
+        gui.text(font, chapterLine, x + w - 8 - font.width(chapterLine), cy + (compact ? 1 : 4), GOLD, true);
         cy += compact ? 11 : 17;
         if (stats.siegeActive) {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
