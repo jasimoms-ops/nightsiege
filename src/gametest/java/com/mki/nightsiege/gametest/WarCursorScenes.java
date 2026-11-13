@@ -30,6 +30,7 @@ final class WarCursorScenes {
     private static int bz;
     private static int pictures;
     private static int problems;
+    private static int[] windowBefore;
 
     private WarCursorScenes() {
     }
@@ -155,7 +156,7 @@ final class WarCursorScenes {
                     Math.round(WarCursor.testScreen()[0] * scale), Math.round(WarCursor.testScreen()[1] * scale),
                     WarCursorRender.radius() * scale, WarCursor.testState());
         });
-        if (!state.startsWith("screen=war") || !state.contains("shown=true")) {
+        if (!state.startsWith("screen=war") || !state.contains("shown=true") || (name.contains("_g3_") && !state.contains("gui=3"))) {
             problems++;
         }
         log(name + " " + state);
@@ -195,7 +196,17 @@ final class WarCursorScenes {
         context.waitTicks(30);
     }
 
+    /** The test window is 854 x 480, where scale 3 is not offered: for 3 it grows to 1280 x 720 (back in close). */
     private static void guiScale(ClientGameTestContext context, int scale) {
+        if (windowBefore == null) {
+            windowBefore = context.computeOnClient(client -> new int[]{client.getWindow().getWidth(), client.getWindow().getHeight()});
+        }
+        if (scale >= 3) {
+            context.getInput().resizeWindow(1280, 720);
+        } else {
+            context.getInput().resizeWindow(windowBefore[0], windowBefore[1]);
+        }
+        context.waitTicks(3);
         context.runOnClient(client -> {
             client.options.guiScale().set(scale);
             client.resizeGui();
@@ -204,6 +215,10 @@ final class WarCursorScenes {
     }
 
     private static void close(ClientGameTestContext context, TestSingleplayerContext game, int scaleBefore, int sizeBefore) {
+        if (windowBefore != null) {
+            context.getInput().resizeWindow(windowBefore[0], windowBefore[1]);
+            windowBefore = null;
+        }
         context.runOnClient(client -> {
             WarCursor.reset();
             FxSettings.setCrossSize(sizeBefore);
