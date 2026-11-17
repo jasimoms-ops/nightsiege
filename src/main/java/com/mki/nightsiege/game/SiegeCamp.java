@@ -1531,7 +1531,7 @@ public final class SiegeCamp {
         String id = player.getUUID().toString();
         List<String> list = m.save().campKits;
         if (list != null && list.remove(id) && m.kits().hasStash(player)) {
-            m.kits().restore(player);   // persists
+            m.kits().restore(player, true, false);   // persists; what was picked up in the camp goes with the kit (17.11.)
         }
         SkillService.clear(player);
     }
