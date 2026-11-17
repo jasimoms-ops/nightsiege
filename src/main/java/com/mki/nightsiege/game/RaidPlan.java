@@ -932,9 +932,11 @@ public final class RaidPlan {
         if (world == null || anchor == null) {
             return;
         }
-        double x = anchor.getX() + 0.5 + Math.cos(angle) * 28;
-        double z = anchor.getZ() + 0.5 + Math.sin(angle) * 28;
-        world.playSound(null, x, anchor.getY() + 4, z, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 3.0f, 1.0f);
+        // Tor 12 G (Simon 17.11. "man hört kein horn"): 20 blocks out and volume 6 (range 96) = about 80 % loud at the core,
+        // still clearly from the wave's side (before: 28 blocks, volume 3 = about 40 %).
+        double x = anchor.getX() + 0.5 + Math.cos(angle) * 20;
+        double z = anchor.getZ() + 0.5 + Math.sin(angle) * 20;
+        world.playSound(null, x, anchor.getY() + 4, z, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 6.0f, 1.0f);
     }
 
     static double angleBetween(double a, double b) {
