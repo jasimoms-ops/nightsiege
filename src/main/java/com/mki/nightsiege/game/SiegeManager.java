@@ -231,6 +231,8 @@ public final class SiegeManager {
     /** Nachschub (refillSpawns): game time of the next replacement, the raid plan and monster counts of the running wave. */
     private long nextRefill;
     private RaidPlan.Wave wavePlan;
+    /** Tor 12 F: the sides the last wave with monsters came from, for the bar (its plan's groups, or where they stood). */
+    private List<Double> waveSides = List.of();
     private Map<String, Integer> waveFoesNow = new HashMap<>();
     /** Schlaue Nacht (Simon 05.11. 20:26): the night turns itself up or down by how the defenders do. */
     private final com.mki.nightsiege.core.SmartNight smart = new com.mki.nightsiege.core.SmartNight();
@@ -2641,6 +2643,7 @@ public final class SiegeManager {
         batchCooldown = 0;
         nextRefill = 0L;
         wavePlan = null;
+        waveSides = List.of();
         waveFoesNow = new HashMap<>();
         digAccumulator = 0;
         participants.clear();
@@ -2910,8 +2913,8 @@ public final class SiegeManager {
         MutableComponent bar = withCore(title);
         bar.append(Component.literal("  ·  ")).append(Component.translatable("nightsiege.bar.wave",
                 Math.min(wavesStarted, plannedWaves()), plannedWaves()));
-        if (wavePlan != null && !wavePlan.groups().isEmpty()) {
-            bar.append(Component.literal(" ")).append(RaidPlan.directions(wavePlan.groups(), true).copy().withStyle(ChatFormatting.GRAY));
+        if (!waveSides.isEmpty()) {
+            bar.append(Component.literal(" ")).append(RaidPlan.directions(waveSides, true).copy().withStyle(ChatFormatting.GRAY));
         }
         if (goalNote != null && ticksLeft > goalNoteUntil) {
             bar.append(Component.literal(" ")).append(goalNote);
@@ -4572,6 +4575,11 @@ public final class SiegeManager {
                 spawned++;
             }
         }
+        if (plan != null && !plan.groups().isEmpty()) {
+            waveSides = plan.groups();   // Tor 12 F: the bar shows where the wave comes from
+        } else if (!wave.isEmpty()) {
+            waveSides = RaidPlan.sides(anchor.getX() + 0.5, anchor.getZ() + 0.5, wave);   // no plan: where they stand
+        }   // a wave without monsters (the field full): the sides of the last one, whose monsters are still out there
         if (count < wanted && !config.refillSpawns) {
             goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
         } else if (spawned < count) {

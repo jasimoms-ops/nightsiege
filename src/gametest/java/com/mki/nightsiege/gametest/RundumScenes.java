@@ -117,10 +117,16 @@ final class RundumScenes {
         server(context, "life", (player, m) -> check(m.coreMax() == 100 && m.coreLife() == 100,
                 "the core starts with 100 life (" + m.coreLife() + "/" + m.coreMax() + ")"));
 
-        // Where each monster first shows up, once a second for 40 s (two waves at least).
+        // Where each monster first shows up, once a second for 50 s (two waves at least); the bar's sides per wave.
         final Map<UUID, double[]> first = new HashMap<>();
-        for (int s = 0; s < 40; s++) {
+        final Map<Integer, String> sidesByWave = new java.util.TreeMap<>();
+        final java.util.regex.Pattern wavePattern = java.util.regex.Pattern.compile("Wave (\\d+)/\\d+ ([NESW]{1,2}(, [NESW]{1,2})*)");
+        for (int s = 0; s < 50; s++) {
             server(context, "look", (player, m) -> {
+                java.util.regex.Matcher bar = wavePattern.matcher(m.bossBarText());
+                if (bar.find()) {
+                    sidesByWave.putIfAbsent(Integer.parseInt(bar.group(1)), bar.group(2));
+                }
                 ServerLevel level = (ServerLevel) player.level();
                 for (Mob mob : level.getEntitiesOfClass(Mob.class, new net.minecraft.world.phys.AABB(core).inflate(120),
                         e -> e.entityTags().contains(MobFactory.TAG))) {
@@ -141,6 +147,8 @@ final class RundumScenes {
         log(String.format(Locale.ROOT, "monsters %d by compass N %d NE %d E %d SE %d S %d SW %d W %d NW %d",
                 first.size(), compass[0], compass[1], compass[2], compass[3], compass[4], compass[5], compass[6], compass[7]));
         check(first.size() >= 8, "monsters came (" + first.size() + ")");
+        log("bar sides by wave: " + sidesByWave);
+        check(sidesByWave.containsKey(1) && sidesByWave.containsKey(2), "the bar shows the sides in wave 1 and 2 " + sidesByWave);
         check(sides >= 2, "monsters from at least two sides (" + sides + ")");
         server(context, "wave", (player, m) -> {
             RaidPlan.Wave w = m.raid().lastWave();
