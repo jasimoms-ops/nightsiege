@@ -421,13 +421,15 @@ public final class KitService {
         if (player.isDeadOrDying()) {
             // A dead body (death screen, logged out dead) would take the own things along and lose them
             // on respawn (Simon 31.10.: survival safety): they come back after the respawn.
-            if (!stash.restoreOnRespawn) {
+            if (!stash.restoreOnRespawn || !keepFound && !stash.dropFound) {
                 stash.restoreOnRespawn = true;
+                stash.dropFound |= !keepFound;   // a camp fight's finds go with the kit after the respawn too
                 persist.run();
             }
             NightSiegeMod.LOGGER.info("[Night Siege] Kit von {} geht nach dem Wiederbeleben zurück (gerade tot)", player.getScoreboardName());
             return;
         }
+        keepFound &= !stash.dropFound;   // noted while the player was dead (camp fight)
         if (settle(player)) {
             return;   // a crash had left the swap half done: the own inventory is there already
         }

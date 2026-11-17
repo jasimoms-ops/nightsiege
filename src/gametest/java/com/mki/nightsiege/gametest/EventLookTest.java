@@ -2502,10 +2502,40 @@ public class EventLookTest implements FabricClientGameTest {
             loot[0] += ok ? 1 : 0;
             System.out.println("[camp] " + (ok ? "OK" : "FAIL") + " Wach-Waffe am Boden: " + guardsDiedAt.size()
                     + " Wachen gefallen, Gegenstaende/Kugeln dort=" + left);
+            int freeArrows = 0;
+            int campArrows = 0;
+            for (net.minecraft.world.entity.Entity e : level.getEntities((net.minecraft.world.entity.Entity) null,
+                    new net.minecraft.world.phys.AABB(player.blockPosition()).inflate(40, 20, 40),
+                    e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow a
+                            && com.mki.nightsiege.game.SiegeCamp.isCampMob(a.getOwner()))) {
+                campArrows++;
+                if (((net.minecraft.world.entity.projectile.arrow.AbstractArrow) e).pickup
+                        == net.minecraft.world.entity.projectile.arrow.AbstractArrow.Pickup.ALLOWED) {
+                    freeArrows++;
+                }
+            }
+            boolean arrowsOk = freeArrows == 0;
+            loot[1]++;
+            loot[0] += arrowsOk ? 1 : 0;
+            System.out.println("[camp] " + (arrowsOk ? "OK" : "FAIL") + " Wachen-Pfeile nicht aufhebbar: " + freeArrows + " von " + campArrows);
+            // An arrow of the camp on the ground (nobody threw it) goes; a thing a player threw stays.
             net.minecraft.world.entity.item.ItemEntity arrows = new net.minecraft.world.entity.item.ItemEntity(level,
                     player.getX(), player.getY() + 0.2, player.getZ(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW, 6));
             level.addFreshEntity(arrows);
-            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));   // landed in the inventory anyway
+            net.minecraft.world.entity.item.ItemEntity thrown = new net.minecraft.world.entity.item.ItemEntity(level,
+                    player.getX() + 4, player.getY() + 0.2, player.getZ(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STICK, 2));
+            thrown.setThrower(player);
+            thrown.setPickUpDelay(32767);
+            level.addFreshEntity(thrown);
+            boolean ground = arrows.isRemoved() && !thrown.isRemoved();
+            loot[1]++;
+            loot[0] += ground ? 1 : 0;
+            System.out.println("[camp] " + (ground ? "OK" : "FAIL") + " Lager-Pfeil am Boden verschwindet=" + arrows.isRemoved()
+                    + ", selbst geworfen bleibt=" + !thrown.isRemoved());
+            thrown.discard();
+            // Landed in the inventory anyway: a guard's axe and a picked-up arrow.
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW, 6));
         });
         context.waitTicks(20);
         onServer(context, (player, manager) -> {
@@ -2565,7 +2595,7 @@ public class EventLookTest implements FabricClientGameTest {
                     + (same ? "" : " (vorher " + ownBefore[0] + ")"));
             System.out.println("[camp] " + (reward ? "OK" : "FAIL") + " Belohnung: zerstoert=" + (camp != null && camp.destroyed)
                     + " machinesDay=" + manager.save().machinesDay);
-            System.out.println("[camp] " + (loot[0] == loot[1] && loot[1] == 4 ? "OK" : "FAIL") + " Heerlager ohne Mitnehmen: "
+            System.out.println("[camp] " + (loot[0] == loot[1] && loot[1] == 6 ? "OK" : "FAIL") + " Heerlager ohne Mitnehmen: "
                     + loot[0] + " von " + loot[1]);
         });
         context.waitTicks(100);

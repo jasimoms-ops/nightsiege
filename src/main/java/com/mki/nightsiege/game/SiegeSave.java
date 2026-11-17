@@ -464,6 +464,8 @@ public class SiegeSave {
         public String state = "";
         /** The night is over but the player was dead: the own things come back after the respawn. */
         public boolean restoreOnRespawn;
+        /** Tor 12 C: what was picked up goes with the kit (a camp fight); missing in older saves = false. */
+        public boolean dropFound;
     }
 
     public boolean isRegistered(String uuid) {
