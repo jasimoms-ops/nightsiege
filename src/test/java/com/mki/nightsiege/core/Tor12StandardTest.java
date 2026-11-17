@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class Tor12StandardTest {
 
-    /** Not balance: the test tools and the help text belong to the server (the spawn side is all around since Tor 12 F). */
-    private static final List<String> NOT_BALANCE = List.of("testToolsForEveryone", "tuningHelp");
+    /** Not balance: the spawn side belongs to the server's map, the test tools and the help text to the server. */
+    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp");
 
     private static SiegeConfig read(String path) throws Exception {
         SiegeConfig c = new Gson().fromJson(Files.readString(Path.of(path), StandardCharsets.UTF_8), SiegeConfig.class);
@@ -64,11 +64,13 @@ class Tor12StandardTest {
         assertTrue(fresh.refillSpawns);
         assertEquals(3, fresh.wardenFromLevel);
         assertEquals(3, server.wardenFromLevel);   // missing key: the field's default
-        // Tor 12 F: nights at most 8:00, the server's side 45-135 becomes all around; low levels get more monsters
+        // Tor 12 F: nights at most 8:00, the server's side stays, war leader off; low levels get more monsters
         assertEquals(480, server.maxDurationSeconds);
         assertEquals(480, fresh.maxDurationSeconds);
-        assertEquals(0.0, server.spawnArcFrom, 1e-9);
-        assertEquals(360.0, server.spawnArcTo, 1e-9);
+        assertEquals(45.0, server.spawnArcFrom, 1e-9);
+        assertEquals(135.0, server.spawnArcTo, 1e-9);
+        assertFalse(server.warLeaderEnabled);
+        assertFalse(fresh.warLeaderEnabled);
         assertEquals(6, SiegeMath.mobsPerBatch(1, 1, fresh));
     }
 

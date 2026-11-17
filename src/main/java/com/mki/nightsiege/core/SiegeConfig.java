@@ -568,7 +568,7 @@ public class SiegeConfig {
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
     /** The round can be started from the core window. */
-    public boolean warLeaderEnabled = true;
+    public boolean warLeaderEnabled = false;   // Chef 17.11. (v31): off by default
     /**
      * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon
@@ -939,8 +939,6 @@ public class SiegeConfig {
     // The raid's plan (Simon, 27 October 2026: the raid keeps to the base; game/RaidPlan.java)
     /** Waves come from one side (and a flank), melee monsters wait in front of the wall for a way in. */
     public boolean raidPlan = true;
-    // raidFlankFromLevel and raidFlankShare: no effect since Tor 12 F (waves come in raidGroupsMin..Max groups
-    // around the base); kept so old configs still load.
     /** From this level a wave also sends a flank from a second side. */
     public int raidFlankFromLevel = 6;
     /** Share of a wave that goes to the flank. */
@@ -2392,8 +2390,8 @@ public class SiegeConfig {
         if (settingsVersion < 31) {
             // Tor 12 Teil B (Simon 17.11.: Nacht 1 allein nur ca. 3 Monster): the mod's own defaults are the server's
             // balance (v30). A value still exactly on the old default becomes the server's value; an own value stays.
-            // A fresh config runs through here too, so fresh == server. Not moved: testToolsForEveryone and
-            // tuningHelp (no balance). wardenFromLevel is a new field with its default 3.
+            // A fresh config runs through here too, so fresh == server. Not moved: spawn arc (the server's map),
+            // testToolsForEveryone and tuningHelp (no balance). wardenFromLevel is a new field with its default 3.
             mobsPerLevel = onOld(mobsPerLevel, 1.0, 1.8);
             liveCapByPlayers = onOldList(liveCapByPlayers, List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114),
                     List.of(9, 15, 20, 26, 30, 36, 40, 40, 40, 40));
@@ -2434,11 +2432,10 @@ public class SiegeConfig {
             tweakValueIfMissing("bloodlust", "below", 1.01);
             tweakValueIfMissing("bloodlust", "steal", 0.12);
             tweakValueIfMissing("arrow_rain", "mult", 0.5);
-            // Tor 12 F (Simon 17.11.): nights at most 8:00, monsters from all around (the server's side 45-135 goes).
+            // Tor 12 F (Simon 17.11.): nights at most 8:00. Chef 17.11.: the war leader's round is off by default.
             maxDurationSeconds = (int) onOld(maxDurationSeconds, 600, 480);
-            if (Math.abs(spawnArcFrom - 45.0) < 1e-6 && Math.abs(spawnArcTo - 135.0) < 1e-6) {
-                spawnArcFrom = 0.0;
-                spawnArcTo = 360.0;
+            if (warLeaderEnabled) {
+                warLeaderEnabled = false;   // old default true = never switched by hand
             }
             // The attackers: the axe illagers and the evoker as on the server; vex and phantom left the server's waves.
             if (mobs != null) {

@@ -226,9 +226,7 @@ class NachtAtlasTest {
         if (c.sapperFromLevel <= 0 || c.sapperMaxPerWave <= 0) {
             flag("3 Sondermonster aus", -1, -1, "Sprengmeister");
         }
-        if (!c.eliteMobs) {
-            flag("3 Sondermonster aus", c.eliteMobFromLevel, -1, "Elite: eliteMobs=false (fest aus, nur die Schlaue Nacht schickt sie)");
-        }
+        // Elite: eliteMobs=false is the Chef's choice (17.11.), only the smart night sends them: no breach of D.2.
         if (c.stunnersMax <= 0 || c.eliteMobChance <= 0 || c.treasureRaiderChance <= 0) {
             flag("3 Sondermonster aus", -1, -1, "Betäuber/Elite/Schatzräuber Wert 0");
         }
