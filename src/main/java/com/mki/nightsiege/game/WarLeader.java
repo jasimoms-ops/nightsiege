@@ -2728,6 +2728,9 @@ public final class WarLeader {
 
     /** /nightsiege kriegsfuehrer bot: a bot leads; the operator and those near the core defend. */
     public String startBot(MinecraftServer server) {
+        if (!m.config().warLeaderEnabled) {
+            return "nightsiege.war.off";   // Tor 12: switched off, not even by command
+        }
         if (phase != Phase.NONE) {
             return "nightsiege.war.taken";
         }

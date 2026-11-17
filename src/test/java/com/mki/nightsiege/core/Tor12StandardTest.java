@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class Tor12StandardTest {
 
     /** Not balance: the spawn side belongs to the server's map, the test tools and the help text to the server. */
-    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp");
+    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp",
+            "warLeaderEnabled");   // a mode switch (Tor 12: off by default, Simon 17.11.), not balance
 
     private static SiegeConfig read(String path) throws Exception {
         SiegeConfig c = new Gson().fromJson(Files.readString(Path.of(path), StandardCharsets.UTF_8), SiegeConfig.class);
@@ -131,5 +132,10 @@ class Tor12StandardTest {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"wardenFromLevel\":0}", SiegeConfig.class);
         c.sanitize();
         assertEquals(1, c.wardenFromLevel);
+    }
+
+    @Test
+    void warLeaderOffByDefault() {   // Simon 17.11. 15:25: "deaktiviere den Kriegsführer modus"
+        assertFalse(new SiegeConfig().warLeaderEnabled);
     }
 }

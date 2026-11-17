@@ -117,6 +117,7 @@ final class KlassenwahlScenes {
         final BlockPos[] core = new BlockPos[1];
         final String[] before = new String[2];
         final int[] keep = new int[2];
+        final boolean[] warWas = new boolean[1];
         server(context, "setup", (player, m) -> {
             CoreRecord rec = m.mainCore();
             core[0] = rec == null ? null : new BlockPos(rec.x, rec.y, rec.z);
@@ -125,6 +126,8 @@ final class KlassenwahlScenes {
             }
             keep[0] = m.config().warForceSeconds;
             keep[1] = m.config().warPrepSeconds;
+            warWas[0] = m.config().warLeaderEnabled;
+            m.config().warLeaderEnabled = true;   // Tor 12: off by default, the scene switches it on for itself
             m.config().warForceSeconds = 0;
             check(m.config().warLevel == 25, "warLevel 25 (" + m.config().warLevel + ")");
             check(m.config().funCrates == 20 && m.config().funKitLevel == 20, "20 crates, kit level 20");
@@ -253,6 +256,7 @@ final class KlassenwahlScenes {
             check(inventory(player).equals(before[1]), "the own inventory is back after the round (" + inventory(player) + ")");
             m.config().warForceSeconds = keep[0];
             m.config().warPrepSeconds = keep[1];
+            m.config().warLeaderEnabled = warWas[0];
         });
         EventLookTest.closeScreen(context);
         EventLookTest.alive(context);
