@@ -141,8 +141,9 @@ public final class Langlauf {
     private static final Map<UUID, Integer> earnedBefore = new HashMap<>();
     private static final Map<UUID, Integer> cratesBefore = new HashMap<>();
     private static final Set<UUID> inNight = new HashSet<>();
-    private static int minCore;
-    private static int coreMax;
+    private static int lastStanding;
+    private static String hornHeard = "-";
+    private static int startSounds;
     private static boolean waves;
     private static boolean bossNight;
     private static boolean special;
@@ -445,6 +446,10 @@ public final class Langlauf {
             st.done.add(scenario);
         }
         scenarioDone = false;
+        hornHeard = "-";
+        for (int i = 0; i < st.group; i++) {
+            SimBots.takeSounds(bot(server, i));
+        }
         if (scenario.equals("dungeon")) {
             BlockPos at = surface(core.getX(), core.getZ() + 170);
             m.expeditions().testBuild(world, at.below(12), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 3);
@@ -532,7 +537,25 @@ public final class Langlauf {
         GatherPhase g = m.gatherForTests();
         if (gatherSeen < 0) {
             gatherSeen = now;
-            line("HORN k=" + st.cycle + " uhr=" + m.clockTimeFor(server));
+            StringBuilder heard = new StringBuilder();
+            int yes = 0;
+            int online = 0;
+            for (int i = 0; i < st.group; i++) {
+                ServerPlayer b = bot(server, i);
+                if (b == null) {
+                    continue;
+                }
+                online++;
+                boolean h = SimBots.takeSounds(b).contains("minecraft:event.raid.horn");
+                yes += h ? 1 : 0;
+                heard.append(' ').append(name(i)).append('=').append(h ? "ja" : "nein");
+            }
+            hornHeard = yes + "/" + online;
+            line("HORN k=" + st.cycle + " uhr=" + m.clockTimeFor(server) + " gehört:" + heard);
+            check(yes == online, "Horn gehört k=" + st.cycle + " " + hornHeard);
+        }
+        for (int i = 0; i < st.group; i++) {
+            SimBots.takeSounds(bot(server, i));   // the gathering's pings are not the night's start
         }
         if (g.phase() != GatherPhase.Phase.READY) {
             return;
@@ -598,8 +621,8 @@ public final class Langlauf {
         lostBefore = m.save().siegesLost;
         bossNight = m.bosses().planned();
         special = m.save().specialNight;
-        minCore = m.coreLife();
-        coreMax = m.coreMax();
+        lastStanding = 0;
+        startSounds = 0;
         waves = false;
         wardenSeen = false;
         cursesSeen = 0;
@@ -618,6 +641,9 @@ public final class Langlauf {
             }
         }
         boost(server, m);
+        for (int i = 0; i < st.group; i++) {
+            startSounds += SimBots.takeSounds(bot(server, i)).size();   // sent in the start tick
+        }
         line("NACHT START k=" + st.cycle + " " + label(chapterStart, lvlStart) + " tag=" + day + " uhr=" + time
                 + " sammeln=" + (gatherSeen < 0 ? "-" : (now - gatherSeen) / 20 + "s") + " verteidiger=" + inNight.size() + " boss=" + bossNight + " sonder=" + special + " ereignis="
                 + (eventTonight.isEmpty() ? "-" : eventTonight) + " flüche=" + m.nightCurses() + (help > 0 ? " HILFE=" + help : ""));
@@ -625,7 +651,6 @@ public final class Langlauf {
 
     private static void duringNight(MinecraftServer server, SiegeManager m, long now, double ms) {
         long t = now - nightStart;
-        minCore = Math.min(minCore, m.coreLife());
         if (!waves && m.nightMobCount() > 0) {
             waves = true;
         }
@@ -687,6 +712,7 @@ public final class Langlauf {
                 standing.add(b);
             }
         }
+        lastStanding = standing.size();
         for (ServerPlayer b : standing) {
             TeamBrain brain = brains.get(b.getUUID());
             if (brain == null) {
@@ -726,8 +752,11 @@ public final class Langlauf {
             f.add("dauerte " + secs + " s, Grenze " + cfg.maxDurationSeconds + " s");
         }
         boolean cap8 = secs <= 485;
-        if (minCore <= 0 && won) {
-            f.add("Core-Leben 0, trotzdem Sieg");
+        if (won && lastStanding == 0 && !bossNight) {
+            f.add("Sieg, aber kein Verteidiger stand");
+        }
+        if (lost && lastStanding > 0 && !bossNight && secs < cfg.maxDurationSeconds - 2) {
+            f.add("Niederlage, obwohl " + lastStanding + " Verteidiger standen");
         }
         if (!waves) {
             f.add("keine Welle");
@@ -803,15 +832,9 @@ public final class Langlauf {
         if (chapterChange) {
             st.seen.merge("kapitelwechsel", 1, Integer::sum);
         }
-        if (minCore < coreMax) {
-            st.seen.merge("core_treffer", 1, Integer::sum);
-        }
-        if (minCore <= 0) {
-            st.seen.merge("core_niederlage", 1, Integer::sum);
-        }
         String text = "nacht k=" + st.cycle + " " + label(chapterStart, lvlStart) + " spieler=" + inNight.size() + "/" + st.group
                 + " art=" + kind + (scenario.isEmpty() ? "" : " szenario=" + scenario) + " ergebnis=" + result + " dauer=" + secs
-                + "s core=" + minCore + "/" + coreMax + " punkte=+" + dEarned + " kisten=+" + dCrates + " stufe=" + lvlStart + "->"
+                + "s stehend=" + lastStanding + " horn=" + hornHeard + " startton=" + startSounds + " punkte=+" + dEarned + " kisten=+" + dCrates + " stufe=" + lvlStart + "->"
                 + lvlNow + (chapterChange ? " kapitel=" + chapterNow : "") + " maxtick=" + Math.round(maxMs) + "ms"
                 + (help > 0 ? " hilfe=" + help : "");
         if (f.isEmpty()) {
@@ -830,9 +853,6 @@ public final class Langlauf {
         } else {
             st.fail++;
             st.fails.add("k=" + st.cycle + " " + label(chapterStart, lvlStart) + ": 8:00-Grenze " + secs + " s");
-        }
-        if (minCore <= 0) {
-            check(lost, "Core-Niederlage k=" + st.cycle + ": Core 0 -> " + result);
         }
         int abs = (chapterStart - 1) * com.mki.nightsiege.core.Chapters.LENGTH + nightNo;
         if (abs > st.reached && (won || lost)) {

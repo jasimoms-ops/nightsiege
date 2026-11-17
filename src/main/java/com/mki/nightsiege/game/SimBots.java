@@ -109,6 +109,7 @@ public final class SimBots {
         EmbeddedChannel channel = new EmbeddedChannel();
         BotConnection connection = new BotConnection(channel);
         bot.channel = channel;
+        bot.link = connection;
         try {
             server.getPlayerList().placeNewPlayer(connection, bot, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
@@ -148,13 +149,24 @@ public final class SimBots {
         EmbeddedChannel channel = new EmbeddedChannel();
         bot.channel = channel;
         try {
-            server.getPlayerList().placeNewPlayer(new BotConnection(channel), bot, CommonListenerCookie.createInitial(profile, false));
+            bot.link = new BotConnection(channel);
+            server.getPlayerList().placeNewPlayer(bot.link, bot, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege sim] Bot {} konnte sich nicht anmelden: {}", name, e.toString());
             return null;
         }
         BOTS.put(id, bot);
         return bot;
+    }
+
+    /** Tor 12 G (Langlauf): the sounds sent to this bot since the last call (then forgotten). */
+    public static List<String> takeSounds(ServerPlayer player) {
+        if (player instanceof Bot bot && bot.link != null) {
+            List<String> out = new ArrayList<>(bot.link.sounds);
+            bot.link.sounds.clear();
+            return out;
+        }
+        return List.of();
     }
 
     /** Tor 12 E (Langlauf): a bot logs out like a player (the connection's disconnect, its events). */
@@ -198,6 +210,7 @@ public final class SimBots {
     /** A server player whose game loop runs from the level, with nothing on the other end of the line. */
     static final class Bot extends ServerPlayer {
         EmbeddedChannel channel;
+        BotConnection link;
 
         Bot(MinecraftServer server, ServerLevel level, GameProfile profile) {
             super(server, level, profile, ClientInformation.createDefault());
@@ -225,6 +238,19 @@ public final class SimBots {
         BotConnection(EmbeddedChannel channel) {
             super(PacketFlow.SERVERBOUND);
             ((ConnectionAccessor) (Object) this).nightsiege$setChannel(channel);
+        }
+
+        /** Tor 12 G (Langlauf): the sounds this bot's client would play ("Horn gehört"). */
+        final List<String> sounds = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        @Override
+        public void send(net.minecraft.network.protocol.Packet<?> packet, io.netty.channel.ChannelFutureListener listener, boolean flush) {
+            if (packet instanceof net.minecraft.network.protocol.game.ClientboundSoundPacket s) {
+                sounds.add(s.getSound().value().location().toString());
+            } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundSoundEntityPacket s) {
+                sounds.add(s.getSound().value().location().toString());
+            }
+            super.send(packet, listener, flush);
         }
 
         @Override
