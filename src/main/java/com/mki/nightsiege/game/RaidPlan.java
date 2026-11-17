@@ -254,6 +254,22 @@ public final class RaidPlan {
         return out;
     }
 
+    /**
+     * The sides a wave really came from, one angle per compass direction (eight), for the bar when the wave had
+     * no plan (no ground scanned, no wall): from where its monsters stand around the core.
+     */
+    public static List<Double> sides(double cx, double cz, List<? extends net.minecraft.world.entity.Entity> mobs) {
+        List<Double> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (net.minecraft.world.entity.Entity mob : mobs) {
+            double a = Math.atan2(mob.getZ() - cz, mob.getX() - cx);
+            if (seen.add(compass(a))) {
+                out.add(a);
+            }
+        }
+        return out;
+    }
+
     /** The direction of the n-th of {@code count} monsters of the wave: the groups in turn, so they are even. */
     public double angleFor(Wave wave, int index, int count) {
         if (wave == null) {

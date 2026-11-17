@@ -68,7 +68,7 @@ public class EventLookTest implements FabricClientGameTest {
                 java.util.List<String> want = java.util.Arrays.asList(only.toLowerCase(Locale.ROOT).replace(" ", "").split(","));
                 if (want.contains("camp")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
-                    campScene(context, game);
+                    failOnLines("camp", () -> campScene(context, game));   // Tor 12: a "[camp] FAIL" line fails the run
                 }
                 if (want.contains("base")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
@@ -8949,6 +8949,45 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
+    /**
+     * Tor 12 (CI 17.11.: FAIL lines with exit=0): runs a scene that prints "[name] OK …" / "[name] FAIL …" and
+     * throws once it is done if any FAIL line came (from any thread), so the client ends with exit != 0.
+     */
+    static void failOnLines(String name, Runnable scene) {
+        java.io.PrintStream before = System.out;
+        java.util.concurrent.atomic.AtomicInteger ok = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        String okMark = "[" + name + "] OK";
+        String failMark = "[" + name + "] FAIL";
+        java.io.PrintStream tee = new java.io.PrintStream(before, true) {
+            @Override
+            public void println(String line) {
+                before.println(line);   // through the game's own stream, so the log keeps its [STDOUT] lines
+                if (line != null && line.startsWith(failMark)) {
+                    fails.add(line.length() > 160 ? line.substring(0, 160) : line);
+                } else if (line != null && line.startsWith(okMark)) {
+                    ok.incrementAndGet();
+                }
+            }
+
+            @Override
+            public void println(Object line) {
+                println(String.valueOf(line));
+            }
+        };
+        System.setOut(tee);
+        try {
+            scene.run();
+        } finally {
+            System.setOut(before);
+        }
+        int checks = ok.get() + fails.size();
+        System.out.println("[Night Siege test] " + name + ": " + ok.get() + " von " + checks);
+        if (!fails.isEmpty()) {
+            throw new AssertionError(name + ": " + String.join("; ", fails));
+        }
+    }
+
     interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
     }
