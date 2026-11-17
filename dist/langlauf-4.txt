@@ -1,0 +1,206 @@
+== vor Nacht 1
+   START spieler=4 bis=Nacht 24 karte=burg.json.gz
+   BURG kopie core=0, 67, 0 bots: Bot01=bulwark Bot02=medic Bot03=electrician Bot04=blademaster
+   OK Log: kein ERROR, keine Exception
+== k=1 tag=3 stufe=1 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=1 uhr=12000
+   NACHT START k=1 K1N1S1 tag=3 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=1 K1N1S1 spieler=4/4 art=normal ergebnis=gewonnen dauer=240s core=88/100 punkte=+0 kisten=+1 stufe=1->2 maxtick=176ms | Belohnung fehlt (Punkte +0, Kisten +1)
+   OK 8:00-Grenze k=1 240 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=2 tag=6 stufe=2 kapitel=1 szenario=absage ereignis=NONE fragment=null
+   HORN k=2 uhr=12000
+   NACHT START k=2 K1N2S2 tag=6 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=2 K1N2S2 spieler=3/4 art=normal szenario=absage ergebnis=gewonnen dauer=260s core=84/100 punkte=+3 kisten=+1 stufe=2->3 maxtick=186ms | Bot02 eigene Sachen nicht zurück (Holz 0/13, Feuerstein 0/5)
+   OK 8:00-Grenze k=2 260 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=3 tag=9 stufe=3 kapitel=1 szenario=zuwenig ereignis=NONE fragment=null
+   OK zu wenige Zusagen: keine Nacht an Tag 9, nächste Einladung Tag 12
+   OK Log: kein ERROR, keine Exception
+== k=4 tag=12 stufe=3 kapitel=1 szenario=logout_bereit ereignis=BLOOD_MOON fragment=null
+   HORN k=4 uhr=12000
+   Abmelden: Bot01 (Bereit-Phase)
+   NACHT START k=4 K1N3S3 tag=12 uhr=15001 sammeln=11s verteidiger=2 boss=false sonder=false ereignis=BLOOD_MOON flüche=0
+   Wieder da: Bot01 an 3, 68, 0 verteidigt=false zuschauer=false
+   FAIL nacht k=4 K1N3S3 spieler=2/4 art=ereignis_blood_moon szenario=logout_bereit ergebnis=gewonnen dauer=280s core=82/100 punkte=+4 kisten=+1 stufe=3->4 maxtick=83ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=4 280 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=5 tag=15 stufe=4 kapitel=1 szenario=logout_nacht ereignis=NONE fragment=null
+   HORN k=5 uhr=12000
+   NACHT START k=5 K1N4S4 tag=15 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   Abmelden: Bot01 (Nacht)
+   Wieder da: Bot01 an 3, 68, 0 verteidigt=true zuschauer=false
+   FAIL nacht k=5 K1N4S4 spieler=3/4 art=boss szenario=logout_nacht ergebnis=gewonnen dauer=354s core=83/100 punkte=+1 kisten=+1 stufe=4->5 maxtick=69ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=5 354 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=6 tag=18 stufe=5 kapitel=1 szenario=neustart_bereit ereignis=FROST fragment=null
+   HORN k=6 uhr=12000
+   NACHT START k=6 K1N5S5 tag=18 uhr=15001 sammeln=185s verteidiger=3 boss=false sonder=false ereignis=FROST flüche=0
+   FAIL nacht k=6 K1N5S5 spieler=3/4 art=ereignis_frost szenario=neustart_bereit ergebnis=gewonnen dauer=320s core=91/100 punkte=+3 kisten=+1 stufe=5->6 maxtick=178ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=6 320 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=7 tag=21 stufe=6 kapitel=1 szenario=neustart_nacht ereignis=NONE fragment=null
+   HORN k=7 uhr=12000
+   NACHT START k=7 K1N6S6 tag=21 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   NEUSTART (nacht) k=7
+   [langlauf-skript] exit=0 start=1
+   [langlauf-skript] Neustart 1
+   WEITER nach Neustart (nacht), Zyklus 7
+   OK Neustart in der Nacht: Inventar zurück, Kit weg, Uhr läuft
+   nach Neustart: nächste Belagerung Tag 24 (heute 21)
+   OK Log: kein ERROR, keine Exception
+== k=8 tag=24 stufe=6 kapitel=1 szenario=fragment ereignis=BLOOD_MOON fragment=BLOOD
+   HORN k=8 uhr=12000
+   NACHT START k=8 K1N6S6 tag=24 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=true ereignis=BLOOD_MOON flüche=0
+   FAIL nacht k=8 K1N6S6 spieler=3/4 art=fragment szenario=fragment ergebnis=gewonnen dauer=340s core=100/100 punkte=+10 kisten=+1 stufe=6->7 maxtick=254ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=8 340 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=9 tag=27 stufe=7 kapitel=1 szenario=fluch ereignis=THUNDER fragment=null
+   HORN k=9 uhr=12000
+   NACHT START k=9 K1N7S7 tag=27 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=THUNDER flüche=1
+   FAIL nacht k=9 K1N7S7 spieler=3/4 art=ereignis_thunder szenario=fluch ergebnis=verloren dauer=125s core=1/100 punkte=+0 kisten=+0 stufe=7->7 maxtick=103ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=9 125 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=10 tag=30 stufe=7 kapitel=1 szenario=heerlager ereignis=NONE fragment=null
+   HORN k=10 uhr=12000
+   NACHT START k=10 K1N8S7 tag=30 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=10 K1N8S7 spieler=3/4 art=boss szenario=heerlager ergebnis=verloren dauer=600s core=83/100 punkte=+3 kisten=+0 stufe=7->7 maxtick=89ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FAIL 8:00-Grenze k=10 600 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=11 tag=33 stufe=7 kapitel=1 szenario=dungeon ereignis=NONE fragment=null
+   HORN k=11 uhr=12000
+   NACHT START k=11 K1N8S7 tag=33 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0 HILFE=1
+   FAIL nacht k=11 K1N8S7 spieler=3/4 art=boss szenario=dungeon ergebnis=gewonnen dauer=239s core=95/100 punkte=+3 kisten=+1 stufe=7->8 maxtick=68ms hilfe=1 | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=11 239 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=12 tag=36 stufe=8 kapitel=1 szenario=frist ereignis=NONE fragment=null
+   HORN k=12 uhr=12000
+   NACHT START k=12 K1N9S8 tag=36 uhr=15001 sammeln=185s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=12 K1N9S8 spieler=3/4 art=normal szenario=frist ergebnis=verloren dauer=123s core=3/100 punkte=+3 kisten=+0 stufe=8->8 maxtick=140ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=12 123 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=13 tag=39 stufe=8 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=13 uhr=12000
+   NACHT START k=13 K1N10S8 tag=39 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=13 K1N10S8 spieler=3/4 art=normal ergebnis=gewonnen dauer=380s core=21/100 punkte=+3 kisten=+1 stufe=8->9 maxtick=89ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=13 380 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=14 tag=42 stufe=9 kapitel=1 szenario=- ereignis=ECLIPSE fragment=null
+   HORN k=14 uhr=5400
+   NACHT START k=14 K1N11S9 tag=42 uhr=6001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=ECLIPSE flüche=0
+   FAIL nacht k=14 K1N11S9 spieler=3/4 art=ereignis_eclipse ergebnis=gewonnen dauer=400s core=33/100 punkte=+1 kisten=+1 stufe=9->10 maxtick=110ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=14 400 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=15 tag=45 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=15 uhr=12000
+   NACHT START k=15 K1N12S10 tag=45 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=15 K1N12S10 spieler=3/4 art=boss ergebnis=gewonnen dauer=260s core=93/100 punkte=+4 kisten=+1 stufe=10->11 maxtick=145ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=15 260 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=16 tag=48 stufe=11 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=16 uhr=12000
+   NACHT START k=16 K1N13S11 tag=48 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=16 K1N13S11 spieler=3/4 art=normal ergebnis=verloren dauer=215s core=1/100 punkte=+3 kisten=+0 stufe=11->11 maxtick=90ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=16 215 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=17 tag=51 stufe=11 kapitel=1 szenario=- ereignis=BLOOD_MOON fragment=null
+   HORN k=17 uhr=12000
+   NACHT START k=17 K1N14S11 tag=51 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=BLOOD_MOON flüche=0
+   FAIL nacht k=17 K1N14S11 spieler=3/4 art=ereignis_blood_moon ergebnis=gewonnen dauer=440s core=70/100 punkte=+4 kisten=+1 stufe=11->12 maxtick=115ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=17 440 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=18 tag=54 stufe=12 kapitel=1 szenario=- ereignis=THUNDER fragment=null
+   HORN k=18 uhr=12000
+   NACHT START k=18 K1N15S12 tag=54 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=THUNDER flüche=0
+   FAIL nacht k=18 K1N15S12 spieler=3/4 art=ereignis_thunder ergebnis=gewonnen dauer=460s core=89/100 punkte=+10 kisten=+1 stufe=12->13 maxtick=173ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=18 460 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=19 tag=57 stufe=13 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=19 uhr=12000
+   NACHT START k=19 K1N16S13 tag=57 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=19 K1N16S13 spieler=3/4 art=boss ergebnis=gewonnen dauer=304s core=96/100 punkte=+3 kisten=+1 stufe=13->14 maxtick=94ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=19 304 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=20 tag=60 stufe=14 kapitel=1 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=20 uhr=12000
+   NACHT START k=20 K1N17S14 tag=60 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   FAIL nacht k=20 K1N17S14 spieler=3/4 art=ereignis_nether_rift ergebnis=gewonnen dauer=500s core=95/100 punkte=+10 kisten=+1 stufe=14->15 maxtick=70ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FAIL 8:00-Grenze k=20 500 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=21 tag=63 stufe=15 kapitel=1 szenario=- ereignis=FROST fragment=null
+   HORN k=21 uhr=12000
+   NACHT START k=21 K1N18S15 tag=63 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=FROST flüche=0
+   FAIL nacht k=21 K1N18S15 spieler=3/4 art=ereignis_frost ergebnis=gewonnen dauer=520s core=53/100 punkte=+10 kisten=+1 stufe=15->16 maxtick=115ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FAIL 8:00-Grenze k=21 520 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=22 tag=66 stufe=16 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=22 uhr=12000
+   NACHT START k=22 K1N19S16 tag=66 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=22 K1N19S16 spieler=3/4 art=normal ergebnis=gewonnen dauer=540s core=70/100 punkte=+1 kisten=+1 stufe=16->17 maxtick=93ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FAIL 8:00-Grenze k=22 540 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=23 tag=69 stufe=17 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=23 uhr=12000
+   NACHT START k=23 K1N20S17 tag=69 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=23 K1N20S17 spieler=3/4 art=normal ergebnis=gewonnen dauer=336s core=100/100 punkte=+-119 kisten=+1 stufe=17->1 kapitel=2 maxtick=120ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0); Belohnung fehlt (Punkte +-119, Kisten +1)
+   OK 8:00-Grenze k=23 336 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=24 tag=72 stufe=1 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=24 uhr=12000
+   NACHT START k=24 K2N1S1 tag=72 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=24 K2N1S1 spieler=3/4 art=normal ergebnis=gewonnen dauer=240s core=86/100 punkte=+4 kisten=+1 stufe=1->2 maxtick=62ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=24 240 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=25 tag=75 stufe=2 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=25 uhr=12000
+   NACHT START k=25 K2N2S2 tag=75 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=25 K2N2S2 spieler=3/4 art=normal ergebnis=gewonnen dauer=260s core=88/100 punkte=+1 kisten=+1 stufe=2->3 maxtick=65ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=25 260 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=26 tag=78 stufe=3 kapitel=2 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=26 uhr=12000
+   NACHT START k=26 K2N3S3 tag=78 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   FAIL nacht k=26 K2N3S3 spieler=3/4 art=ereignis_nether_rift ergebnis=gewonnen dauer=280s core=90/100 punkte=+1 kisten=+2 stufe=3->4 maxtick=52ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   OK 8:00-Grenze k=26 280 s (maxDurationSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=27 tag=81 stufe=4 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=27 uhr=12000
+   NACHT START k=27 K2N4S4 tag=81 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=27 K2N4S4 spieler=3/4 art=boss ergebnis=verloren dauer=600s core=80/100 punkte=+3 kisten=+0 stufe=4->4 maxtick=71ms | Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FAIL 8:00-Grenze k=27 600 s (maxDurationSeconds=600)
+   ARTEN {boss=6, core_treffer=23, ereignis=9, normal=9, fragment=1, fluch=1, kapitelwechsel=1}
+   FEHLERLISTE k=1 K1N1S1: Belohnung fehlt (Punkte +0, Kisten +1)
+   FEHLERLISTE k=2 K1N2S2: Bot02 eigene Sachen nicht zurück (Holz 0/13, Feuerstein 0/5)
+   FEHLERLISTE k=4 K1N3S3: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=5 K1N4S4: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=6 K1N5S5: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=8 K1N6S6: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=9 K1N7S7: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=10 K1N8S7: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=10 K1N8S7: 8:00-Grenze 600 s
+   FEHLERLISTE k=11 K1N8S7: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=12 K1N9S8: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=13 K1N10S8: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=14 K1N11S9: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=15 K1N12S10: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=16 K1N13S11: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=17 K1N14S11: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=18 K1N15S12: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=19 K1N16S13: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=20 K1N17S14: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=20 K1N17S14: 8:00-Grenze 500 s
+   FEHLERLISTE k=21 K1N18S15: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=21 K1N18S15: 8:00-Grenze 520 s
+   FEHLERLISTE k=22 K1N19S16: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=22 K1N19S16: 8:00-Grenze 540 s
+   FEHLERLISTE k=23 K1N20S17: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=23 K1N20S17: Belohnung fehlt (Punkte +-119, Kisten +1)
+   FEHLERLISTE k=24 K2N1S1: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=25 K2N2S2: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=26 K2N3S3: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=27 K2N4S4: Bot02 nicht bereit am Core (verteidigt=false nah=false kit=0)
+   FEHLERLISTE k=27 K2N4S4: 8:00-Grenze 600 s
+   SUMME spieler=4 bis=K2N4S4 naechte=26 gewonnen=20 verloren=5 abgebrochen=1 ok=22 fail=30 zyklen=27 ende=Ziel Nacht 24 erreicht minuten=18
+   [langlauf-skript] exit=0 start=2
+   OK Log: kein ERROR, keine Exception
+LOG-ABSCHNITTE MIT FEHLERN: 0 von 28
