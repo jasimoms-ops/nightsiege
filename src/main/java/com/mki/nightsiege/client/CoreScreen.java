@@ -782,6 +782,7 @@ public class CoreScreen extends Screen {
     protected void init() {
         showing = this;
         goldButtons.clear();
+        readyButton = null;
         if (showOwnTree) {
             // The playtest between its parts (28 October 2026): straight to the own tree.
             showOwnTree = false;
@@ -892,7 +893,29 @@ public class CoreScreen extends Screen {
             layoutProfileList();
             // Answer today's invitation, or sign off.
             int bx = left + 8;
-            if (stats.voteOpen) {
+            readyButton = null;
+            if (GatherClientState.active()) {
+                // Tor 12: after the horn at the core the big "Ready" button stands where the extra siege was.
+                boolean countdown = GatherClientState.phase == CoreNetworking.GatherPayload.COUNTDOWN;
+                Component label = readyLabel(false);
+                int rw = Math.max(110, font.width(label) + 24);
+                readyShort = rw > (W - 74) * 45 / 100;
+                if (readyShort) {
+                    label = readyLabel(true);
+                    rw = Math.max(70, font.width(label) + 16);
+                }
+                Button rb = Button.builder(label, b -> GatherClientState.sendReady()).bounds(bx, footerY, rw, 18)
+                        .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                                Component.translatable("nightsiege.ui.gather_ready_hint")))
+                        .build();
+                rb.active = !countdown;
+                if (!GatherClientState.selfReady && !countdown) {
+                    goldButtons.add(rb);
+                }
+                readyButton = addRenderableWidget(rb);
+                gatherShown = gatherSignature();
+                bx += rw + 4;
+            } else if (stats.voteOpen) {
                 Component yes = Component.translatable("nightsiege.ui.vote_yes");
                 Component no = Component.translatable("nightsiege.ui.vote_no");
                 int yw = Math.max(60, font.width(yes) + 12);
@@ -1277,6 +1300,45 @@ public class CoreScreen extends Screen {
 
     /** For the scenes (Tor 12): free pixels between the lowest line of the next-siege card and its base line (or foot). */
     public static volatile int testNextSiegeGap = -1000;
+    /** For the scenes (Tor 12): participants the gathering list accounts for (shown by name or in "+N"). */
+    public static volatile int testGatherListed = -1;
+
+    /** Tor 12: the big "Ready" button of the gathering (null when none shows), its short label, and the state it shows. */
+    private Button readyButton;
+    private boolean readyShort;
+    private int gatherShown = -1;
+
+    /** Phase and own ready as one number: a change rebuilds the buttons. */
+    private static int gatherSignature() {
+        return GatherClientState.phase * 2 + (GatherClientState.selfReady ? 1 : 0);
+    }
+
+    /** Seconds left in the gathering, counted on between two packets of the server. */
+    static int gatherSecondsLeft() {
+        var level = Minecraft.getInstance().level;
+        long passed = level == null ? 0 : Math.max(0, level.getGameTime() - GatherClientState.receivedAt) / 20;
+        return (int) Math.max(0, GatherClientState.seconds - passed);
+    }
+
+    /** What the button does when pressed: "I'm ready", undo it, or (countdown) when the night begins. */
+    private static Component readyLabel(boolean small) {
+        if (GatherClientState.phase == CoreNetworking.GatherPayload.COUNTDOWN) {
+            return Component.translatable("nightsiege.ui.gather_countdown_button", gatherSecondsLeft());
+        }
+        String key = GatherClientState.selfReady ? "nightsiege.ui.gather_unready_button" : "nightsiege.ui.gather_ready_button";
+        return Component.translatable(small ? key + "_short" : key);
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (activeTab == Tab.STATS && (GatherClientState.active() || readyButton != null)
+                && gatherSignature() != gatherShown) {
+            rebuildWidgets();   // the gathering began, ended, or the own ready changed
+        } else if (readyButton != null) {
+            readyButton.setMessage(readyLabel(readyShort));
+        }
+    }
 
     private void invisible(Button button) {
         button.setAlpha(0f);
@@ -4838,6 +4900,10 @@ public class CoreScreen extends Screen {
             nextSiegeFoot(gui, font, x, y, w, h, bottom);
             return;
         }
+        if (GatherClientState.active()) {
+            nextSiegeFoot(gui, font, x, y, w, h, drawGather(gui, font, x, y, w, h, cy, cardFoot));
+            return;
+        }
         // Countdown bar.
         int barX = x + 8;
         int barW = w - 16;
@@ -4911,6 +4977,46 @@ public class CoreScreen extends Screen {
         }
         gui.text(font, font.plainSubstrByWidth(text, maxW), tx, ty, color, true);
         return Math.max(bottom, ty + 9);
+    }
+
+    /**
+     * Tor 12: the gathering at the core – "Ready 1/3 · at the latest in 2:41" (or the countdown) and every participant
+     * with a tick (ready) or a ring (open), in one or two columns above the base line; who does not fit counts as "+N".
+     * Returns the lowest pixel row used.
+     */
+    private int drawGather(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h, int cy, int cardFoot) {
+        List<CoreNetworking.GatherEntry> list = GatherClientState.entries;
+        boolean countdown = GatherClientState.phase == CoreNetworking.GatherPayload.COUNTDOWN;
+        int left = gatherSecondsLeft();
+        String head = countdown
+                ? Component.translatable("nightsiege.gather.bar_countdown", left).getString()
+                : Component.translatable("nightsiege.gather.bar", GatherClientState.readyCount(), list.size(), clock(left)).getString();
+        int bottom = cardLine(gui, font, head, x + 8, cy, w - 16, countdown ? RED : GOLD, cardFoot, cy);
+        cy += compact ? 11 : 13;
+        int foot = stats.baseKnown ? y + h - 12 : cardFoot;
+        int rowH = compact ? 9 : 10;
+        int rows = foot - 9 - cy < 0 ? 0 : (foot - 9 - cy) / rowH + 1;
+        int cols = list.size() > rows && w - 16 >= 2 * 60 ? 2 : 1;
+        int colW = (w - 16 - (cols - 1) * 6) / cols;
+        int room = rows * cols;
+        int shown = list.size() <= room ? list.size() : Math.max(0, room - 1);
+        String me = Minecraft.getInstance().player == null ? "" : Minecraft.getInstance().player.getUUID().toString();
+        for (int i = 0; i < shown; i++) {
+            CoreNetworking.GatherEntry e = list.get(i);
+            int tx = x + 8 + (i / rows) * (colW + 6);
+            int ty = cy + (i % rows) * rowH;
+            String text = (e.ready() ? "✔ " : "○ ") + e.name();
+            int color = e.ready() ? GREEN : me.equals(String.valueOf(e.id())) ? GOLD : GRAY;
+            bottom = cardLine(gui, font, text, tx, ty, colW, color, foot, bottom);
+        }
+        if (shown < list.size() && room > 0) {
+            int tx = x + 8 + (shown / rows) * (colW + 6);
+            int ty = cy + (shown % rows) * rowH;
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.gather_more", list.size() - shown).getString(),
+                    tx, ty, colW, GRAY, foot, bottom);
+        }
+        testGatherListed = room > 0 ? list.size() : 0;
+        return bottom;
     }
 
     /** Tor 12: the base line at the foot of the card, only where no line above reaches down to it. */

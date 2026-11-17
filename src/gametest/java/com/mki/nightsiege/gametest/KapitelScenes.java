@@ -156,6 +156,15 @@ final class KapitelScenes {
             int foot = com.mki.nightsiege.client.CoreScreen.testNextSiegeGap;
             check(foot >= 0, tag + ": no line of the next-siege card over the base line (gap " + foot + " px)");
         });
+        // Tor 12: the gathering at the core in the card and the big Ready button (client state only, no night runs):
+        // 3 at the core and 1 ready, then the countdown with 8 (two columns or "+N").
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.READY, 161, 2, 1);
+        shots += CoreCardCheck.matrix(context, "sammeln_bereit", true, KapitelScenes::check);
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.READY, 161, 2, 0);
+        shots += CoreCardCheck.matrix(context, "sammeln_offen", true, KapitelScenes::check);
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.COUNTDOWN, 3, 7, 8);
+        shots += CoreCardCheck.matrix(context, "sammeln_countdown", true, KapitelScenes::check);
+        CoreCardCheck.clear(context);
         EventLookTest.closeScreen(context);
 
         // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.
