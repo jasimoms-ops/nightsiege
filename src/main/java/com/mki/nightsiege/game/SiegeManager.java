@@ -921,6 +921,7 @@ public final class SiegeManager {
             safe("Letzte Bastion", () -> bastion.onServerStopping(server));   // a ready round goes, the time comes back
             traps.releaseAll(server);   // gunners out of the towers, the seats go
             safe("Nacht beim Stopp", () -> endNightForStop(server));   // before vanilla saves the players
+            safe("Sammeln", () -> endGather(server, true));   // Tor 12: the clock runs again before the world is saved
             Drones.stopAll(server);
             HealerStaffItem.resetForTest();   // no bolt keeps a stopped world's level (Prüfer-Fund 7)
             if (active) {
@@ -1524,11 +1525,17 @@ public final class SiegeManager {
         // Survival safety (31.10.): nobody stuck in ground that came back, logins looked at (at night too).
         safe("Sicherer Boden", () -> SafeGround.tick(server, this));
         if (active) {
+            if (gather.active()) {
+                safe("Sammeln", () -> endGather(server, false));   // a night started otherwise (admin): it holds its own clock
+            }
             tickSiege(server);
             return;
         }
-        if (save.clockHeld) {
-            releaseNight(server);   // no siege, no held night
+        if (gather.active() && (pendingTest != null || playtest.running())) {
+            safe("Sammeln", () -> endGather(server, true));
+        }
+        if (save.clockHeld && !gather.active()) {
+            releaseNight(server);   // no siege, no held night (Tor 12: the gathering holds it until the start)
         }
         if (pendingTest != null) {
             tickPreparation(server);
@@ -1550,7 +1557,7 @@ public final class SiegeManager {
      * get their kit and the class window.
      */
     private void tickComingNight(MinecraftServer server) {
-        if (!nightComing(server)) {
+        if (!nightComing(server) || gather.active()) {   // Tor 12: the gathering hands out kit and window itself
             return;
         }
         CoreRecord core = mainCore();
@@ -1573,6 +1580,9 @@ public final class SiegeManager {
         }
         if (!nightComing(server)) {
             return 0;
+        }
+        if (gather.active()) {
+            return gather.secondsLeft(server.overworld().getGameTime());   // Tor 12: the clock stands
         }
         return Math.max(0, (startTime() - clockTime(server)) / 20);
     }
@@ -1942,6 +1952,13 @@ public final class SiegeManager {
             endKits(server);
             persist();
         }
+        if (gather.active()) {
+            if (warnedDay == day && startedDay != day) {
+                tickGather(server, core, day);   // Tor 12: the start comes from the gathering, not the clock
+                return;
+            }
+            endGather(server, true);   // the clock was moved past tonight: the rhythm decides as before
+        }
         SiegeRhythm.Step step = SiegeRhythm.decide(day, time, save.nextSiegeDay, save.voteDay, warnedDay, startedDay,
                 acceptedCount(), requiredAccepts(), config, closeTime(), startTime());
         if ((step == SiegeRhythm.Step.WARN || step == SiegeRhythm.Step.START) && peaceful(server)) {
@@ -2176,7 +2193,11 @@ public final class SiegeManager {
                 currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
         Fx.warning(server, config);
         wakeSleepers(server);   // nobody sleeps the night away (Simon 31.10.)
-        handOutAtWarning(server, core);
+        boolean gathering = com.mki.nightsiege.core.GatherPhase.gathers(config, true);
+        handOutAtWarning(server, core, gathering);
+        if (gathering) {
+            beginGather(server);   // Tor 12: to the core in 5 s, kit, ready; the clock stands
+        }
         if (eclipse) {
             EventAtmosphere.setServer(core.dimension, EventAtmosphere.ECLIPSE,
                     EventAtmosphere.fadeTicks(EventAtmosphere.ECLIPSE));
@@ -2224,6 +2245,9 @@ public final class SiegeManager {
     /** Starts a siege at the given core. Also used by the start command. */
     public boolean start(MinecraftServer server, ServerLevel targetWorld, BlockPos targetAnchor) {
         // Started by an admin without a vote: every signed-up player nearby defends.
+        if (gather.active()) {
+            endGather(server, true);   // Tor 12: the admin's start goes first, at once as before
+        }
         openNight = true;
         boolean started = start(server, targetWorld, targetAnchor, 0, null);
         if (started) {
@@ -2357,8 +2381,353 @@ public final class SiegeManager {
                 .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege playtest bereit")));
     }
 
-    /** Tor 12: "Bereit" in the gathering at the core (button, chat link, /nightsiege bereit): toggles. */
+    // ------------------------------------------------------------------
+    // Tor 12: gathering at the core (Simon 17.11.: "jeder der die nacht annimmt zum core tp … ready drücken")
+    // ------------------------------------------------------------------
+
+    private final com.mki.nightsiege.core.GatherPhase gather = new com.mki.nightsiege.core.GatherPhase();
+    private ServerBossEvent gatherBar;
+    /** Brought to the core in this gathering (each once: who walks away is not fetched again). */
+    private final Set<UUID> gatherBrought = new HashSet<>();
+    private static final List<int[]> GATHER_RING = com.mki.nightsiege.core.GatherPhase.ringOffsets(3, 6);
+    private static final int[] GATHER_DY = {0, 1, -1, 2, -2, 3, -3, 4};
+
+    /** For the tests and the window: the gathering's logic. */
+    public com.mki.nightsiege.core.GatherPhase gatherForTests() {
+        return gather;
+    }
+
+    /** True from the horn of a gathering night until its start (Tor 12). */
+    public boolean gathering() {
+        return gather.active();
+    }
+
+    /** "Bereit" in the gathering at the core (button, chat link, /nightsiege bereit): toggles. */
     public void toggleGatherReady(ServerPlayer player) {
+        MinecraftServer server = player.level().getServer();
+        if (server == null || !gather.active() || gather.phase() == com.mki.nightsiege.core.GatherPhase.Phase.ANNOUNCE) {
+            player.sendSystemMessage(Component.translatable("nightsiege.gather.not_now").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        if (gather.phase() == com.mki.nightsiege.core.GatherPhase.Phase.COUNTDOWN) {
+            player.sendSystemMessage(Component.translatable("nightsiege.gather.too_late").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        Boolean now = gather.toggle(player.getUUID());
+        if (now == null) {
+            player.sendSystemMessage(Component.translatable("nightsiege.gather.not_in").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        player.sendOverlayMessage(Component.translatable(now ? "nightsiege.gather.you_ready" : "nightsiege.gather.you_unready")
+                .withStyle(now ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
+        tellGather(server, Component.translatable(now ? "nightsiege.gather.player_ready" : "nightsiege.gather.player_unready",
+                player.getName(), gather.readyCount(), gather.memberCount())
+                .withStyle(now ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+        showGather(server);
+    }
+
+    /** "[Bereit]" in the chat: the same as /nightsiege bereit. */
+    private static Component gatherReadyLink() {
+        return Component.translatable("nightsiege.gather.ready_link").withStyle(style -> style
+                .withColor(ChatFormatting.GREEN).withUnderlined(true)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege bereit"))
+                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(
+                        Component.translatable("nightsiege.gather.ready_hover"))));
+    }
+
+    /** Who the gathering fetches: accepted, not in a playtest or another round, alive, not watching. */
+    private boolean bringsToCore(ServerPlayer p) {
+        String id = p.getUUID().toString();
+        com.mki.nightsiege.core.Chapters.Round round = inSiegeRound() ? roundNow() : null;
+        boolean busy = playtest.takesPart(p.getUUID()) || warLeader.inRound(p) || bastion.inRound(p)
+                || (round != null && round.picks.containsKey(id));
+        return com.mki.nightsiege.core.GatherPhase.bringsToCore(save.isRegistered(id),
+                save.accepted != null && save.accepted.contains(id), busy, p.isDeadOrDying(), p.isSpectator());
+    }
+
+    /** At the horn of a gathering night: "in 5 s to the core"; the clock stands from now until the start. */
+    private void beginGather(MinecraftServer server) {
+        gather.begin(server.overworld().getGameTime());
+        gatherBrought.clear();
+        net.minecraft.core.Holder<net.minecraft.world.clock.WorldClock> clock = overworldClock(server);
+        if (clock != null) {
+            try {
+                server.clockManager().setPaused(clock, true);
+                save.clockHeld = true;   // released at the start, on a stop, and after a crash (onServerStarted)
+                persist();
+            } catch (RuntimeException e) {
+                NightSiegeMod.LOGGER.warn("[Night Siege] Uhr zum Sammeln nicht angehalten: {}", e.toString());
+            }
+        }
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (bringsToCore(p)) {
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket(5, 70, 15));
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(
+                        Component.translatable("nightsiege.gather.soon_title").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)));
+                p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(
+                        Component.translatable("nightsiege.gather.soon").withStyle(ChatFormatting.YELLOW)));
+                p.sendSystemMessage(Component.translatable("nightsiege.gather.soon").withStyle(ChatFormatting.GOLD));
+            }
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Sammeln am Core: Teleport in 5 s");
+    }
+
+    /** Every tick while gathering (from tickRhythm). */
+    private void tickGather(MinecraftServer server, CoreRecord core, long day) {
+        ServerLevel level = levelByName(server, core.dimension);
+        if (level == null) {
+            endGather(server, true);
+            return;
+        }
+        BlockPos pos = new BlockPos(core.x, core.y, core.z);
+        long now = server.overworld().getGameTime();
+        com.mki.nightsiege.core.GatherPhase.Step step = gather.tick(now, config.gatherReadyMaxSeconds);
+        switch (step) {
+            case TELEPORT -> {
+                Set<Long> taken = new HashSet<>();
+                for (ServerPlayer p : new ArrayList<>(server.getPlayerList().getPlayers())) {
+                    if (bringsToCore(p)) {
+                        safe("Sammeln", () -> bringToCore(server, level, pos, p, taken));
+                    }
+                }
+                refreshGather(server, level, pos, true);
+            }
+            case WARN_60, WARN_10 -> tellGather(server, Component.translatable("nightsiege.gather.warn",
+                    step == com.mki.nightsiege.core.GatherPhase.Step.WARN_60 ? 60 : 10).withStyle(ChatFormatting.YELLOW));
+            case ALL_READY -> {
+                tellGather(server, Component.translatable("nightsiege.gather.all_ready").withStyle(ChatFormatting.GREEN));
+                countdownTitle(server, com.mki.nightsiege.core.GatherPhase.COUNTDOWN_SECONDS);
+            }
+            case COUNT -> countdownTitle(server, gather.secondsLeft(now));
+            case TIME_UP, START -> {
+                if (step == com.mki.nightsiege.core.GatherPhase.Step.TIME_UP) {
+                    tellGather(server, Component.translatable("nightsiege.gather.time_up").withStyle(ChatFormatting.GOLD));
+                }
+                finishGather(server, core, day);
+                return;
+            }
+            default -> {
+            }
+        }
+        if (step != com.mki.nightsiege.core.GatherPhase.Step.NONE || now % 20 == 0) {
+            refreshGather(server, level, pos, false);
+        }
+    }
+
+    /**
+     * Once a second in the ready phase: late-comers (logged in, back to life) are fetched, the participants
+     * are those who accepted and stand at the core; then bar and window state.
+     */
+    private void refreshGather(MinecraftServer server, ServerLevel level, BlockPos pos, boolean quiet) {
+        if (gather.phase() == com.mki.nightsiege.core.GatherPhase.Phase.READY) {
+            Set<Long> taken = new HashSet<>();
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                if (p.level() == level && gather.isMember(p.getUUID())) {
+                    taken.add(BlockPos.asLong(p.getBlockX(), 0, p.getBlockZ()));
+                }
+            }
+            for (ServerPlayer p : new ArrayList<>(server.getPlayerList().getPlayers())) {
+                if (!gatherBrought.contains(p.getUUID()) && bringsToCore(p)) {
+                    safe("Sammeln", () -> bringToCore(server, level, pos, p, taken));   // Nachzügler (Plan Tor 12 point 6)
+                }
+            }
+            List<UUID> atCore = new ArrayList<>();
+            for (ServerPlayer p : defendersNear(server, level, pos, false)) {
+                if (!bringsToCore(p)) {
+                    continue;
+                }
+                atCore.add(p.getUUID());
+                if (gather.join(p.getUUID(), p.getGameProfile().name()) && !quiet) {
+                    tellGather(server, Component.translatable("nightsiege.gather.joined", p.getName(),
+                            gather.readyCount(), gather.memberCount()).withStyle(ChatFormatting.GRAY));
+                }
+            }
+            gather.retain(atCore);
+        }
+        showGather(server);
+    }
+
+    /** One player to the core: off the mount, on safe ground 3–6 blocks away, no fall, 3 s shielded; then the kit. */
+    private void bringToCore(MinecraftServer server, ServerLevel level, BlockPos core, ServerPlayer p, Set<Long> taken) {
+        gatherBrought.add(p.getUUID());
+        boolean near = p.level() == level && p.blockPosition().distSqr(core) <= 64;
+        if (!near) {
+            if (p.isSleeping()) {
+                p.stopSleepInBed(true, true);
+            }
+            p.stopRiding();
+            p.stopFallFlying();
+            BlockPos spot = gatherSpot(level, core, taken);
+            float yaw = (float) Math.toDegrees(Math.atan2(core.getZ() - spot.getZ(), core.getX() - spot.getX())) - 90.0f;
+            p.teleportTo(level, spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, java.util.Set.of(), yaw, 0.0f, true);
+            p.resetFallDistance();
+            p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.RESISTANCE,
+                    60, 4, false, false, true));
+        }
+        equipKit(p);   // (no second kit: equipKit keeps one already worn)
+        sendClassPick(p, secondsToStart(server));
+        p.sendSystemMessage(Component.translatable("nightsiege.gather.arrived", gatherReadyLink(),
+                        com.mki.nightsiege.core.GatherPhase.clock(gather.secondsLeft(server.overworld().getGameTime())))
+                .withStyle(ChatFormatting.GOLD));
+    }
+
+    /** A free, safe spot 3–6 blocks around the core (nearest first, never next to another player's). */
+    private static BlockPos gatherSpot(ServerLevel level, BlockPos core, Set<Long> taken) {
+        level.getChunkAt(core);
+        for (int spacing = 1; spacing >= 0; spacing--) {
+            for (int[] off : GATHER_RING) {
+                int x = core.getX() + off[0];
+                int z = core.getZ() + off[1];
+                if (spotTaken(taken, x, z, spacing)) {
+                    continue;
+                }
+                for (int dy : GATHER_DY) {
+                    BlockPos feet = new BlockPos(x, core.getY() + dy, z);
+                    if (standable(level, feet)) {
+                        taken.add(BlockPos.asLong(x, 0, z));
+                        return feet;
+                    }
+                }
+            }
+        }
+        // Nothing free around the core (built full): on top of its column.
+        return level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, core);
+    }
+
+    private static boolean spotTaken(Set<Long> taken, int x, int z, int spacing) {
+        for (long t : taken) {
+            if (Math.abs(BlockPos.getX(t) - x) <= spacing && Math.abs(BlockPos.getZ(t) - z) <= spacing) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Firm ground below, two free dry blocks for the body; nothing that burns, holds or sends away. */
+    static boolean standable(ServerLevel level, BlockPos feet) {
+        BlockPos below = feet.below();
+        net.minecraft.world.level.block.state.BlockState ground = level.getBlockState(below);
+        if (!ground.isFaceSturdy(level, below, net.minecraft.core.Direction.UP) || !ground.getFluidState().isEmpty()
+                || gatherHazard(ground)) {
+            return false;
+        }
+        return openForBody(level, feet) && openForBody(level, feet.above());
+    }
+
+    private static boolean openForBody(ServerLevel level, BlockPos pos) {
+        net.minecraft.world.level.block.state.BlockState s = level.getBlockState(pos);
+        return s.getCollisionShape(level, pos).isEmpty() && s.getFluidState().isEmpty() && !gatherHazard(s);
+    }
+
+    private static boolean gatherHazard(net.minecraft.world.level.block.state.BlockState s) {
+        return s.is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK) || s.is(net.minecraft.world.level.block.Blocks.CAMPFIRE)
+                || s.is(net.minecraft.world.level.block.Blocks.SOUL_CAMPFIRE) || s.is(net.minecraft.world.level.block.Blocks.CACTUS)
+                || s.is(net.minecraft.world.level.block.Blocks.FIRE) || s.is(net.minecraft.world.level.block.Blocks.SOUL_FIRE)
+                || s.is(net.minecraft.world.level.block.Blocks.POWDER_SNOW) || s.is(net.minecraft.world.level.block.Blocks.COBWEB)
+                || s.is(net.minecraft.world.level.block.Blocks.SWEET_BERRY_BUSH) || s.is(net.minecraft.world.level.block.Blocks.WITHER_ROSE)
+                || s.is(net.minecraft.world.level.block.Blocks.NETHER_PORTAL) || s.is(net.minecraft.world.level.block.Blocks.END_PORTAL);
+    }
+
+    /** A line for every participant of the gathering. */
+    private void tellGather(MinecraftServer server, Component line) {
+        for (UUID id : gather.members().keySet()) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p != null) {
+                p.sendSystemMessage(line);
+            }
+        }
+    }
+
+    /** 3-2-1: big number and a ping for every participant. */
+    private void countdownTitle(MinecraftServer server, int n) {
+        for (UUID id : gather.members().keySet()) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p == null) {
+                continue;
+            }
+            p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket(0, 25, 5));
+            p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(
+                    Component.literal(String.valueOf(n)).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)));
+            p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(
+                    Component.translatable("nightsiege.gather.countdown_sub").withStyle(ChatFormatting.YELLOW)));
+            p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.NOTE_BLOCK_PLING, SoundSource.PLAYERS,
+                    1.0f, n <= 1 ? 1.5f : 1.0f);
+        }
+    }
+
+    /** The bar at the top and the window state (GatherPayload) for every participant. */
+    private void showGather(MinecraftServer server) {
+        long now = server.overworld().getGameTime();
+        int left = gather.secondsLeft(now);
+        boolean countdown = gather.phase() == com.mki.nightsiege.core.GatherPhase.Phase.COUNTDOWN;
+        Component name = countdown ? Component.translatable("nightsiege.gather.bar_countdown", left)
+                : Component.translatable("nightsiege.gather.bar", gather.readyCount(), gather.memberCount(),
+                com.mki.nightsiege.core.GatherPhase.clock(left));
+        if (gatherBar == null) {
+            gatherBar = new ServerBossEvent(com.mki.nightsiege.core.NightBarIds.make(com.mki.nightsiege.core.NightBarIds.Kind.PREP),
+                    name, BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
+        }
+        gatherBar.setName(name);
+        gatherBar.setColor(countdown ? BossEvent.BossBarColor.GREEN : BossEvent.BossBarColor.YELLOW);
+        gatherBar.setProgress(countdown ? 1.0f
+                : gather.memberCount() == 0 ? 0.0f : gather.readyCount() / (float) gather.memberCount());
+        for (ServerPlayer p : new ArrayList<>(gatherBar.getPlayers())) {
+            if (!gather.isMember(p.getUUID())) {
+                gatherBar.removePlayer(p);
+            }
+        }
+        int phase = countdown ? CoreNetworking.GatherPayload.COUNTDOWN
+                : gather.phase() == com.mki.nightsiege.core.GatherPhase.Phase.READY ? CoreNetworking.GatherPayload.READY
+                : CoreNetworking.GatherPayload.NONE;
+        List<CoreNetworking.GatherEntry> entries = new ArrayList<>();
+        for (Map.Entry<UUID, String> e : gather.members().entrySet()) {
+            entries.add(new CoreNetworking.GatherEntry(e.getValue(), e.getKey(), gather.isReady(e.getKey())));
+        }
+        for (UUID id : gather.members().keySet()) {
+            ServerPlayer p = server.getPlayerList().getPlayer(id);
+            if (p == null) {
+                continue;
+            }
+            gatherBar.addPlayer(p);
+            if (ServerPlayNetworking.canSend(p, CoreNetworking.GatherPayload.TYPE)) {
+                ServerPlayNetworking.send(p, new CoreNetworking.GatherPayload(phase, left, gather.isReady(id), entries));
+            }
+        }
+    }
+
+    /** The gathering ends (started, called off, stopped): bar and window state go; release = the clock runs again. */
+    private void endGather(MinecraftServer server, boolean release) {
+        boolean was = gather.active() || gatherBar != null;
+        gather.reset();
+        gatherBrought.clear();
+        if (gatherBar != null) {
+            gatherBar.removeAllPlayers();
+            gatherBar = null;
+        }
+        if (was && server != null) {
+            CoreNetworking.GatherPayload none = new CoreNetworking.GatherPayload(CoreNetworking.GatherPayload.NONE, 0, false, List.of());
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                if (ServerPlayNetworking.canSend(p, CoreNetworking.GatherPayload.TYPE)) {
+                    ServerPlayNetworking.send(p, none);
+                }
+            }
+        }
+        if (release) {
+            releaseNight(server);
+        }
+    }
+
+    /** Everyone ready (or time up): the clock jumps to the start time and runs, the night begins as before. */
+    private void finishGather(MinecraftServer server, CoreRecord core, long day) {
+        endGather(server, false);
+        if (peaceful(server)) {
+            releaseNight(server);
+            cancelNight(server, day, "nightsiege.msg.peaceful_night");
+            return;
+        }
+        setClockTime(server, com.mki.nightsiege.core.GatherPhase.startTime(config, pendingEvent() == SiegeEvent.ECLIPSE));
+        releaseNight(server);
+        startNight(server, day, core);
     }
 
     /** True while a playtest night's build-up runs (Tor 9.1 i). */
@@ -2589,7 +2958,7 @@ public final class SiegeManager {
     }
 
     /** At the warning the defenders near the core get their free traps, to set them before the first wave. */
-    private void handOutAtWarning(MinecraftServer server, CoreRecord core) {
+    private void handOutAtWarning(MinecraftServer server, CoreRecord core, boolean gathering) {
         ServerLevel targetWorld = levelByName(server, core.dimension);
         if (targetWorld == null) {
             return;
@@ -2597,10 +2966,14 @@ public final class SiegeManager {
         // Natural monsters stop with the warning; if the night does not come, they start again a minute after its time.
         spawnBlockWorld = dimensionName(targetWorld);
         long gap = Math.max(config.startDayTime - config.warningDayTime, config.eclipseStartDayTime - config.eclipseWarningDayTime);
-        spawnBlockUntil = targetWorld.getGameTime() + Math.max(0L, gap) + 1200L;
+        spawnBlockUntil = targetWorld.getGameTime() + Math.max(0L, gap) + 1200L
+                + (gathering ? config.gatherReadyMaxSeconds * 20L + 200L : 0L);   // Tor 12: the ready phase stands still
         BlockPos pos = new BlockPos(core.x, core.y, core.z);
         spawnBlockCenter = pos;
         trapsHanded.clear();
+        if (gathering) {
+            return;   // Tor 12: kit and class window come with the teleport
+        }
         for (ServerPlayer player : defendersNear(server, targetWorld, pos, false)) {
             equipKit(player);
         }
