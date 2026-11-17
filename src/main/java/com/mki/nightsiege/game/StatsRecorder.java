@@ -101,7 +101,8 @@ public final class StatsRecorder {
         public int dauerSekunden;
         /** Tor 9.1 (i): seconds of the playtest's build-up before this night ("Bereit", 2 min at most); 0 otherwise. */
         public int aufbauSekunden;
-        public int killZiel;
+        /** Tor 12 F: the core's life at the end of the night (replaces the kill goal). */
+        public int coreLeben;
         public int kills;
         public int gespawnt;
         public int tode;
@@ -1376,7 +1377,7 @@ public final class StatsRecorder {
     // ------------------------------------------------------------------ the end of the night
 
     /** Ends the night's protocol; returns the finished night (null without one). */
-    NightFile endNight(long gameTime, String result, int killGoal, int kills, Set<UUID> liveMobs) {
+    NightFile endNight(long gameTime, String result, int coreLife, int kills, Set<UUID> liveMobs) {
         if (night == null) {
             return null;
         }
@@ -1386,7 +1387,7 @@ public final class StatsRecorder {
         night.abgeschlossen = true;
         night.ergebnis = result;
         night.dauerSekunden = second(gameTime);
-        night.killZiel = killGoal;
+        night.coreLeben = coreLife;
         night.kills = kills;
         for (Gegner g : night.gegner.values()) {
             g.ueberlebtSekundenSchnitt = g.getoetet == 0 ? 0 : Math.round(g.ueberlebtSekundenSumme / g.getoetet * 10.0) / 10.0;

@@ -59,6 +59,7 @@ public class EventLookTest implements FabricClientGameTest {
                     manager.config().eliteMobs = false;
                     manager.config().lifestealCoupled = false;
                     manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
+                    manager.config().coreHealth = 0;   // Tor 12 F: no core life in the scenes; "rundum" has it
                 });
             }
             String only = System.getenv("NIGHTSIEGE_SCENES");
@@ -271,6 +272,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("richtung")) {
                     alive(context);
                     RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east
+                }
+                if (want.contains("rundum")) {
+                    alive(context);
+                    RundumScenes.run(context, game);   // Tor 12 F: spawns all around, the core's life, its bar and its fall
                 }
                 if (want.contains("nemesis")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)

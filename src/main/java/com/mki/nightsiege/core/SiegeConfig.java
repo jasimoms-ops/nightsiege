@@ -940,6 +940,18 @@ public class SiegeConfig {
     public int raidStuckSeconds = 15;
     /** Ladder carriers every wave brings at least, when the base has walls. */
     public int raidMinLadders = 1;
+    /** Tor 12 F (Simon 17.11.): a wave splits into this many groups around the base (evenly, turned each wave). */
+    public int raidGroupsMin = 2;
+    public int raidGroupsMax = 4;
+    /** Tor 12 F: the core's life in every night, no healing (0 = off). Replaces the kill goal. */
+    public int coreHealth = 100;
+    /** Monsters this close to the core (blocks) hit it, each once every coreHitSeconds. */
+    public double coreHitRange = 3.0;
+    public int coreHitSeconds = 1;
+    /** Life a hit on the core costs: a normal monster, an elite/champion/nemesis, a boss. */
+    public int coreDamageNormal = 1;
+    public int coreDamageStrong = 3;
+    public int coreDamageBoss = 10;
 
     // Update 2 "Fluch & Rache" (Simon, 28 October 2026)
     /** The curse altar in the core window: curses for the next night, for better rewards. */
@@ -2434,6 +2446,14 @@ public class SiegeConfig {
         raidRegroupSeconds = clamp(raidRegroupSeconds <= 0 ? 45 : raidRegroupSeconds, 5, 600);
         raidStuckSeconds = clamp(raidStuckSeconds <= 0 ? 15 : raidStuckSeconds, 5, 120);
         raidMinLadders = clamp(raidMinLadders, 0, 6);
+        raidGroupsMin = clamp(raidGroupsMin, 1, 8);
+        raidGroupsMax = clamp(raidGroupsMax, raidGroupsMin, 8);
+        coreHealth = clamp(coreHealth, 0, 100000);
+        coreHitRange = Double.isNaN(coreHitRange) ? 3.0 : clampDouble(coreHitRange, 1.0, 16.0);
+        coreHitSeconds = clamp(coreHitSeconds, 1, 60);
+        coreDamageNormal = clamp(coreDamageNormal, 0, 100000);
+        coreDamageStrong = clamp(coreDamageStrong, 0, 100000);
+        coreDamageBoss = clamp(coreDamageBoss, 0, 100000);
         curseMax = clamp(curseMax <= 0 ? 3 : curseMax, 1, CurseKind.values().length);
         curseCrateChance = Double.isNaN(curseCrateChance) ? 0.15 : Math.min(1.0, Math.max(0.0, curseCrateChance));
         cursePoints = clamp(cursePoints, 0, 20);

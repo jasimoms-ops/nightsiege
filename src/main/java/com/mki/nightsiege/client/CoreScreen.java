@@ -4893,9 +4893,9 @@ public class CoreScreen extends Screen {
             bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, w - 16, RED, cardFoot, bottom);
             bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
                     x + 8, cy + 12, w - 16, GRAY, cardFoot, bottom);
-            if (stats.killsRequired > 0) {
-                bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills, stats.killsRequired).getString(),
-                        x + 8, cy + 24, w - 16, stats.nightKills >= stats.killsRequired ? GREEN : GOLD, cardFoot, bottom);
+            if (stats.coreMax > 0) {   // Tor 12 F: the core's life instead of the kill goal
+                bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_core", stats.coreLife, stats.coreMax).getString(),
+                        x + 8, cy + 24, w - 16, stats.coreLife * 4 <= stats.coreMax ? RED : stats.coreLife * 2 <= stats.coreMax ? GOLD : GREEN, cardFoot, bottom);
             }
             nextSiegeFoot(gui, font, x, y, w, h, bottom);
             return;
