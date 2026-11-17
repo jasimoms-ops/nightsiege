@@ -24,7 +24,7 @@ class Tor6WerteTest {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
-        assertEquals(0.04, fresh.damagePerLevel, 1e-9);   // the code default is not the server's 0.1 and stays
+        assertEquals(0.08, fresh.damagePerLevel, 1e-9);   // Tor 12 (v31): the server's value is the default
         assertEquals(1.3, fresh.bloodMoonMobMultiplier, 1e-9);
         assertEquals(450, fresh.campWorkshopHealth, 1e-9);
         assertEquals(40, fresh.campReinforceSeconds);

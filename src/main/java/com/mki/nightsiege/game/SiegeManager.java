@@ -2692,7 +2692,7 @@ public final class SiegeManager {
         // A normal night may end with a dungeon warden (Simon, 29 October 2026: 20 %, one of the eight).
         warden.reset(server);
         com.mki.nightsiege.core.ExpeditionKind tonightWarden = tonightBoss != null || kind != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL ? null
-                : testRun ? testWarden : WardenNight.roll(random, config.wardenChance);
+                : testRun ? testWarden : siegeLevel < config.wardenFromLevel ? null : WardenNight.roll(random, config.wardenChance);
         testWarden = null;
         if (tonightWarden != null) {
             warden.plan(tonightWarden);

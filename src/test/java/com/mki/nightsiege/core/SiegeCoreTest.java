@@ -20,11 +20,31 @@ class SiegeCoreTest {
 
     /** The night's size as before update 30.10. (settings 17): one formula, one cap for every group. */
     private SiegeConfig cfgOneCap() {
-        SiegeConfig c = cfg();
+        SiegeConfig c = beforeV31(cfg());
         c.soloScaling = 1.0;
         c.liveCapByPlayers.clear();
         c.damageTakenByPlayers.clear();
         c.mobHealthByPlayers.clear();
+        return c;
+    }
+
+    /**
+     * The mod's own defaults before Tor 12 (v31 made the server's balance the default): the formula tests below
+     * keep their numbers.
+     */
+    static SiegeConfig beforeV31(SiegeConfig c) {
+        c.mobsPerLevel = 1.0;
+        c.healthPerLevel = 0.06;
+        c.maxHealthMultiplier = 2.5;
+        c.damagePerLevel = 0.04;
+        c.maxDamageMultiplier = 2.0;
+        c.effectMobsFromLevel = 10;
+        c.refillSpawns = false;
+        c.fieldRefCaps.clear();
+        c.fieldHealth = 0.0;
+        c.fieldDamage = 0.0;
+        c.monsterDamage = 1.2;
+        c.monsterDamageByType.put("minecraft:pillager", 1.0);
         return c;
     }
 
@@ -103,14 +123,14 @@ class SiegeCoreTest {
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         assertEquals(0.6, server.soloScaling, 1e-9);
         assertEquals(9, SiegeMath.liveCap(1, server));
-        assertEquals(33, SiegeMath.liveCap(4, server));
-        assertEquals(114, SiegeMath.liveCap(10, server));
-        assertEquals(120, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // Chef 09.11. 12:05: the solo damping stays
-        assertEquals(0.95, SiegeMath.healthForGroup(3, server), 1e-9);
+        assertEquals(26, SiegeMath.liveCap(4, server));    // Tor 12 (v31): the old table moves to the server's
+        assertEquals(40, SiegeMath.liveCap(10, server));
+        assertEquals(56, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v31: flat, as on the server since Tor 8
+        assertEquals(1.0, SiegeMath.healthForGroup(3, server), 1e-9);
         assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
         assertTrue(server.quotaSkipsVanished);
-        assertEquals(0.9, server.subclassDamage.get("alchemist"), 1e-9);
+        assertEquals(0.8, server.subclassDamage.get("alchemist"), 1e-9);   // 0.9 until v30, the server's 0.8 since Tor 12
         assertEquals(0.85, server.subclassDamageTaken.get("soulcatcher"), 1e-9);
         assertEquals(80.0, server.skillTweaks.get("d_soulcatcher").values.get("swarmcd"), 1e-9);
         assertEquals(8.0, server.skillTweaks.get("holy_light").values.get("heal"), 1e-9);
@@ -136,8 +156,9 @@ class SiegeCoreTest {
 
     @Test
     void refillAndFieldStrengthAreOffByDefaultAndScaleByTheReference() {
-        // Nachschub and Feld-Stärke (Simon 30.10.): off in a fresh config, so the waves stay as they were.
-        SiegeConfig c = cfg();
+        // Nachschub and Feld-Stärke (Simon 30.10.): off in the old defaults (on since v31, as on the server).
+        assertTrue(cfg().refillSpawns);
+        SiegeConfig c = beforeV31(cfg());
         assertFalse(c.refillSpawns);
         assertEquals(40, c.refillCap);
         assertEquals(5, c.refillGapTicks);
@@ -346,7 +367,8 @@ class SiegeCoreTest {
 
     @Test
     void effectMonstersComeBackSlowlyFromLevelTen() {
-        SiegeConfig c = cfg();
+        assertEquals(5, cfg().effectMobsFromLevel);   // Tor 12 (v31): the server's level 5
+        SiegeConfig c = beforeV31(cfg());
         assertEquals(0.0, c.effectMobShare(9), 1e-9);
         assertEquals(0.1, c.effectMobShare(10), 1e-9);
         assertEquals(0.5, c.effectMobShare(14), 1e-9);
@@ -417,7 +439,7 @@ class SiegeCoreTest {
         // Tor 4.2 (settings 21): the tanks hit 0.9 and 0.8, fresh too.
         assertEquals(1.08, fresh.subclassDamage.get("shieldfighter"), 1e-9);   // Paket 11.11.: +20 %
         // Simon 27.10. (DPS bench, level 10): tamer +20 %, bolt archer -40 %, bulwark -15 %, medic heals 20 % more; the paladin stays.
-        assertEquals(1.2, fresh.subclassDamage.get("tamer"), 1e-9);
+        assertEquals(1.45, fresh.subclassDamage.get("tamer"), 1e-9);   // Tor 12 (v31): the server's value
         assertEquals(0.6, fresh.subclassDamage.get("bolter"), 1e-9);
         assertEquals(0.8, fresh.subclassDamage.get("bulwark"), 1e-9);
         assertEquals(1.1, fresh.subclassDamage.get("paladin"), 1e-9);
@@ -436,11 +458,11 @@ class SiegeCoreTest {
         assertEquals(0.12, tuned16.skillTweaks.get("bloodlust").values.get("steal"), 1e-9);
         assertEquals(1.01, tuned16.skillTweaks.get("bloodlust").values.get("below"), 1e-9);
         assertEquals(1.0, fresh.healingFactor("warden"), 1e-9);
-        // Simon 26.10.: the shield fighter takes as much as anyone, the bulwark 35 % less, the alchemist hits 15 % harder.
-        assertEquals(1.0, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
+        // Simon 26.10.: the bulwark takes 35 % less. Tor 12 (v31): the server's shield fighter takes 30 % less, the
+        // alchemist hits 0.8.
+        assertEquals(0.7, fresh.subclassDamageTaken.get("shieldfighter"), 1e-9);
         assertEquals(0.65, fresh.subclassDamageTaken.get("bulwark"), 1e-9);
-        assertEquals(0.9, fresh.subclassDamage.get("alchemist"), 1e-9);
-        assertTrue(fresh.damageTakenFactor("guardian", "shieldfighter") >= fresh.damageTakenFactor("guardian", "bulwark") / 0.7 - 1e-9);
+        assertEquals(0.8, fresh.subclassDamage.get("alchemist"), 1e-9);
         // A server that tuned the shield fighter itself keeps its own value (only the -30 % of 27.10. on top).
         SiegeConfig tuned = new SiegeConfig();
         tuned.settingsVersion = 5;
@@ -454,8 +476,9 @@ class SiegeCoreTest {
     void monstersHitHarderButPillagersDoNot() {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertEquals(1.2, fresh.monsterDamageFactor("minecraft:zombie"), 1e-9);
-        assertEquals(1.0, fresh.monsterDamageFactor("minecraft:pillager"), 1e-9);
+        assertEquals(0.924, fresh.monsterDamageFactor("minecraft:zombie"), 1e-9);    // Tor 12 (v31): the server's values
+        assertEquals(0.77, fresh.monsterDamageFactor("minecraft:pillager"), 1e-9);
+        beforeV31(fresh);
         fresh.monsterDamageByType.put("vindicator", 0.9);
         assertEquals(0.9, fresh.monsterDamageFactor("minecraft:vindicator"), 1e-9);
         fresh.monsterDamage = 99;
@@ -2740,23 +2763,26 @@ class SiegeCoreTest {
         old.effectMobReplacements.put("friendsandfoes:iceologer", "minecraft:vindicator");
         old.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
-        assertEquals(1.25, old.subclassDamage.get("heavy"), 1e-9);
+        assertEquals(1.75, old.subclassDamage.get("heavy"), 1e-9);   // 1.25 until v30, the server's 1.75 since Tor 12
         assertEquals("minecraft:skeleton", old.effectMobReplacements.get("minecraft:wither_skeleton"));
         assertEquals("minecraft:pillager", old.effectMobReplacements.get("friendsandfoes:iceologer"));
         for (MobEntry e : old.mobs) {
             if (e.id.equals("minecraft:zombie")) {
                 assertEquals(20, e.weight);
-            } else {
+            } else if (e.id.endsWith("skirmisher")) {
                 assertEquals(1, e.weight);
-                // the skirmisher's growth halved again on 28 October
-                assertEquals(e.id.endsWith("skirmisher") ? 0.025 : 0.05, e.weightPerLevel, 1e-9);
+                assertEquals(0.025, e.weightPerLevel, 1e-9);   // the skirmisher's growth halved again on 28 October
+            } else {
+                // vindicator 1 / 0.05 until v30; on that old default v31 brings the server's 4 / 0.36 (Tor 12)
+                assertEquals(4, e.weight);
+                assertEquals(0.36, e.weightPerLevel, 1e-9);
             }
         }
-        // A fresh config has the same.
+        // A fresh config has the server's axe illagers (Tor 12).
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
-        assertTrue(fresh.mobs.stream().filter(e -> e.id.endsWith("vindicator") || e.id.endsWith("skirmisher"))
-                .allMatch(e -> e.weight == 1));
+        assertTrue(fresh.mobs.stream().anyMatch(e -> e.id.equals("takesapillage:skirmisher") && e.weight == 6));
+        assertTrue(fresh.mobs.stream().anyMatch(e -> e.id.equals("minecraft:vindicator") && e.weight == 4));
     }
 
     @Test
