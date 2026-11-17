@@ -360,9 +360,8 @@ final class SammelnScenes {
             for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e : walled.entrySet()) {
                 level.setBlock(e.getKey(), e.getValue(), 2);
             }
-            player.level().getServer().getCommands().performPrefixedCommand(
-                    player.level().getServer().createCommandSourceStack(), "nightsiege test 1");
         });
+        game.getServer().runCommand("execute as @p at @s run nightsiege test 1");   // the test command needs a player
         context.waitTicks(20);
         server(context, "test in gathering", (player, m) -> {
             check(!m.gathering(), "test night: the gathering ends");
