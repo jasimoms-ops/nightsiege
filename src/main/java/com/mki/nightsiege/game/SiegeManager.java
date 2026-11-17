@@ -1086,7 +1086,7 @@ public final class SiegeManager {
                 entity.discard();   // infernite or an old dungeon's thing on the ground
                 return;
             }
-            if (!KitService.returnedDrop(entity) && NightDrops.isLoot(entity)) {
+            if (!KitService.returnedDrop(entity) && (NightDrops.isLoot(entity) || camp.fightLitter(entity))) {
                 entity.discard();   // loot of a siege monster (not own things without room after the kit, 31.10.)
                 return;
             }

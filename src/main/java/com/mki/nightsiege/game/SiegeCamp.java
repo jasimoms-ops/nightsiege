@@ -1531,7 +1531,7 @@ public final class SiegeCamp {
         String id = player.getUUID().toString();
         List<String> list = m.save().campKits;
         if (list != null && list.remove(id) && m.kits().hasStash(player)) {
-            m.kits().restore(player);   // persists
+            m.kits().restore(player, true, false);   // persists; what was picked up in the camp goes with the kit (17.11.)
         }
         SkillService.clear(player);
     }
@@ -2231,6 +2231,20 @@ public final class SiegeCamp {
         }
         SiegeSave.CampRecord camp = camp();
         return camp == null || !entity.entityTags().contains(TAG + "_" + camp.id);
+    }
+
+    /**
+     * Tor 12 C (Simon 17.11.: "Gegenstände einfach verschwinden selbe regeln wie in der nacht"): while a
+     * fight is on, an item that appears in the camp and was not thrown by a player is the camp's (a
+     * guard's, a broken block's) and goes (true). Arrows of the guards can never be picked up.
+     */
+    boolean fightLitter(Entity entity) {
+        if (entity instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow arrow && isCampMob(arrow.getOwner())) {
+            arrow.pickup = net.minecraft.world.entity.projectile.arrow.AbstractArrow.Pickup.DISALLOWED;
+            return false;
+        }
+        return entity instanceof net.minecraft.world.entity.item.ItemEntity drop && !fighters.isEmpty()
+                && !(drop.getOwner() instanceof Player) && protects(entity.level(), entity.blockPosition());
     }
 
     // ------------------------------------------------------------------ admin and tests

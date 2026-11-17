@@ -2398,6 +2398,17 @@ public class EventLookTest implements FabricClientGameTest {
             manager.config().campReinforceSeconds = 10;   // the reinforcement comes within the test
         });
         context.waitTicks(10);
+        // Tor 12 C (Simon 17.11.: nothing from the camp to take along): own things noted before the fight.
+        final String[] ownBefore = new String[1];
+        final int[] loot = {0, 0};   // checks passed, checks run
+        final java.util.List<net.minecraft.world.phys.Vec3> guardsDiedAt = new java.util.ArrayList<>();
+        onServer(context, (player, manager) -> {
+            player.getInventory().clearContent();
+            player.getInventory().setItem(3, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BREAD, 5));
+            player.getInventory().setItem(20, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_LOG, 12));
+            ownBefore[0] = campInventory(player);
+            System.out.println("[Night Siege test] camp loot own before: " + ownBefore[0]);
+        });
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             com.mki.nightsiege.core.PlayerSkills own = manager.save().skillsOf(player.getUUID().toString());
@@ -2475,12 +2486,77 @@ public class EventLookTest implements FabricClientGameTest {
             for (net.minecraft.world.entity.Entity e : all) {
                 if (com.mki.nightsiege.game.SiegeCamp.isCampMob(e) && e instanceof net.minecraft.world.entity.Mob mob
                         && mob.getType() == net.minecraft.world.entity.EntityTypes.VINDICATOR) {
+                    mob.setDropChance(net.minecraft.world.entity.EquipmentSlot.MAINHAND, 1f);   // its axe would surely fall
+                    guardsDiedAt.add(mob.position());
                     mob.invulnerableTime = 0;
                     mob.hurtServer(level, level.damageSources().playerAttack(player), 10000f);
                 }
             }
         });
         context.waitTicks(30);
+        // Tor 12 C: a guard's weapon and loot never lie on the ground; a picked-up arrow and axe go after the fight.
+        onServer(context, (player, manager) -> {
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
+            int left = 0;
+            for (net.minecraft.world.phys.Vec3 at : guardsDiedAt) {
+                left += level.getEntities((net.minecraft.world.entity.Entity) null, new net.minecraft.world.phys.AABB(at, at).inflate(3),
+                        e -> e instanceof net.minecraft.world.entity.item.ItemEntity || e instanceof net.minecraft.world.entity.ExperienceOrb).size();
+            }
+            boolean ok = !guardsDiedAt.isEmpty() && left == 0;
+            loot[1]++;
+            loot[0] += ok ? 1 : 0;
+            System.out.println("[camp] " + (ok ? "OK" : "FAIL") + " Wach-Waffe am Boden: " + guardsDiedAt.size()
+                    + " Wachen gefallen, Gegenstaende/Kugeln dort=" + left);
+            int freeArrows = 0;
+            int campArrows = 0;
+            for (net.minecraft.world.entity.Entity e : level.getEntities((net.minecraft.world.entity.Entity) null,
+                    new net.minecraft.world.phys.AABB(player.blockPosition()).inflate(40, 20, 40),
+                    e -> e instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow a
+                            && com.mki.nightsiege.game.SiegeCamp.isCampMob(a.getOwner()))) {
+                campArrows++;
+                if (((net.minecraft.world.entity.projectile.arrow.AbstractArrow) e).pickup
+                        == net.minecraft.world.entity.projectile.arrow.AbstractArrow.Pickup.ALLOWED) {
+                    freeArrows++;
+                }
+            }
+            boolean arrowsOk = freeArrows == 0;
+            loot[1]++;
+            loot[0] += arrowsOk ? 1 : 0;
+            System.out.println("[camp] " + (arrowsOk ? "OK" : "FAIL") + " Wachen-Pfeile nicht aufhebbar: " + freeArrows + " von " + campArrows);
+            // An arrow of the camp on the ground (nobody threw it) goes; a thing a player threw stays.
+            net.minecraft.world.entity.item.ItemEntity arrows = new net.minecraft.world.entity.item.ItemEntity(level,
+                    player.getX(), player.getY() + 0.2, player.getZ(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW, 6));
+            level.addFreshEntity(arrows);
+            net.minecraft.world.entity.item.ItemEntity thrown = new net.minecraft.world.entity.item.ItemEntity(level,
+                    player.getX() + 4, player.getY() + 0.2, player.getZ(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STICK, 2));
+            thrown.setThrower(player);
+            thrown.setPickUpDelay(32767);
+            level.addFreshEntity(thrown);
+            boolean ground = arrows.isRemoved() && !thrown.isRemoved();
+            loot[1]++;
+            loot[0] += ground ? 1 : 0;
+            System.out.println("[camp] " + (ground ? "OK" : "FAIL") + " Lager-Pfeil am Boden verschwindet=" + arrows.isRemoved()
+                    + ", selbst geworfen bleibt=" + !thrown.isRemoved());
+            thrown.discard();
+            // Landed in the inventory anyway: a guard's axe and a picked-up arrow.
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW, 6));
+        });
+        context.waitTicks(20);
+        onServer(context, (player, manager) -> {
+            int picked = 0;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+                if (s.is(net.minecraft.world.item.Items.ARROW) && !com.mki.nightsiege.game.KitService.isKit(s)) {
+                    picked += s.getCount();
+                }
+            }
+            boolean ok = picked == 6;
+            loot[1]++;
+            loot[0] += ok ? 1 : 0;
+            System.out.println("[camp] " + (ok ? "OK" : "FAIL") + " Pfeil aufgesammelt (Vorbedingung): " + picked + " von 6 im Inventar, "
+                    + campInventory(player));
+        });
         camera(game, cx + 0.5, cy + 3, cz + 14.5, cx + 0.5, cy + 1, cz + 8.5);
         context.waitTicks(20);
         context.takeScreenshot("camp_ring_open");
@@ -2514,6 +2590,18 @@ public class EventLookTest implements FabricClientGameTest {
                     + " machinesDay=" + manager.save().machinesDay + " fighter=" + manager.camp().isFighter(player)
                     + " kit=" + manager.kits().hasStash(player) + " "
                     + manager.camp().testRound((net.minecraft.server.level.ServerLevel) player.level()));
+            // Tor 12 C: after the fight = before (+ the reward: no machines, it is no item).
+            String after = campInventory(player);
+            boolean same = after.equals(ownBefore[0]) && !manager.kits().hasStash(player);
+            boolean reward = camp != null && camp.destroyed && manager.save().machinesDay != camp.day;
+            loot[1] += 2;
+            loot[0] += (same ? 1 : 0) + (reward ? 1 : 0);
+            System.out.println("[camp] " + (same ? "OK" : "FAIL") + " Inventar nach dem Kampf = vorher: " + after
+                    + (same ? "" : " (vorher " + ownBefore[0] + ")"));
+            System.out.println("[camp] " + (reward ? "OK" : "FAIL") + " Belohnung: zerstoert=" + (camp != null && camp.destroyed)
+                    + " machinesDay=" + manager.save().machinesDay);
+            System.out.println("[camp] " + (loot[0] == loot[1] && loot[1] == 6 ? "OK" : "FAIL") + " Heerlager ohne Mitnehmen: "
+                    + loot[0] + " von " + loot[1]);
         });
         context.waitTicks(100);
         onServer(context, (player, manager) -> {
@@ -2648,6 +2736,19 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     private static final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> CAMP_BEFORE = new java.util.HashMap<>();
+
+    /** The inventory slot by slot ("slot:item×count"), for "after the camp fight = before" (Tor 12 C). */
+    private static String campInventory(net.minecraft.server.level.ServerPlayer player) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+            if (!s.isEmpty()) {
+                out.append(i).append(':').append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem()).getPath())
+                        .append('x').append(s.getCount()).append(' ');
+            }
+        }
+        return out.toString().trim();
+    }
 
     /** A sum over the ground a test camp takes (the same before it stood and after it is gone). */
     private static long campGround(net.minecraft.server.level.ServerLevel level, int x, int y, int z) {
