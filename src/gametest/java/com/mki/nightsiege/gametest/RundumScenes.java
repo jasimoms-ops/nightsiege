@@ -90,7 +90,7 @@ final class RundumScenes {
         game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(20);
         final BlockPos core = new BlockPos(cx, cy, cz);
-        final int[] saved = new int[2];
+        final int[] saved = new int[5];
         final double[] arc = new double[2];
         server(context, "start", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
@@ -99,6 +99,14 @@ final class RundumScenes {
             arc[0] = m.config().spawnArcFrom;
             arc[1] = m.config().spawnArcTo;
             m.config().coreHealth = 100;   // the scenes run without the core (EventLookTest); this one with it
+            // CI 17.11.: at level 10 the monsters brought the core down in the 40 s of looking (the bar was gone after):
+            // while looking and taking the pictures, hits cost nothing; the defeat part below turns them on.
+            saved[2] = m.config().coreDamageNormal;
+            saved[3] = m.config().coreDamageStrong;
+            saved[4] = m.config().coreDamageBoss;
+            m.config().coreDamageNormal = 0;
+            m.config().coreDamageStrong = 0;
+            m.config().coreDamageBoss = 0;
             m.config().testPrepSeconds = 1;
             m.config().spawnArcFrom = 0.0;   // all around, as Simon wants it
             m.config().spawnArcTo = 360.0;
@@ -169,7 +177,7 @@ final class RundumScenes {
         context.waitTicks(25);
         server(context, "bar", (player, m) -> {
             String bar = m.bossBarText();
-            log("bar: " + bar);
+            log("bar: " + bar + " (night active=" + m.isActive() + ", core " + m.coreLife() + "/" + m.coreMax() + ")");
             check(bar.contains("/100") && bar.toLowerCase(Locale.ROOT).contains("core"), "the bar shows the core's life");
             check(!bar.toLowerCase(Locale.ROOT).contains("kills"), "the bar shows no kill goal");
         });
@@ -187,7 +195,13 @@ final class RundumScenes {
         guiScale(context, scaleBefore);
 
         // Core hits until the defeat: the life set low, the night's monsters brought to the core.
-        server(context, "low", (player, m) -> m.testCoreLife(30));
+        server(context, "low", (player, m) -> {
+            check(m.isActive() && m.coreLife() == 100, "before the hits: night on, core whole (" + m.isActive() + ", " + m.coreLife() + ")");
+            m.config().coreDamageNormal = saved[2];
+            m.config().coreDamageStrong = saved[3];
+            m.config().coreDamageBoss = saved[4];
+            m.testCoreLife(30);
+        });
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @e[tag=nightsiege] %d.5 %d %d.5", cx, cy, cz + 1));
         final int[] seen = {30, -1};
         boolean ended = false;
@@ -220,6 +234,9 @@ final class RundumScenes {
                 m.abort(player.level().getServer());
             }
             m.config().coreHealth = saved[0];
+            m.config().coreDamageNormal = saved[2];
+            m.config().coreDamageStrong = saved[3];
+            m.config().coreDamageBoss = saved[4];
             m.config().testPrepSeconds = saved[1];
             m.config().spawnArcFrom = arc[0];
             m.config().spawnArcTo = arc[1];
@@ -230,5 +247,9 @@ final class RundumScenes {
             FAILS.add("no checks or pictures");
         }
         log("summary: " + checks + " checks, " + shots + " pictures, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
+        System.out.println("[Night Siege test] rundum: " + (checks - FAILS.size()) + " von " + checks);
+        if (!FAILS.isEmpty()) {
+            throw new AssertionError("rundum: " + String.join("; ", FAILS));   // a FAIL ends the client with exit != 0
+        }
     }
 }
