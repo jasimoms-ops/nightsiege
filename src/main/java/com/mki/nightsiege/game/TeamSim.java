@@ -720,6 +720,9 @@ public final class TeamSim {
                 kills, goal, r.seconds(), r.deaths(), subs);
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
+        // The side of the night (0 north … 7 north-west, -1 fixed arc), to tell its spread from the seed's.
+        System.out.println(String.format(Locale.ROOT, "[Night Siege sim] RICHTUNG;%s;%d;%d;%s;%d;%d;%d",
+                run.variant(), run.level(), run.group(), run.mix(), run.index(), m.nightArcForTest(), won ? 1 : 0));
         for (Map.Entry<String, double[]> e : bySub.entrySet()) {
             double[] v = e.getValue();
             String sub = e.getKey().substring(e.getKey().indexOf(':') + 1);
@@ -945,6 +948,10 @@ public final class TeamSim {
         if (world == null || core == null) {
             return;
         }
+        // Every run starts without the test nemeses of the runs before (Tor 12 s2): a test night brings every
+        // lurking one back (up to nemesisMax), so the deaths of earlier runs of the shard - other levels, groups
+        // and variants - made the later runs harder (k2: Stufe 1 zu zweit 47 %, in k1 an zweiter Stelle 96 %).
+        Nemesis.clear(m.save(), true);
         AABB box = new AABB(core).inflate(128.0);
         for (Mob mob : world.getEntitiesOfClass(Mob.class, box, e -> e instanceof Enemy && !Companions.isCompanion(e))) {
             mob.discard();
