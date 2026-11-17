@@ -167,7 +167,7 @@ jobs:
             mkdir -p out
             python3 tools/sim/langlauf.py server-output.txt > out/langlauf-$SHARD.txt
             cp run/langlauf.txt out/langlauf-log-$SHARD.txt 2>/dev/null || true
-            grep "\[langlauf\]\|Exception\|Caused by\|ERROR" server-output.txt | tail -c 3000000 > out/sim-log-$SHARD.txt || true
+            grep "\[langlauf\]\|Exception\|Caused by\|ERROR\|^[[:space:]]*at com\.mki" server-output.txt | tail -c 3000000 > out/sim-log-$SHARD.txt || true
             tail -c 400000 server-output.txt > out/server-tail-$SHARD.txt
             grep "SUMME\|FAIL" run/langlauf.txt | head -40 | sed 's/^/::warning title=LANGLAUF-'$SHARD'::/' || true
             tail -3 out/langlauf-$SHARD.txt

@@ -562,11 +562,17 @@ public final class Langlauf {
             if (b == null || !b.isDeadOrDying() || (active && inNight.contains(b.getUUID()))) {
                 continue;
             }
-            String cause = b.getCombatTracker().getDeathMessage().getString();
+            net.minecraft.world.damagesource.DamageSource last = b.getLastDamageSource();
+            String cause = b.getCombatTracker().getDeathMessage().getString() + " (quelle=" + (last == null ? "-" : last.getMsgId())
+                    + " an " + b.blockPosition().toShortString() + " abstand=" + Math.round(Math.sqrt(b.blockPosition().distSqr(core)))
+                    + " sammeln=" + m.gathering() + " uhr=" + m.clockTimeFor(server) + ")";
+            int cratesLost = crates(m, b);
             BlockPos spawn = TeamSim.standable(world, core.offset(2 + i, 0, 2), 3);   // the world spawn is at the castle
             ServerPlayer back = SimBots.spawn(server, world, name(i), spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
             if (back != null) {
                 fixMarkers(back, 0, 0);
+                int dropped = cratesLost - crates(m, back);   // crates in the inventory dropped with the death (vanilla)
+                cratesBefore.computeIfPresent(back.getUUID(), (k, v) -> v - dropped);
             }
             line("Tod außerhalb der Belagerung k=" + st.cycle + ": " + cause + " -> wiederbelebt=" + (back != null)
                     + (m.isActive() ? " (Nacht läuft, nicht dabei)" : ""));
@@ -827,7 +833,7 @@ public final class Langlauf {
         if (won && lastStanding == 0 && !bossNight) {
             f.add("Sieg, aber kein Verteidiger stand");
         }
-        if (lost && lastStanding > 0 && !bossNight && secs < cfg.maxDurationSeconds - 2) {
+        if (lost && lastStanding > 0 && !bossNight && !wardenSeen && nightKind.equals("NORMAL") && secs < cfg.maxDurationSeconds - 2) {
             f.add("Niederlage, obwohl " + lastStanding + " Verteidiger standen");
         }
         if (!waves) {
