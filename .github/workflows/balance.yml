@@ -6,6 +6,8 @@ name: balance
 #   [shards 10]                                                            so viele Jobs nebeneinander
 # Ohne [team …] gelten die Standardwerte der Sim. Ergebnis: Branch "dist-<branch>"
 # (teamsim.csv, teamsim.txt, stats/ mit jeder Testnacht des Loggers).
+# Tor 12 E: [langlauf 1,2,4] statt der Sim den Survival-Langlauf (tools/sim/langlauf.sh), ein Job je Spielerzahl;
+# Ergebnis dist/langlauf-<n>.txt (Auswertung je Abschnitt) und langlauf-log-<n>.txt.
 
 on:
   push:
@@ -31,6 +33,7 @@ jobs:
       shards: ${{ steps.plan.outputs.shards }}
       count: ${{ steps.plan.outputs.count }}
       team: ${{ steps.plan.outputs.team }}
+      langlauf: ${{ steps.plan.outputs.langlauf }}
     steps:
       - id: plan
         env:
@@ -50,8 +53,15 @@ jobs:
           if m:
               shards = m.group(1)
           n = max(1, min(20, int(shards)))
+          lang = re.search(r"\[langlauf ([0-9, ]+)\]", msg)
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write("shards=%s\n" % json.dumps(list(range(n))))
+              if lang:
+                  groups = [int(x) for x in lang.group(1).replace(" ", "").split(",") if x]
+                  out.write("langlauf=1\n")
+                  out.write("shards=%s\n" % json.dumps(groups))
+                  n = len(groups)
+              else:
+                  out.write("shards=%s\n" % json.dumps(list(range(n))))
               out.write("count=%d\n" % n)
               out.write("team=%s\n" % team)
           print("::notice title=TEAMSIM::%d Jobs, Einstellungen: %s" % (n, team or "(Standard)"))
@@ -149,8 +159,20 @@ jobs:
           TEAM: ${{ needs.plan.outputs.team }}
           SHARD: ${{ matrix.shard }}
           COUNT: ${{ needs.plan.outputs.count }}
+          LL_MODE: ${{ needs.plan.outputs.langlauf }}
         run: |
           set +e
+          if [ "$LL_MODE" = "1" ]; then
+            LANGLAUF="spieler=$SHARD bis=24 min=285" LANGLAUF_TIMEOUT=18500 tools/sim/langlauf.sh
+            mkdir -p out
+            python3 tools/sim/langlauf.py server-output.txt > out/langlauf-$SHARD.txt
+            cp run/langlauf.txt out/langlauf-log-$SHARD.txt 2>/dev/null || true
+            grep "\[langlauf\]\|Exception\|Caused by\|ERROR" server-output.txt | tail -c 3000000 > out/sim-log-$SHARD.txt || true
+            tail -c 400000 server-output.txt > out/server-tail-$SHARD.txt
+            grep "SUMME\|FAIL" run/langlauf.txt | head -40 | sed 's/^/::warning title=LANGLAUF-'$SHARD'::/' || true
+            tail -3 out/langlauf-$SHARD.txt
+            exit 0
+          fi
           mkdir -p run/config
           echo "eula=true" > run/eula.txt
           printf "level-seed=nightsiege\nonline-mode=false\nmax-tick-time=-1\ndifficulty=hard\nspawn-protection=0\nview-distance=8\nsimulation-distance=8\nsync-chunk-writes=false\n" > run/server.properties
@@ -199,7 +221,9 @@ jobs:
         env:
           TEAM: ${{ needs.plan.outputs.team }}
         run: |
-          python3 tools/sim/merge.py parts merged
+          mkdir -p merged
+          cp parts/*/langlauf-* merged/ 2>/dev/null || true
+          python3 tools/sim/merge.py parts merged || true
           cat merged/teamsim.txt | head -80
           # Die Dateien fuers Balance-Dashboard (zum Hochladen ins Dashboard).
           BURG=standard; [ -f tools/sim/burg.json.gz ] && BURG=kopie

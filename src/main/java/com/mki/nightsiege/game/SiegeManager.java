@@ -915,7 +915,9 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> Json.flush());
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TeamSim.stop(server);
-            SimBots.removeAll(server);
+            if (!Langlauf.running()) {
+                SimBots.removeAll(server);   // Langlauf: the bots stay and are saved like players
+            }
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             safe("Kriegsführer", () -> warLeader.onServerStopping(server));   // the leader back on the ground
             safe("Letzte Bastion", () -> bastion.onServerStopping(server));   // a ready round goes, the time comes back
@@ -1192,6 +1194,9 @@ public final class SiegeManager {
         if (System.getenv("NIGHTSIEGE_TEAMSIM") != null) {
             TeamSim.startFromEnv(server);
         }
+        if (System.getenv("NIGHTSIEGE_LANGLAUF") != null) {
+            Langlauf.startFromEnv(server);
+        }
     }
 
     /** How far the base scan looks for walls; kept in the config file. */
@@ -1456,6 +1461,7 @@ public final class SiegeManager {
                 id -> save.kitStashes != null && save.kitStashes.containsKey(id.toString())));   // survival safety 2 (31.10.)
         MeleeSim.tick(server);
         TeamSim.tick(server);
+        Langlauf.tick(server);   // CI: the survival long run (Tor 12 E)
         TrapService.clearHitting();
         trapsDirty |= traps.tick(server);
         TrapService.clearHitting();
@@ -2034,7 +2040,7 @@ public final class SiegeManager {
     }
 
     /** The button at the core: invites everyone to an extra siege tonight, as on a regular siege day. */
-    private void onCallExtraSiege(ServerPlayer player) {
+    void onCallExtraSiege(ServerPlayer player) {
         MinecraftServer server = player.level().getServer();
         if (server == null || mainCore() == null) {
             return;

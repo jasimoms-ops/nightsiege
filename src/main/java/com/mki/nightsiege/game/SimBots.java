@@ -126,6 +126,53 @@ public final class SimBots {
         return bot;
     }
 
+    /**
+     * Tor 12 E (Langlauf): a bot logs in like a player, with its saved data (inventory, position, game mode)
+     * read before it joins, as vanilla's login does; without saved data it stands at x/y/z.
+     */
+    public static ServerPlayer login(MinecraftServer server, ServerLevel level, String name, double x, double y, double z) {
+        UUID id = idOf(name);
+        Bot old = BOTS.get(id);
+        if (old != null && server.getPlayerList().getPlayer(id) == old) {
+            return old;
+        }
+        GameProfile profile = new GameProfile(id, name);
+        Bot bot = new Bot(server, level, profile);
+        java.util.Optional<net.minecraft.nbt.CompoundTag> data = server.getPlayerList()
+                .loadPlayerData(new net.minecraft.server.players.NameAndId(profile));
+        data.ifPresent(tag -> bot.load(net.minecraft.world.level.storage.TagValueInput.create(
+                net.minecraft.util.ProblemReporter.DISCARDING, server.registryAccess(), tag)));
+        if (data.isEmpty()) {
+            bot.snapTo(x, y, z, 0f, 0f);
+        }
+        EmbeddedChannel channel = new EmbeddedChannel();
+        bot.channel = channel;
+        try {
+            server.getPlayerList().placeNewPlayer(new BotConnection(channel), bot, CommonListenerCookie.createInitial(profile, false));
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege sim] Bot {} konnte sich nicht anmelden: {}", name, e.toString());
+            return null;
+        }
+        BOTS.put(id, bot);
+        return bot;
+    }
+
+    /** Tor 12 E (Langlauf): a bot logs out like a player (the connection's disconnect, its events). */
+    public static void logout(MinecraftServer server, ServerPlayer player) {
+        if (!(player instanceof Bot bot)) {
+            return;
+        }
+        BOTS.remove(bot.getUUID(), bot);
+        try {
+            bot.connection.onDisconnect(new net.minecraft.network.DisconnectionDetails(
+                    net.minecraft.network.chat.Component.literal("Langlauf")));
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.warn("[Night Siege sim] Bot {} ließ sich nicht abmelden: {}", bot.getScoreboardName(), e.toString());
+            server.getPlayerList().remove(bot);
+        }
+        bot.channel.close();
+    }
+
     /** Takes one bot out of the world again. */
     public static void remove(MinecraftServer server, ServerPlayer player) {
         if (!(player instanceof Bot bot)) {
