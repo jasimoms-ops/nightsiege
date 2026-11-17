@@ -56,7 +56,7 @@ public final class SiegeMath {
     public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg) + lowLevelExtra(level, cfg);
         double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
-        return raw * players * budgetFactor(level, playerCount, cfg);
+        return Math.max(cfg.minMobsPerWave, raw * players * budgetFactor(level, playerCount, cfg));
     }
 
     /** Tor 12: the extra base monsters of a low level, lowLevelExtraMobs on level 1 fading evenly to 0 at lowLevelMobsUntil. */

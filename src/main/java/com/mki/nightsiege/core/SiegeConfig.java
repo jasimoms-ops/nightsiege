@@ -74,8 +74,10 @@ public class SiegeConfig {
      * Tor 12 (Simon 17.11.: "Nacht 1 ... ca. 3 mobs ... viel zu wenig"): extra monsters on a wave's base count (before
      * the players' factor) on level 1, fading evenly to 0 at lowLevelMobsUntil. Smooths the early steps. 0 = off.
      */
-    public double lowLevelExtraMobs = 6.0;
-    public int lowLevelMobsUntil = 10;
+    public double lowLevelExtraMobs = 3.0;
+    public int lowLevelMobsUntil = 6;
+    /** Tor 12 (Simon 17.11.): a wave brings at least this many monsters (before the live cap), alone too. 0 = off. */
+    public int minMobsPerWave = 6;
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
@@ -1760,6 +1762,7 @@ public class SiegeConfig {
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
         lowLevelExtraMobs = Double.isNaN(lowLevelExtraMobs) ? 0.0 : clampDouble(lowLevelExtraMobs, 0.0, 50.0);
         lowLevelMobsUntil = clamp(lowLevelMobsUntil, 1, 100);
+        minMobsPerWave = clamp(minMobsPerWave, 0, 200);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
         eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);

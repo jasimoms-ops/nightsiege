@@ -20,7 +20,7 @@ class Tor6TabelleTest {
         double raw = c.baseMobsPerBatch + c.mobsPerLevel * SiegeMath.growthSteps(level, c)
                 + SiegeMath.lowLevelExtra(level, c);
         double players = Math.max(0.0, c.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, n - 1);
-        return raw * players;
+        return Math.max(c.minMobsPerWave, raw * players);
     }
 
     private static void sameAsToday(SiegeConfig c, String name) {
