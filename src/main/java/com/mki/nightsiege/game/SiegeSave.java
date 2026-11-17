@@ -629,6 +629,9 @@ public class SiegeSave {
      * count. -1 until counted (then from nightsHeld).
      */
     public int bossNights = -1;
+    /** Tor 12 F: the side of the night (NightArc direction, -1 none yet) and whether that night was played out. */
+    public int spawnArcDir = -1;
+    public boolean spawnArcDone = true;
     /** The bosses of the boss nights since the last Vierer-Nacht (its four). */
     public List<String> groupBosses = new ArrayList<>();
     /**

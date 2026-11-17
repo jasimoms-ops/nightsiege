@@ -36,8 +36,8 @@ import java.util.function.Consumer;
  * monsters break no blocks, they wait for a ladder, a creeper or the trebuchet").
  *
  * <ul>
- *   <li>Every wave comes in 2–4 groups from all around (Tor 12 F, {@link com.mki.nightsiege.core.WaveGroups});
- *   the bar and a raid horn from every side tell the defenders where.</li>
+ *   <li>Every wave comes from one direction, from level {@code raidFlankFromLevel} on with a flank
+ *   from a second one; the bar and a raid horn from that side tell the defenders where.</li>
  *   <li>The monsters spawn on open ground that walks to the wall (see {@link BaseScan}).</li>
  *   <li>Melee monsters gather in front of the wall and wait. As soon as a way in is open on
  *   their side (a ladder at the wall, a crater, a hole of the trebuchet, an open gate or an open
@@ -57,7 +57,7 @@ public final class RaidPlan {
     public enum State { APPROACH, HOLD, ASSAULT, HUNT }
 
     /** How a wave was planned (for the bar and the gametest). */
-    public record Wave(int number, double main, double flank, boolean gate, List<Double> groups) {
+    public record Wave(int number, double main, double flank, boolean gate) {
         public boolean hasFlank() {
             return !Double.isNaN(flank);
         }
@@ -198,51 +198,65 @@ public final class RaidPlan {
         if (!active() || base.spawnSpotCount() == 0) {
             return null;
         }
-        // Tor 12 F (Simon 17.11.): every wave comes in raidGroupsMin to raidGroupsMax groups from all around,
-        // evenly apart and turned anew each wave (no more one side with a flank).
-        int n = com.mki.nightsiege.core.WaveGroups.count(cfg, random);
-        double turn = random.nextDouble();
+        double main = Double.NaN;
         boolean atGate = false;
-        // Half of the waves send one group at a gate (if a gate has ground in front of it).
+        // Half of the waves go for a gate (if a gate has ground in front of it).
         List<Entry> doors = new ArrayList<>(gates);
         if (!doors.isEmpty() && random.nextBoolean()) {
             Entry g = doors.get(random.nextInt(doors.size()));
             if (com.mki.nightsiege.core.SpawnArc.contains(cfg, g.angle) && base.spawnNear(g.angle, 3, random) != null) {
-                turn = com.mki.nightsiege.core.WaveGroups.turnTowards(cfg, n, g.angle);
+                main = g.angle;
                 atGate = true;
             }
         }
-        List<Double> groups = new ArrayList<>();
-        int reach = Math.max(3, BaseScan.SLICES / (2 * n) - 1);
-        for (double want : com.mki.nightsiege.core.WaveGroups.angles(cfg, n, turn)) {
-            BlockPos spot = base.spawnNear(want, reach, random);   // only ground with a way to the wall
-            if (spot == null) {
-                continue;
-            }
-            double a = base.angleOf(spot.getX() + 0.5, spot.getZ() + 0.5);
-            if (!com.mki.nightsiege.core.SpawnArc.contains(cfg, a)) {
-                continue;   // only from the side set in the config (spawnArcFrom/To)
-            }
-            boolean apart = true;
-            for (double other : groups) {
-                apart &= angleBetween(a, other) >= Math.PI / (2 * n);
-            }
-            if (apart) {
-                groups.add(a);
+        if (Double.isNaN(main)) {
+            for (int tries = 0; tries < (com.mki.nightsiege.core.SpawnArc.all(cfg) ? 24 : 96); tries++) {
+                int s = random.nextInt(BaseScan.SLICES);
+                if (base.spawnSpots(s).isEmpty()) {
+                    continue;
+                }
+                double a = BaseScan.angleOfSlice(s);
+                if (!com.mki.nightsiege.core.SpawnArc.contains(cfg, a)) {
+                    continue;   // only from the side set in the config (spawnArcFrom/To)
+                }
+                if (lastWave != null && tries < 16 && angleBetween(a, lastWave.main()) < Math.PI / 3) {
+                    continue;   // not twice from the same side
+                }
+                main = a;
+                break;
             }
         }
-        if (groups.isEmpty()) {
+        if (Double.isNaN(main)) {
             return null;
         }
-        lastWave = new Wave(number, groups.get(0), Double.NaN, atGate, List.copyOf(groups));
-        notice.accept(Component.translatable("nightsiege.raid.wave_groups", number, directions(groups, false)));
-        for (double g : groups) {
-            horn(g);   // the war horn from every side the wave comes from
+        double flank = Double.NaN;
+        if (level >= cfg.raidFlankFromLevel && cfg.raidFlankShare > 0) {
+            for (int tries = 0; tries < 12; tries++) {
+                double a = com.mki.nightsiege.core.SpawnArc.all(cfg)
+                        ? main + (random.nextBoolean() ? 1 : -1) * (Math.PI / 2 + random.nextDouble() * Math.PI / 2)
+                        : com.mki.nightsiege.core.SpawnArc.random(cfg, random);   // the flank inside the arc too
+                if (!com.mki.nightsiege.core.SpawnArc.all(cfg) && angleBetween(a, main) < Math.PI / 6) {
+                    continue;
+                }
+                if (base.spawnNear(a, 2, random) != null) {
+                    flank = a;
+                    break;
+                }
+            }
         }
+        lastWave = new Wave(number, main, flank, atGate);
+        Component where = Component.translatable("nightsiege.dir." + compass(main));
+        Component text = !Double.isNaN(flank)
+                ? Component.translatable("nightsiege.raid.wave_flank", number, where,
+                        Component.translatable("nightsiege.dir." + compass(flank)))
+                : atGate ? Component.translatable("nightsiege.raid.wave_gate", number, where)
+                : Component.translatable("nightsiege.raid.wave", number, where);
+        notice.accept(text);
+        horn(main);
         return lastWave;
     }
 
-    /** "Norden, Südosten, Westen" (or "N, SO, W" for the bar). */
+    /** "Norden, Südosten" (or "N, SO" for the bar): the sides of a wave (Tor 12 F). */
     public static Component directions(List<Double> angles, boolean shortForm) {
         net.minecraft.network.chat.MutableComponent out = Component.empty();
         for (int i = 0; i < angles.size(); i++) {
@@ -270,13 +284,13 @@ public final class RaidPlan {
         return out;
     }
 
-    /** The direction of the n-th of {@code count} monsters of the wave: the groups in turn, so they are even. */
+    /** The direction of the n-th of {@code count} monsters of the wave (the last ones go to the flank). */
     public double angleFor(Wave wave, int index, int count) {
         if (wave == null) {
             return Double.NaN;
         }
-        if (!wave.groups().isEmpty()) {
-            return wave.groups().get(Math.floorMod(index, wave.groups().size()));
+        if (wave.hasFlank() && index >= Math.round(count * (1.0 - cfg.raidFlankShare))) {
+            return wave.flank();
         }
         return wave.main();
     }
