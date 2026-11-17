@@ -66,9 +66,18 @@ public class SiegeConfig {
 
     public int baseDurationSeconds = 240;
     public int durationSecondsPerLevel = 20;
-    public int maxDurationSeconds = 600;
+    /** Tor 12 F (Simon 17.11.: "eine Nacht maximal 8 Minuten"): every real night ends at this length (v31: 600 -> 480). */
+    public int maxDurationSeconds = 480;
 
     public int baseMobsPerBatch = 4;
+    /**
+     * Tor 12 (Simon 17.11.: "Nacht 1 ... ca. 3 mobs ... viel zu wenig"): extra monsters on a wave's base count (before
+     * the players' factor) on level 1, fading evenly to 0 at lowLevelMobsUntil. Smooths the early steps. 0 = off.
+     */
+    public double lowLevelExtraMobs = 3.0;
+    public int lowLevelMobsUntil = 6;
+    /** Tor 12 (Simon 17.11.): a wave brings at least this many monsters (before the live cap), alone too. 0 = off. */
+    public int minMobsPerWave = 6;
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
@@ -559,7 +568,7 @@ public class SiegeConfig {
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
     /** The round can be started from the core window. */
-    public boolean warLeaderEnabled = true;
+    public boolean warLeaderEnabled = false;   // Chef 17.11. (v31): off by default
     /**
      * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon
@@ -1749,6 +1758,9 @@ public class SiegeConfig {
         maxDurationSeconds = Math.max(baseDurationSeconds, maxDurationSeconds);
 
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
+        lowLevelExtraMobs = Double.isNaN(lowLevelExtraMobs) ? 0.0 : clampDouble(lowLevelExtraMobs, 0.0, 50.0);
+        lowLevelMobsUntil = clamp(lowLevelMobsUntil, 1, 100);
+        minMobsPerWave = clamp(minMobsPerWave, 0, 200);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
         eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
@@ -2420,6 +2432,11 @@ public class SiegeConfig {
             tweakValueIfMissing("bloodlust", "below", 1.01);
             tweakValueIfMissing("bloodlust", "steal", 0.12);
             tweakValueIfMissing("arrow_rain", "mult", 0.5);
+            // Tor 12 F (Simon 17.11.): nights at most 8:00. Chef 17.11.: the war leader's round is off by default.
+            maxDurationSeconds = (int) onOld(maxDurationSeconds, 600, 480);
+            if (warLeaderEnabled) {
+                warLeaderEnabled = false;   // old default true = never switched by hand
+            }
             // The attackers: the axe illagers and the evoker as on the server; vex and phantom left the server's waves.
             if (mobs != null) {
                 mobs.removeIf(e -> e != null && isEntry(e, "minecraft:vex", 3, 2, 0.15)
