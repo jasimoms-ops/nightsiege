@@ -445,6 +445,10 @@ public final class Langlauf {
             st.done.add(scenario);
         }
         scenarioDone = false;
+        if (scenario.equals("dungeon")) {
+            BlockPos at = surface(core.getX(), core.getZ() + 170);
+            m.expeditions().testBuild(world, at.below(12), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 3);
+        }
         eventTonight = m.save().pendingEvent == null ? "" : m.save().pendingEvent;
         st.curScenario = scenario;
         st.curEvent = eventTonight;
@@ -513,9 +517,9 @@ public final class Langlauf {
                 line("Heerlager bei " + at.toShortString() + ", " + name(0) + " kämpft dort");
             } else {
                 BlockPos at = surface(core.getX(), core.getZ() + 170);
-                m.expeditions().testBuild(world, at.below(12), 0, com.mki.nightsiege.core.ExpeditionKind.STONE_CRYPT, 3);
+                b.teleportTo(world, at.getX() + 0.5, at.getY(), at.getZ() + 0.5, java.util.Set.of(), 0f, 0f, true);
                 m.expeditions().testJoin(b);
-                line("Dungeon bei " + at.toShortString() + ", " + name(0) + " drin=" + m.expeditions().testInside(b));
+                line("Dungeon bei " + at.toShortString() + ", " + name(0) + " drin=" + m.expeditions().testInside(b) + " " + m.expeditions().testState());
             }
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.error(P + "Szenario " + scenario, e);
@@ -615,7 +619,7 @@ public final class Langlauf {
         }
         boost(server, m);
         line("NACHT START k=" + st.cycle + " " + label(chapterStart, lvlStart) + " tag=" + day + " uhr=" + time
-                + " verteidiger=" + inNight.size() + " boss=" + bossNight + " sonder=" + special + " ereignis="
+                + " sammeln=" + (gatherSeen < 0 ? "-" : (now - gatherSeen) / 20 + "s") + " verteidiger=" + inNight.size() + " boss=" + bossNight + " sonder=" + special + " ereignis="
                 + (eventTonight.isEmpty() ? "-" : eventTonight) + " flüche=" + m.nightCurses() + (help > 0 ? " HILFE=" + help : ""));
     }
 
@@ -694,14 +698,14 @@ public final class Langlauf {
                 NightSiegeMod.LOGGER.warn(P + "Bot-Fehler {}: {}", brain.subclass, e.toString());
             }
         }
-        if (!scenarioDone && scenario.equals("logout_nacht") && t == 1200) {
+        if (!scenarioDone && scenario.equals("logout_nacht") && t == 300) {
             scenarioDone = true;
             ServerPlayer b = bot(server, 0);
             if (b != null) {
                 logout(server, b, now + 800);
             }
         }
-        if (!scenarioDone && scenario.equals("neustart_nacht") && t == 1800) {
+        if (!scenarioDone && scenario.equals("neustart_nacht") && t == 400) {
             scenarioDone = true;
             restart(server, "nacht");
         }
