@@ -149,10 +149,22 @@ final class KapitelScenes {
         // Paket 13.11b: "Kapitel 1 · Nacht 20 · Finale" never over "Stufe 20", English and German, GUI 2 and 3.
         shots += LayoutCheck.matrix(context, "kapitel_finale", true, KapitelScenes::check, tag -> {
             com.mki.nightsiege.client.CoreScreen.testChapterGap = -1000;
+            com.mki.nightsiege.client.CoreScreen.testNextSiegeGap = -1000;
             context.waitTicks(3);
             int gap = com.mki.nightsiege.client.CoreScreen.testChapterGap;
             check(gap >= 2, tag + ": the chapter line clear of the level (gap " + gap + " px, 99 = own line)");
+            int foot = com.mki.nightsiege.client.CoreScreen.testNextSiegeGap;
+            check(foot >= 0, tag + ": no line of the next-siege card over the base line (gap " + foot + " px)");
         });
+        // Tor 12: the gathering at the core in the card and the big Ready button (client state only, no night runs):
+        // 3 at the core and 1 ready, then the countdown with 8 (two columns or "+N").
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.READY, 161, 2, 1);
+        shots += CoreCardCheck.matrix(context, "sammeln_bereit", true, KapitelScenes::check);
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.READY, 161, 2, 0);
+        shots += CoreCardCheck.matrix(context, "sammeln_offen", true, KapitelScenes::check);
+        CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.COUNTDOWN, 3, 7, 8);
+        shots += CoreCardCheck.matrix(context, "sammeln_countdown", true, KapitelScenes::check);
+        CoreCardCheck.clear(context);
         EventLookTest.closeScreen(context);
 
         // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.
