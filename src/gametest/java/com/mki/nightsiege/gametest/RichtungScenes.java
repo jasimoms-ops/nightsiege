@@ -72,12 +72,14 @@ final class RichtungScenes {
         game.getServer().runCommand("gamemode creative @p");
         context.waitTicks(20);
         final BlockPos core = new BlockPos(cx, cy, cz);
-        final double[] saved = new double[3];
+        final double[] saved = new double[4];
         server(context, "start", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             saved[0] = m.config().spawnArcFrom;
             saved[1] = m.config().spawnArcTo;
             saved[2] = m.config().testPrepSeconds;
+            saved[3] = m.config().spawnArcRotate ? 1 : 0;
+            m.config().spawnArcRotate = false;   // Tor 12 F: this scene tries the fixed arc
             m.config().spawnArcFrom = 45.0;
             m.config().spawnArcTo = 135.0;
             m.config().testPrepSeconds = 1;
@@ -125,6 +127,7 @@ final class RichtungScenes {
             m.abort(player.level().getServer());
             m.config().spawnArcFrom = saved[0];
             m.config().spawnArcTo = saved[1];
+            m.config().spawnArcRotate = saved[3] > 0;
             m.config().testPrepSeconds = (int) saved[2];
         });
         context.waitTicks(40);

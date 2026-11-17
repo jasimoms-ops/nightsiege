@@ -190,9 +190,6 @@ public class CoreStats {
     /** Kills of the running night and the kills it asks for (0 = no goal). */
     public int nightKills;
     public int killsRequired;
-    /** Tor 12 F: the core's life in the running night and its start (0 = no core). */
-    public int coreLife;
-    public int coreMax;
     public int level;
     public int secondsLeft;
     public String eventKey = "";
