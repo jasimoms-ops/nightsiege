@@ -148,6 +148,7 @@ final class SammelnScenes {
     private static void sendAway(ServerPlayer player) {
         ServerLevel level = coreLevel(player.level().getServer());
         CoreRecord c = core();
+        level.getChunk((c.x + 300) >> 4, c.z >> 4);   // loaded first: an unloaded column's height is the bottom (CI 9aa77dc1c: fell into the void)
         BlockPos top = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 new BlockPos(c.x + 300, 0, c.z));
         player.teleportTo(level, top.getX() + 0.5, top.getY(), top.getZ() + 0.5, java.util.Set.of(), 0f, 0f, true);
@@ -180,6 +181,9 @@ final class SammelnScenes {
         shots = 0;
         EventLookTest.ensureCore(context, game);
         game.getServer().runCommand("gamemode survival @p");
+        // The test world's clock stands (advance_time false): the horn and "the clock stands/runs" need a running clock.
+        game.getServer().runCommand("gamerule advance_time true");
+        game.getServer().runCommand("gamerule doDaylightCycle true");
         int[] window = context.computeOnClient(client -> new int[]{client.getWindow().getWidth(), client.getWindow().getHeight()});
         context.getInput().resizeWindow(1280, 720);
         context.waitTicks(10);
@@ -385,6 +389,8 @@ final class SammelnScenes {
         });
         game.getServer().runCommand("gamemode survival @p");
         game.getServer().runCommand("time set 6000");
+        game.getServer().runCommand("gamerule advance_time false");
+        game.getServer().runCommand("gamerule doDaylightCycle false");
         context.getInput().resizeWindow(window[0], window[1]);
         context.waitTicks(10);
         if (shots == 0) {
