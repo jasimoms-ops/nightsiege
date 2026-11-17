@@ -147,6 +147,7 @@ public final class Langlauf {
     private static final Map<UUID, Integer> cratesBefore = new HashMap<>();
     private static final Set<UUID> inNight = new HashSet<>();
     private static int lastStanding;
+    private static final Set<UUID> standingIds = new HashSet<>();
     private static String hornHeard = "-";
     private static int startSounds;
     private static boolean waves;
@@ -791,6 +792,8 @@ public final class Langlauf {
             }
         }
         lastStanding = standing.size();
+        standingIds.clear();
+        standing.forEach(s -> standingIds.add(s.getUUID()));
         for (ServerPlayer b : standing) {
             TeamBrain brain = brains.get(b.getUUID());
             if (brain == null) {
@@ -863,7 +866,9 @@ public final class Langlauf {
             }
             UUID id = b.getUUID();
             if (inNight.contains(id)) {
-                dEarned = Math.min(dEarned, m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0));
+                if (standingIds.contains(id)) {   // the win's points go to those still standing (awardSkillPoints)
+                    dEarned = Math.min(dEarned, m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0));
+                }
                 dCrates = Math.min(dCrates, crates(m, b) - cratesBefore.getOrDefault(id, 0));
             } else if (id.equals(decliner)) {
                 int d = m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0);
@@ -874,6 +879,8 @@ public final class Langlauf {
         }
         if (dEarned == Integer.MAX_VALUE) {
             dEarned = 0;
+        }
+        if (dCrates == Integer.MAX_VALUE) {
             dCrates = 0;
         }
         int lvlNow = m.currentLevel();
