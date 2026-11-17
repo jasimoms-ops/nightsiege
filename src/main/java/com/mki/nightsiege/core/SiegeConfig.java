@@ -339,6 +339,8 @@ public class SiegeConfig {
     public double wardenChance = 0.2;
     /** Seconds before the end of the night at which the warden comes (at most half the night). */
     public int wardenFinaleSeconds = 150;
+    /** Tor 12 (Simon 17.11.): no warden of the night below this level, so the first nights are whole nights. */
+    public int wardenFromLevel = 3;
     /** Ability points for every defender still standing when the warden falls. */
     public int wardenPoints = 2;
     /**
@@ -1476,6 +1478,53 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
+    private static double onOld(double now, double old, double target) {
+        return Math.abs(now - old) < 1e-6 ? target : now;
+    }
+
+    /** Tor 12 (v31): a table still exactly on the old default (null counts as empty) becomes the new one. */
+    private static <T extends Number> List<T> onOldList(List<T> now, List<? extends Number> old, List<T> target) {
+        List<T> have = now == null ? new ArrayList<>() : now;
+        if (have.size() != old.size()) {
+            return have;
+        }
+        for (int i = 0; i < old.size(); i++) {
+            if (have.get(i) == null || Math.abs(have.get(i).doubleValue() - old.get(i).doubleValue()) > 1e-6) {
+                return have;
+            }
+        }
+        return new ArrayList<>(target);
+    }
+
+    /** Tor 12 (v31): one key of a factor map; missing counts as 1.0 (as filled() writes it). */
+    private static void onOldKey(Map<String, Double> map, String key, double old, double target) {
+        if (map == null) {
+            return;
+        }
+        Double now = map.get(key);
+        if (now == null ? Math.abs(old - 1.0) < 1e-6 : Math.abs(now - old) < 1e-6) {
+            map.put(key, target);
+        }
+    }
+
+    /** Tor 12 (v31): a skill value the old defaults did not have comes in; one already there stays. */
+    private void tweakValueIfMissing(String node, String key, double value) {
+        if (skillTweaks == null) {
+            skillTweaks = new LinkedHashMap<>();
+        }
+        SkillTweak tweak = skillTweaks.computeIfAbsent(node, k -> new SkillTweak());
+        if (tweak.values == null) {
+            tweak.values = new LinkedHashMap<>();
+        }
+        tweak.values.putIfAbsent(key, value);
+    }
+
+    private static boolean isEntry(MobEntry e, String id, int minLevel, int weight, double perLevel) {
+        return e.id != null && id.equals(e.id.trim()) && e.minLevel == minLevel && e.maxLevel == 0 && e.weight == weight
+                && Math.abs(e.weightPerLevel - perLevel) < 1e-6;
+    }
+
     /** Tor 4c.5: a tweak on the old default becomes the absolute target; any other value stays as it is. */
     private void tweakTarget(String node, String key, double old, double target) {
         SkillTweak tweak = skillTweaks == null ? null : skillTweaks.get(node);
@@ -1561,7 +1610,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 30;
+    public static final int SETTINGS_VERSION = 31;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1639,14 +1688,12 @@ public class SiegeConfig {
         list.add(new MobEntry("minecraft:spider", 2, 10, -0.3));
         list.add(new MobEntry("nightsiege:revenant", 2, 8, 0.1));
         list.add(new MobEntry("minecraft:creeper", 3, 6, 0.2));
-        // Flyers in every night (Simon, 26 October 2026): vexes without an evoker, phantoms; both go for the walls.
-        list.add(new MobEntry("minecraft:vex", 3, 2, 0.15));
-        list.add(new MobEntry("minecraft:phantom", 3, 2, 0.15));
+        // Flyers (Simon, 26 October 2026: vexes without an evoker, phantoms) left the waves on the server (Tor 12, v31).
         list.add(new MobEntry("minecraft:husk", 3, 8, 0.0));
         list.add(new MobEntry("nightsiege:tunneler", 3, 4, 0.1));   // at most 2 a wave
         list.add(new MobEntry("minecraft:stray", 4, 6, 0.1));
         list.add(new MobEntry("minecraft:bogged", 4, 6, 0.1));
-        list.add(new MobEntry(tap + "skirmisher", 6, 1, 0.05));   // axe illager: strong, so only a few, from level 6 (28.10.)
+        list.add(new MobEntry(tap + "skirmisher", 6, 6, 0.18));   // axe illager from level 6, weight as on the server (Tor 12)
         // Level 5-7: the illagers arrive, first riders.
         list.add(new MobEntry("minecraft:pillager", 5, 8, 0.4));
         list.add(new MobEntry(tap + "archer", 5, 6, 0.4));
@@ -1655,7 +1702,7 @@ public class SiegeConfig {
         list.add(new MobEntry(CAMEL_TROOP, 5, 3, 0.2));
         list.add(new MobEntry("minecraft:cave_spider", 6, 4, 0.0));
         list.add(new MobEntry("minecraft:spider+minecraft:skeleton", 6, 3, 0.2));
-        list.add(new MobEntry("minecraft:vindicator", 6, 1, 0.05));   // axe illager: strong, so only a few
+        list.add(new MobEntry("minecraft:vindicator", 6, 4, 0.36));   // axe illager, weight as on the server (Tor 12)
         list.add(new MobEntry(tap + "legioner", 6, 5, 0.5));
         list.add(new MobEntry("minecraft:witch", 7, 4, 0.2));
         list.add(new MobEntry("minecraft:breeze", 7, 3, 0.3));
@@ -1665,7 +1712,7 @@ public class SiegeConfig {
         list.add(new MobEntry(faf + "illusioner", 8, 3, 0.4));
         list.add(new MobEntry("nightsiege:iron_knight", 8, 3, 0.3));
         list.add(new MobEntry("minecraft:wither_skeleton", 8, 4, 0.5));
-        list.add(new MobEntry("minecraft:evoker", 10, 2, 0.4));
+        list.add(new MobEntry("minecraft:evoker", 11, 2, 0.4));
         // Level 11+: ravagers with riders and the wildfire.
         list.add(new MobEntry("minecraft:ravager+minecraft:pillager", 11, 1, 0.4));
         list.add(new MobEntry(faf + "wildfire", 13, 1, 0.3));
@@ -1940,6 +1987,7 @@ public class SiegeConfig {
         bossHealthPer.replaceAll((k, v) -> clampDouble(v <= 0 ? 1.0 : v, 0.1, 10.0));
         bossDamageMultiplier = clampDouble(bossDamageMultiplier <= 0 ? 1.0 : bossDamageMultiplier, 0.1, 10.0);
         wardenChance = clampDouble(wardenChance, 0.0, 1.0);
+        wardenFromLevel = clamp(wardenFromLevel, 1, 1000);
         bossGuardLife = clampDouble(bossGuardLife <= 0 ? 0.5 : bossGuardLife, 0.05, 5.0);
         wardenFinaleSeconds = clamp(wardenFinaleSeconds <= 0 ? 150 : wardenFinaleSeconds, 30, 1200);
         wardenPoints = clamp(wardenPoints, 0, 20);
@@ -2326,6 +2374,72 @@ public class SiegeConfig {
                 warGoldShare = 1.2;
             }
             settingsVersion = 30;
+        }
+        if (settingsVersion < 31) {
+            // Tor 12 Teil B (Simon 17.11.: Nacht 1 allein nur ca. 3 Monster): the mod's own defaults are the server's
+            // balance (v30). A value still exactly on the old default becomes the server's value; an own value stays.
+            // A fresh config runs through here too, so fresh == server. Not moved: spawn arc (the server's map),
+            // testToolsForEveryone and tuningHelp (no balance). wardenFromLevel is a new field with its default 3.
+            mobsPerLevel = onOld(mobsPerLevel, 1.0, 1.8);
+            liveCapByPlayers = onOldList(liveCapByPlayers, List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114),
+                    List.of(9, 15, 20, 26, 30, 36, 40, 40, 40, 40));
+            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
+            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
+            fieldRefCaps = onOldList(fieldRefCaps, List.of(), List.of(9, 15, 20, 26, 40, 51, 81, 97, 110, 124));
+            refillSpawns = true;   // old default false = the server's switch was never set by hand
+            fieldHealth = onOld(fieldHealth, 0.0, 0.4);
+            fieldDamage = onOld(fieldDamage, 0.0, 0.4);
+            healthPerLevel = onOld(healthPerLevel, 0.06, 0.1);
+            maxHealthMultiplier = onOld(maxHealthMultiplier, 2.5, 3.0);
+            damagePerLevel = onOld(damagePerLevel, 0.04, 0.08);
+            maxDamageMultiplier = onOld(maxDamageMultiplier, 2.0, 3.0);
+            lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.75, 0.9);
+            lowLevelDamageDealt = onOld(lowLevelDamageDealt, 1.15, 1.05);
+            effectMobsFromLevel = (int) onOld(effectMobsFromLevel, 10, 5);
+            executionerFromLevel = (int) onOld(executionerFromLevel, 10, 11);
+            dungeonChampionLife = onOld(dungeonChampionLife, 2.5, 3.5);
+            dungeonGuardLife = onOld(dungeonGuardLife, 1.5, 2.0);
+            dungeonGuardCount = onOld(dungeonGuardCount, 1.25, 1.5);
+            championSpeed = onOld(championSpeed, 1.2, 1.4);
+            lifestealTakenShare = onOld(lifestealTakenShare, 1.0, 2.0);
+            ironKnightSlow = onOld(ironKnightSlow, 0.25, 0.0);
+            monsterDamage = onOld(monsterDamage, 1.2, 0.924);
+            onOldKey(monsterDamageByType, "minecraft:pillager", 1.0, 0.77);
+            onOldKey(hitLifesteal, "axe", 0.06, 0.08);
+            onOldKey(classDamage, "archer", 1.0, 1.5);
+            onOldKey(subclassDamage, "blademaster", 1.0, 0.9);
+            onOldKey(subclassDamage, "axe", 1.265, 1.725);
+            onOldKey(subclassDamage, "heavy", 1.25, 1.75);
+            onOldKey(subclassDamage, "alchemist", 0.9, 0.8);
+            onOldKey(subclassDamage, "tamer", 1.2, 1.45);
+            onOldKey(subclassDamage, "necromancer", 0.87, 1.0);
+            onOldKey(subclassDamage, "soulcatcher", 1.0, 1.2);
+            onOldKey(subclassDamageTaken, "shieldfighter", 1.0, 0.7);
+            tweakTarget("potion_tower", "hit", 7.8, 6.4);
+            tweakTarget("potion_tower", "poison", 62.0, 51.0);
+            tweakValueIfMissing("bloodlust", "below", 1.01);
+            tweakValueIfMissing("bloodlust", "steal", 0.12);
+            tweakValueIfMissing("arrow_rain", "mult", 0.5);
+            // The attackers: the axe illagers and the evoker as on the server; vex and phantom left the server's waves.
+            if (mobs != null) {
+                mobs.removeIf(e -> e != null && isEntry(e, "minecraft:vex", 3, 2, 0.15)
+                        || e != null && isEntry(e, "minecraft:phantom", 3, 2, 0.15));
+                for (MobEntry e : mobs) {
+                    if (e == null) {
+                        continue;
+                    }
+                    if (isEntry(e, "takesapillage:skirmisher", 6, 1, 0.05)) {
+                        e.weight = 6;
+                        e.weightPerLevel = 0.18;
+                    } else if (isEntry(e, "minecraft:vindicator", 6, 1, 0.05)) {
+                        e.weight = 4;
+                        e.weightPerLevel = 0.36;
+                    } else if (isEntry(e, "minecraft:evoker", 10, 2, 0.4)) {
+                        e.minLevel = 11;
+                    }
+                }
+            }
+            settingsVersion = 31;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

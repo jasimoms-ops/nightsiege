@@ -28,10 +28,11 @@ class Tor6SpielerzahlTest {
         SiegeConfig fresh = new SiegeConfig();
         fresh.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
-        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), fresh.damageTakenByPlayers);
-        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), fresh.mobHealthByPlayers);
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
-        assertEquals(0.9, SiegeMath.healthForGroup(2, fresh), 1e-9);
+        // Tor 12 (v31): the server switched the solo damping off in Tor 8, the defaults follow.
+        assertEquals(List.of(1.0, 1.0, 1.0, 1.0), fresh.damageTakenByPlayers);
+        assertEquals(List.of(1.0, 1.0, 1.0, 1.0), fresh.mobHealthByPlayers);
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
+        assertEquals(1.0, SiegeMath.healthForGroup(2, fresh), 1e-9);
         assertEquals(1.0, SiegeMath.damageTakenForGroup(10, fresh), 1e-9);
         assertEquals(0.0, fresh.eliteHealthPerExtraPlayer, 1e-9);
         for (int n = 1; n <= 10; n++) {
@@ -47,10 +48,11 @@ class Tor6SpielerzahlTest {
         SiegeConfig server = oldServer();
         server.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
-        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), server.damageTakenByPlayers);
-        assertEquals(List.of(0.7, 0.9, 0.95, 1.0), server.mobHealthByPlayers);
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);
-        assertEquals(0.9, SiegeMath.healthForGroup(2, server), 1e-9);
+        // Tor 12 (v31): a table still on the old default moves to the server's (flat).
+        assertEquals(List.of(1.0, 1.0, 1.0, 1.0), server.damageTakenByPlayers);
+        assertEquals(List.of(1.0, 1.0, 1.0, 1.0), server.mobHealthByPlayers);
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, server), 1e-9);
+        assertEquals(1.0, SiegeMath.healthForGroup(2, server), 1e-9);
         assertEquals(0.0, server.eliteHealthPerExtraPlayer, 1e-9);
     }
 
@@ -84,7 +86,7 @@ class Tor6SpielerzahlTest {
         c.sanitize();
         double one = SiegeMath.mobsWanted(10, 1, c, c.playerScaling);
         assertEquals(one * 4, SiegeMath.mobsWanted(10, 4, c, c.playerScaling), 1e-9);   // 0.6 per player, linear
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, c), 1e-9);   // the solo damping stays (Chef 09.11. 12:05)
+        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, c), 1e-9);   // flat since v31 (the server's table)
         assertEquals(1.0, SiegeMath.damageTakenForGroup(8, c), 1e-9);
     }
 

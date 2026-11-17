@@ -3092,7 +3092,7 @@ public final class SiegeManager {
         // A normal night may end with a dungeon warden (Simon, 29 October 2026: 20 %, one of the eight).
         warden.reset(server);
         com.mki.nightsiege.core.ExpeditionKind tonightWarden = tonightBoss != null || kind != com.mki.nightsiege.core.BossPlan.NightKind.NORMAL ? null
-                : testRun ? testWarden : WardenNight.roll(random, config.wardenChance);
+                : testRun ? testWarden : siegeLevel < config.wardenFromLevel ? null : WardenNight.roll(random, config.wardenChance);
         testWarden = null;
         if (tonightWarden != null) {
             warden.plan(tonightWarden);
@@ -4853,17 +4853,15 @@ public final class SiegeManager {
         overflowElites = SiegeMath.overflowEliteChance(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
         overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
-        return (int) Math.round(SiegeMath.mobsPerBatch(siegeLevel, players, config, perPlayer, maxLive())
-                * currentEvent.mobCountMultiplier(config) * (save.specialNight ? config.specialNightMobMultiplier : 1.0)
-                * Curses.mobFactor());
+        return SiegeMath.waveSize(siegeLevel, players, config, perPlayer, maxLive(),
+                currentEvent.mobCountMultiplier(config), save.specialNight, Curses.mobFactor());
     }
 
     /** Waves the whole night brings: one at the start, then one per interval. */
     private int plannedWaves() {
         double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
         // A wave starts the tick after its cooldown has run out, so waves lie one tick more apart.
-        int interval = Math.max(20, (int) Math.round((config.batchIntervalSeconds + extraDelay) * 20.0 * Curses.waveFactor())) + 1;
-        return Math.max(1, (totalTicks - 1) / interval + 1);
+        return SiegeMath.plannedWaves(totalTicks, config, Curses.waveFactor());
     }
 
     /**
