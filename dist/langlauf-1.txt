@@ -1,0 +1,320 @@
+== vor Nacht 1
+   START spieler=1 bis=Nacht 24 karte=burg.json.gz
+   BURG kopie core=0, 67, 0 bots: Bot01=bulwark
+   OK Log: kein ERROR, keine Exception
+== k=1 tag=3 stufe=1 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=1 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=1 1/1
+   NACHT START k=1 K1N1S1 tag=3 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=1 K1N1S1 spieler=1/1 art=normal ergebnis=verloren dauer=46s stehend=0 horn=1/1 startton=1 punkte=+0 kisten=+0 stufe=1->1 maxtick=124ms
+   OK 8:00-Grenze k=1 46 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=2 tag=6 stufe=1 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=2 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=2 1/1
+   NACHT START k=2 K1N2S1 tag=6 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=2 K1N2S1 spieler=1/1 art=normal ergebnis=verloren dauer=104s stehend=0 horn=1/1 startton=1 punkte=+1 kisten=+0 stufe=1->1 maxtick=46ms
+   OK 8:00-Grenze k=2 104 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=3 tag=9 stufe=1 kapitel=1 szenario=zuwenig ereignis=NONE fragment=null
+   OK zu wenige Zusagen: keine Nacht an Tag 9, nächste Einladung Tag 12
+   OK Log: kein ERROR, keine Exception
+== k=4 tag=12 stufe=1 kapitel=1 szenario=logout_bereit ereignis=NONE fragment=null
+   HORN k=4 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=4 1/1
+   Abmelden: Bot01 (Bereit-Phase)
+   Wieder da: Bot01 an 3, 68, 0
+   NACHT START k=4 K1N3S1 tag=12 uhr=15001 sammeln=16s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0 HILFE=1
+   OK nacht k=4 K1N3S1 spieler=1/1 art=normal szenario=logout_bereit ergebnis=gewonnen dauer=240s stehend=1 horn=1/1 startton=1 punkte=+6 kisten=+2 stufe=1->2 maxtick=70ms hilfe=1
+   OK 8:00-Grenze k=4 240 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=5 tag=15 stufe=2 kapitel=1 szenario=logout_nacht ereignis=NONE fragment=null
+   HORN k=5 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=5 1/1
+   NACHT START k=5 K1N4S2 tag=15 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   Abmelden: Bot01 (Nacht)
+   Wieder da: Bot01 an 3, 69, 0 verteidigt=true zuschauer=false
+   OK nacht k=5 K1N4S2 spieler=1/1 art=boss szenario=logout_nacht ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+1 kisten=+0 stufe=2->2 maxtick=103ms
+   OK 8:00-Grenze k=5 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=6 tag=18 stufe=2 kapitel=1 szenario=neustart_bereit ereignis=NONE fragment=null
+   HORN k=6 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=6 1/1
+   NEUSTART (bereit) k=6
+   [langlauf-skript] exit=0 start=1
+   [langlauf-skript] Neustart 1
+   WEITER nach Neustart (bereit), Zyklus 6
+   OK Neustart in der Bereit-Phase: Sammeln läuft wieder (sammeln=true nacht=false)
+   HORN k=6 uhr=12001 gehört: Bot01=nein
+   NACHT START k=6 K1N4S2 tag=18 uhr=15001 sammeln=5s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=6 K1N4S2 spieler=1/1 art=boss szenario=neustart_bereit ergebnis=verloren dauer=480s stehend=1 horn=0/1 startton=1 punkte=+9 kisten=+2 stufe=2->2 maxtick=261ms
+   OK 8:00-Grenze k=6 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Neustart in der Bereit-Phase: Nacht danach gestartet
+   OK Log: kein ERROR, keine Exception
+== k=7 tag=21 stufe=2 kapitel=1 szenario=neustart_nacht ereignis=NONE fragment=null
+   HORN k=7 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=7 1/1
+   NACHT START k=7 K1N4S2 tag=21 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=1
+   NEUSTART (nacht) k=7
+   [langlauf-skript] exit=0 start=2
+   [langlauf-skript] Neustart 2
+   WEITER nach Neustart (nacht), Zyklus 7
+   OK Neustart in der Nacht: Inventar zurück, Kit weg, Uhr läuft
+   nach Neustart: nächste Belagerung Tag 24 (heute 21)
+   OK Log: kein ERROR, keine Exception
+== k=8 tag=24 stufe=2 kapitel=1 szenario=fragment ereignis=NONE fragment=BLOOD
+   HORN k=8 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=8 1/1
+   NACHT START k=8 K1N4S2 tag=24 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=8 K1N4S2 spieler=1/1 art=boss szenario=fragment ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=2->2 maxtick=145ms
+   OK 8:00-Grenze k=8 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=9 tag=27 stufe=2 kapitel=1 szenario=fluch ereignis=NONE fragment=BLOOD
+   HORN k=9 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=9 1/1
+   NACHT START k=9 K1N4S2 tag=27 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=1 HILFE=2
+   OK nacht k=9 K1N4S2 spieler=1/1 art=boss szenario=fluch ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+1 kisten=+0 stufe=2->2 maxtick=78ms hilfe=2
+   OK 8:00-Grenze k=9 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=10 tag=30 stufe=2 kapitel=1 szenario=heerlager ereignis=NONE fragment=BLOOD
+   HORN k=10 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=10 1/1
+   NACHT START k=10 K1N4S2 tag=30 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=3
+   OK nacht k=10 K1N4S2 spieler=1/1 art=boss szenario=heerlager ergebnis=gewonnen dauer=148s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+2 stufe=2->3 maxtick=48ms hilfe=3
+   OK 8:00-Grenze k=10 148 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=11 tag=33 stufe=3 kapitel=1 szenario=dungeon ereignis=BLOOD_MOON fragment=BLOOD
+   HORN k=11 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=11 1/1
+   NACHT START k=11 K1N5S3 tag=33 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=true ereignis=BLOOD_MOON flüche=0
+   OK nacht k=11 K1N5S3 spieler=1/1 art=fragment szenario=dungeon ergebnis=gewonnen dauer=280s stehend=1 horn=1/1 startton=2 punkte=+12 kisten=+1 stufe=3->4 maxtick=83ms
+   OK 8:00-Grenze k=11 280 s art=fragment (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=12 tag=36 stufe=4 kapitel=1 szenario=frist ereignis=THUNDER fragment=null
+   HORN k=12 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=12 1/1
+   NACHT START k=12 K1N6S4 tag=36 uhr=15001 sammeln=185s verteidiger=1 boss=false sonder=false ereignis=THUNDER flüche=0
+   OK nacht k=12 K1N6S4 spieler=1/1 art=ereignis_thunder szenario=frist ergebnis=gewonnen dauer=300s stehend=1 horn=1/1 startton=1 punkte=+6 kisten=+1 stufe=4->5 maxtick=59ms
+   OK 8:00-Grenze k=12 300 s art=ereignis_thunder (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=13 tag=39 stufe=5 kapitel=1 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=13 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=13 1/1
+   NACHT START k=13 K1N7S5 tag=39 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   OK nacht k=13 K1N7S5 spieler=1/1 art=ereignis_nether_rift ergebnis=gewonnen dauer=320s stehend=1 horn=1/1 startton=1 punkte=+7 kisten=+1 stufe=5->6 maxtick=49ms
+   OK 8:00-Grenze k=13 320 s art=ereignis_nether_rift (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=14 tag=42 stufe=6 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=14 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=14 1/1
+   NACHT START k=14 K1N8S6 tag=42 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=14 K1N8S6 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=6->6 maxtick=85ms
+   OK 8:00-Grenze k=14 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=15 tag=45 stufe=6 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=15 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=15 1/1
+   NACHT START k=15 K1N8S6 tag=45 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=15 K1N8S6 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=6->6 maxtick=68ms
+   OK 8:00-Grenze k=15 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=16 tag=48 stufe=6 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=16 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=16 1/1
+   NACHT START k=16 K1N8S6 tag=48 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=1
+   OK nacht k=16 K1N8S6 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=6->6 maxtick=62ms hilfe=1
+   OK 8:00-Grenze k=16 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=17 tag=51 stufe=6 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=17 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=17 1/1
+   NACHT START k=17 K1N8S6 tag=51 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=2
+   OK nacht k=17 K1N8S6 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=6->6 maxtick=52ms hilfe=2
+   OK 8:00-Grenze k=17 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=18 tag=54 stufe=6 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=18 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=18 1/1
+   NACHT START k=18 K1N8S6 tag=54 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=3
+   OK nacht k=18 K1N8S6 spieler=1/1 art=boss ergebnis=gewonnen dauer=188s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+2 stufe=6->7 maxtick=55ms hilfe=3
+   OK 8:00-Grenze k=18 188 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=19 tag=57 stufe=7 kapitel=1 szenario=- ereignis=FOG fragment=null
+   HORN k=19 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=19 1/1
+   NACHT START k=19 K1N9S7 tag=57 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=FOG flüche=0
+   OK nacht k=19 K1N9S7 spieler=1/1 art=ereignis_fog ergebnis=gewonnen dauer=360s stehend=1 horn=1/1 startton=1 punkte=+7 kisten=+1 stufe=7->8 maxtick=54ms
+   OK 8:00-Grenze k=19 360 s art=ereignis_fog (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=20 tag=60 stufe=8 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=20 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=20 1/1
+   NACHT START k=20 K1N10S8 tag=60 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=20 K1N10S8 spieler=1/1 art=normal ergebnis=gewonnen dauer=380s stehend=1 horn=1/1 startton=1 punkte=+7 kisten=+1 stufe=8->9 maxtick=108ms
+   OK 8:00-Grenze k=20 380 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=21 tag=63 stufe=9 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=21 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=21 1/1
+   NACHT START k=21 K1N11S9 tag=63 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=21 K1N11S9 spieler=1/1 art=normal ergebnis=gewonnen dauer=400s stehend=1 horn=1/1 startton=1 punkte=+9 kisten=+1 stufe=9->10 maxtick=62ms
+   OK 8:00-Grenze k=21 400 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=22 tag=66 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=22 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=22 1/1
+   NACHT START k=22 K1N12S10 tag=66 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=22 K1N12S10 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=10->10 maxtick=64ms
+   OK 8:00-Grenze k=22 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=23 tag=69 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=23 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=23 1/1
+   NACHT START k=23 K1N12S10 tag=69 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=23 K1N12S10 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=10->10 maxtick=114ms
+   OK 8:00-Grenze k=23 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=24 tag=72 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=24 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=24 1/1
+   NACHT START k=24 K1N12S10 tag=72 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=1
+   OK nacht k=24 K1N12S10 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=10->10 maxtick=85ms hilfe=1
+   OK 8:00-Grenze k=24 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=25 tag=75 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=25 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=25 1/1
+   NACHT START k=25 K1N12S10 tag=75 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=2
+   OK nacht k=25 K1N12S10 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=10->10 maxtick=105ms hilfe=2
+   OK 8:00-Grenze k=25 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=26 tag=78 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=26 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=26 1/1
+   NACHT START k=26 K1N12S10 tag=78 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=3
+   OK nacht k=26 K1N12S10 spieler=1/1 art=boss ergebnis=gewonnen dauer=208s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+2 stufe=10->11 maxtick=42ms hilfe=3
+   OK 8:00-Grenze k=26 208 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=27 tag=81 stufe=11 kapitel=1 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=27 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=27 1/1
+   NACHT START k=27 K1N13S11 tag=81 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   OK nacht k=27 K1N13S11 spieler=1/1 art=ereignis_nether_rift ergebnis=gewonnen dauer=440s stehend=1 horn=1/1 startton=1 punkte=+9 kisten=+2 stufe=11->12 maxtick=60ms
+   OK 8:00-Grenze k=27 440 s art=ereignis_nether_rift (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=28 tag=84 stufe=12 kapitel=1 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=28 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=28 1/1
+   NACHT START k=28 K1N14S12 tag=84 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   OK nacht k=28 K1N14S12 spieler=1/1 art=ereignis_nether_rift ergebnis=gewonnen dauer=460s stehend=1 horn=1/1 startton=1 punkte=+10 kisten=+1 stufe=12->13 maxtick=70ms
+   OK 8:00-Grenze k=28 460 s art=ereignis_nether_rift (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=29 tag=87 stufe=13 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=29 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=29 1/1
+   NACHT START k=29 K1N15S13 tag=87 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=29 K1N15S13 spieler=1/1 art=normal ergebnis=gewonnen dauer=480s stehend=1 horn=1/1 startton=1 punkte=+9 kisten=+1 stufe=13->14 maxtick=86ms
+   OK 8:00-Grenze k=29 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=30 tag=90 stufe=14 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=30 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=30 1/1
+   NACHT START k=30 K1N16S14 tag=90 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=30 K1N16S14 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=14->14 maxtick=71ms
+   OK 8:00-Grenze k=30 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=31 tag=93 stufe=14 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=31 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=31 1/1
+   NACHT START k=31 K1N16S14 tag=93 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=31 K1N16S14 spieler=1/1 art=boss ergebnis=gewonnen dauer=221s stehend=1 horn=1/1 startton=1 punkte=+4 kisten=+1 stufe=14->15 maxtick=100ms
+   OK 8:00-Grenze k=31 221 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=32 tag=96 stufe=15 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=32 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=32 1/1
+   NACHT START k=32 K1N17S15 tag=96 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=32 K1N17S15 spieler=1/1 art=normal ergebnis=gewonnen dauer=480s stehend=1 horn=1/1 startton=1 punkte=+9 kisten=+1 stufe=15->16 maxtick=82ms
+   OK 8:00-Grenze k=32 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=33 tag=99 stufe=16 kapitel=1 szenario=- ereignis=NETHER_RIFT fragment=null
+   HORN k=33 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=33 1/1
+   NACHT START k=33 K1N18S16 tag=99 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NETHER_RIFT flüche=0
+   OK nacht k=33 K1N18S16 spieler=1/1 art=ereignis_nether_rift ergebnis=gewonnen dauer=480s stehend=1 horn=1/1 startton=1 punkte=+10 kisten=+2 stufe=16->17 maxtick=62ms
+   OK 8:00-Grenze k=33 480 s art=ereignis_nether_rift (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=34 tag=102 stufe=17 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=34 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=34 1/1
+   NACHT START k=34 K1N19S17 tag=102 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=34 K1N19S17 spieler=1/1 art=normal ergebnis=gewonnen dauer=480s stehend=1 horn=1/1 startton=1 punkte=+9 kisten=+2 stufe=17->18 maxtick=44ms
+   OK 8:00-Grenze k=34 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=35 tag=105 stufe=18 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=35 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=35 1/1
+   NACHT START k=35 K1N20S18 tag=105 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=35 K1N20S18 spieler=1/1 art=finale ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+0 kisten=+0 stufe=18->18 maxtick=69ms
+   OK 8:00-Grenze k=35 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=36 tag=108 stufe=18 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=36 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=36 1/1
+   NACHT START k=36 K1N20S18 tag=108 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=36 K1N20S18 spieler=1/1 art=finale ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+0 kisten=+0 stufe=18->18 maxtick=104ms
+   OK 8:00-Grenze k=36 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=37 tag=111 stufe=18 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=37 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=37 1/1
+   NACHT START k=37 K1N20S18 tag=111 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0 HILFE=1
+   OK nacht k=37 K1N20S18 spieler=1/1 art=finale ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+0 kisten=+0 stufe=18->18 maxtick=54ms hilfe=1
+   OK 8:00-Grenze k=37 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=38 tag=114 stufe=18 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=38 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=38 1/1
+   NACHT START k=38 K1N20S18 tag=114 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0 HILFE=2
+   OK nacht k=38 K1N20S18 spieler=1/1 art=finale ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+0 kisten=+0 stufe=18->18 maxtick=57ms hilfe=2
+   OK 8:00-Grenze k=38 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=39 tag=117 stufe=18 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=39 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=39 1/1
+   NACHT START k=39 K1N20S18 tag=117 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0 HILFE=3
+   OK nacht k=39 K1N20S18 spieler=1/1 art=finale ergebnis=gewonnen dauer=84s stehend=1 horn=1/1 startton=1 punkte=+-157 kisten=+1 stufe=18->1 kapitel=2 maxtick=95ms hilfe=3
+   OK 8:00-Grenze k=39 84 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=40 tag=120 stufe=1 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=40 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=40 1/1
+   NACHT START k=40 K2N1S1 tag=120 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=40 K2N1S1 spieler=1/1 art=normal ergebnis=gewonnen dauer=240s stehend=1 horn=1/1 startton=1 punkte=+4 kisten=+2 stufe=1->2 maxtick=34ms
+   OK 8:00-Grenze k=40 240 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=41 tag=123 stufe=2 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=41 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=41 1/1
+   NACHT START k=41 K2N2S2 tag=123 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=41 K2N2S2 spieler=1/1 art=normal ergebnis=verloren dauer=210s stehend=0 horn=1/1 startton=1 punkte=+4 kisten=+0 stufe=2->2 maxtick=44ms
+   OK 8:00-Grenze k=41 210 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=42 tag=126 stufe=2 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=42 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=42 1/1
+   NACHT START k=42 K2N3S2 tag=126 uhr=15001 sammeln=10s verteidiger=1 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=42 K2N3S2 spieler=1/1 art=normal ergebnis=verloren dauer=115s stehend=0 horn=1/1 startton=1 punkte=+1 kisten=+0 stufe=2->2 maxtick=51ms
+   OK 8:00-Grenze k=42 115 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=43 tag=129 stufe=2 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=43 uhr=12000 gehört: Bot01=ja
+   OK Horn gehört k=43 1/1
+   NACHT START k=43 K2N4S2 tag=129 uhr=15001 sammeln=10s verteidiger=1 boss=true sonder=false ereignis=NONE flüche=0 HILFE=1
+   OK nacht k=43 K2N4S2 spieler=1/1 art=boss ergebnis=verloren dauer=480s stehend=1 horn=1/1 startton=1 punkte=+3 kisten=+0 stufe=2->2 maxtick=43ms hilfe=1
+   OK 8:00-Grenze k=43 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   ARTEN {boss=18, normal=11, fluch=1, fragment=1, ereignis=6, finale=5, kapitelwechsel=1}
+   SUMME spieler=1 bis=K2N4S2 naechte=42 gewonnen=19 verloren=22 abgebrochen=1 ok=128 fail=0 zyklen=43 ende=Ziel Nacht 24 erreicht minuten=22
+   [langlauf-skript] exit=0 start=3
+   OK Log: kein ERROR, keine Exception
+LOG-ABSCHNITTE MIT FEHLERN: 0 von 44
