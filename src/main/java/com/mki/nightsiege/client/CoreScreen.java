@@ -972,7 +972,25 @@ public class CoreScreen extends Screen {
                     bx += rw + 4;
                 }
             }
-            if (stats.warOn) {
+            if (!stats.warOn) {
+                // Tor 12 (Simon 17.11. 15:25): switched off – a grey button with the reason, left out when it does not fit.
+                int rightLimit = left + W - 66 - (!stats.siegeActive && !stats.nightComing
+                        ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
+                Component war = Component.translatable("nightsiege.ui.war_short");
+                int ww = Math.max(60, font.width(war) + 12);
+                if (bx + ww > rightLimit) {
+                    war = Component.literal("⚔");
+                    ww = 22;
+                }
+                if (bx + ww <= rightLimit) {
+                    Button wb = Button.builder(war, b -> { }).bounds(bx, footerY, ww, 18)
+                            .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                                    Component.translatable("nightsiege.ui.war_off_hint"))).build();
+                    wb.active = false;
+                    addRenderableWidget(wb);
+                    bx += ww + 4;
+                }
+            } else {
                 // The war leader's round (Kriegsführer, 29 October 2026): whoever presses first leads the monsters.
                 boolean running = !stats.warLeader.isEmpty();
                 boolean free = stats.warMine || !running && stats.warBlock.isEmpty();

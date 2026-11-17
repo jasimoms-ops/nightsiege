@@ -559,7 +559,7 @@ public class SiegeConfig {
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
     /** The round can be started from the core window. */
-    public boolean warLeaderEnabled = true;
+    public boolean warLeaderEnabled = false;   // Simon 17.11. 15:25: switched off (scenes switch it on for themselves)
     /**
      * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon
@@ -2387,6 +2387,7 @@ public class SiegeConfig {
             mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
             fieldRefCaps = onOldList(fieldRefCaps, List.of(), List.of(9, 15, 20, 26, 40, 51, 81, 97, 110, 124));
             refillSpawns = true;   // old default false = the server's switch was never set by hand
+            warLeaderEnabled = false;   // Simon 17.11. 15:25 "deaktiviere den Kriegsführer modus" (old default true)
             fieldHealth = onOld(fieldHealth, 0.0, 0.4);
             fieldDamage = onOld(fieldDamage, 0.0, 0.4);
             healthPerLevel = onOld(healthPerLevel, 0.06, 0.1);

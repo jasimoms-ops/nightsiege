@@ -10970,6 +10970,7 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             oldCores.addAll(manager.save().cores);
+            manager.config().warLeaderEnabled = true;   // Tor 12: off by default (Simon 17.11.), this scene switches it on
             manager.save().cores.clear();
             manager.save().cores.add(new com.mki.nightsiege.game.CoreRecord(
                     com.mki.nightsiege.game.SiegeManager.dimensionName(level), core.getX(), core.getY(), core.getZ()));
