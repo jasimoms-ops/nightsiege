@@ -130,6 +130,11 @@ public final class Langlauf {
     private static long lastIdle;
     // the night
     private static boolean wasActive;
+    private static boolean wasGathering;
+    private static boolean resumedInGather;
+    private static String lastGather = "-";
+    private static int noStartRow;
+    private static String nightKind = "NORMAL";
     private static long nightStart;
     private static long nightEnd;
     private static long endCheckAt = -1L;
@@ -211,6 +216,7 @@ public final class Langlauf {
             }
             decliner = st.decliner == null ? null : UUID.fromString(st.decliner);
             loginAt = server.getTickCount() + 200;   // players come back a few seconds after the server, not before its first tick
+            resumedInGather = "bereit".equals(st.pending);
             line("WEITER nach Neustart (" + st.pending + "), Zyklus " + st.cycle);
             run(server, "tick sprint 1000000000");
         }
@@ -308,6 +314,19 @@ public final class Langlauf {
             return;
         }
         boolean active = m.isActive();
+        boolean gathering = m.gathering();
+        if (wasGathering && !gathering && !active) {
+            noStart(server, m);
+            if (!running()) {
+                return;
+            }
+        } else if (active) {
+            noStartRow = 0;
+        }
+        wasGathering = gathering;
+        if (now % 20 == 0) {
+            respawnDead(server, m, active);
+        }
         if (!active && now % 20 == 0) {
             keepSafe(server);
         }
@@ -532,6 +551,53 @@ public final class Langlauf {
         }
     }
 
+    /**
+     * A bot that died outside the siege (vanilla: a creeper at dusk, far from the core) presses "respawn" as a
+     * player's client would: it comes back at the world spawn with its own things (they dropped where it died).
+     * Defenders in the night are the siege's business and are left alone.
+     */
+    private static void respawnDead(MinecraftServer server, SiegeManager m, boolean active) {
+        for (int i = 0; i < st.group; i++) {
+            ServerPlayer b = bot(server, i);
+            if (b == null || !b.isDeadOrDying() || (active && inNight.contains(b.getUUID()))) {
+                continue;
+            }
+            String cause = b.getCombatTracker().getDeathMessage().getString();
+            BlockPos spawn = TeamSim.standable(world, core.offset(2 + i, 0, 2), 3);   // the world spawn is at the castle
+            ServerPlayer back = SimBots.spawn(server, world, name(i), spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
+            if (back != null) {
+                fixMarkers(back, 0, 0);
+            }
+            line("Tod außerhalb der Belagerung k=" + st.cycle + ": " + cause + " -> wiederbelebt=" + (back != null)
+                    + (m.isActive() ? " (Nacht läuft, nicht dabei)" : ""));
+        }
+    }
+
+    /** The gathering ended and no night started: what the bots looked like; three in a row end the run. */
+    private static void noStart(MinecraftServer server, SiegeManager m) {
+        StringBuilder who = new StringBuilder();
+        for (int i = 0; i < st.group; i++) {
+            ServerPlayer b = bot(server, i);
+            if (b == null) {
+                who.append(' ').append(name(i)).append("=offline");
+                continue;
+            }
+            String id = b.getUUID().toString();
+            who.append(' ').append(name(i)).append("[tot=").append(b.isDeadOrDying()).append(" leben=").append(Math.round(b.getHealth()))
+                    .append(" zuschauer=").append(b.isSpectator()).append(" eingetragen=").append(m.isRegistered(b))
+                    .append(" zugesagt=").append(m.save().accepted != null && m.save().accepted.contains(id))
+                    .append(" abstand=").append(Math.round(Math.sqrt(b.blockPosition().distSqr(core)))).append(']');
+        }
+        boolean expected = st.cancelDay >= 0;   // too few accepts: no night is right
+        if (!expected) {
+            noStartRow++;
+        }
+        check(expected, "Nacht nach dem Horn k=" + st.cycle + " (sammeln zuletzt " + lastGather + ")" + who);
+        if (noStartRow >= 3) {
+            finish(server, "3× keine Nacht nach dem Horn");
+        }
+    }
+
     /** From the horn to the start: the bots press ready (one not, in "frist"), logout and restart cases. */
     private static void gatherStep(MinecraftServer server, SiegeManager m, long now) {
         GatherPhase g = m.gatherForTests();
@@ -552,11 +618,16 @@ public final class Langlauf {
             }
             hornHeard = yes + "/" + online;
             line("HORN k=" + st.cycle + " uhr=" + m.clockTimeFor(server) + " gehört:" + heard);
-            check(yes == online, "Horn gehört k=" + st.cycle + " " + hornHeard);
+            if (resumedInGather) {
+                resumedInGather = false;   // the horn sounded before the restart; the gathering just goes on
+            } else {
+                check(yes == online, "Horn gehört k=" + st.cycle + " " + hornHeard);
+            }
         }
         for (int i = 0; i < st.group; i++) {
             SimBots.takeSounds(bot(server, i));   // the gathering's pings are not the night's start
         }
+        lastGather = g.phase() + " mitglieder=" + g.members().size() + " bereit=" + g.readyCount();
         if (g.phase() != GatherPhase.Phase.READY) {
             return;
         }
@@ -620,6 +691,7 @@ public final class Langlauf {
         wonBefore = m.save().siegesWon;
         lostBefore = m.save().siegesLost;
         bossNight = m.bosses().planned();
+        nightKind = m.tonightKindForTests().name();
         special = m.save().specialNight;
         lastStanding = 0;
         startSounds = 0;
@@ -751,7 +823,7 @@ public final class Langlauf {
         if (secs > cfg.maxDurationSeconds + 5) {
             f.add("dauerte " + secs + " s, Grenze " + cfg.maxDurationSeconds + " s");
         }
-        boolean cap8 = secs <= 485;
+        boolean cap8 = secs <= 480;   // Chef 17.11.: no night over 8:00, also with bossPhaseMaxSeconds 600
         if (won && lastStanding == 0 && !bossNight) {
             f.add("Sieg, aber kein Verteidiger stand");
         }
@@ -798,12 +870,12 @@ public final class Langlauf {
             dEarned = 0;
             dCrates = 0;
         }
-        if (won && (dEarned < 1 || dCrates < 1)) {
-            f.add("Belohnung fehlt (Punkte +" + dEarned + ", Kisten +" + dCrates + ")");
-        }
         int lvlNow = m.currentLevel();
         int chapterNow = m.save().chapters().chapter;
         boolean chapterChange = chapterNow != chapterStart;
+        if (won && ((dEarned < 1 && !chapterChange) || dCrates < 1)) {   // the new chapter starts new characters (points from 0)
+            f.add("Belohnung fehlt (Punkte +" + dEarned + ", Kisten +" + dCrates + ")");
+        }
         if (won && !chapterChange && lvlNow != lvlStart + 1) {
             f.add("Stufe nach Sieg " + lvlNow + " statt " + (lvlStart + 1));
         }
@@ -823,7 +895,7 @@ public final class Langlauf {
         } else {
             st.aborted++;
         }
-        String kind = bossNight ? "boss" : wardenSeen ? "waechter" : special ? "fragment" : !eventTonight.isEmpty() && !eventTonight.equals("NONE")
+        String kind = nightKind.equals("GROUP") ? "finale" : nightKind.equals("LATE") ? "spaet" : bossNight ? "boss" : wardenSeen ? "waechter" : special ? "fragment" : !eventTonight.isEmpty() && !eventTonight.equals("NONE")
                 ? "ereignis_" + eventTonight.toLowerCase(Locale.ROOT) : "normal";
         st.seen.merge(kind.startsWith("ereignis") ? "ereignis" : kind, 1, Integer::sum);
         if (cursesSeen > 0) {
@@ -847,7 +919,7 @@ public final class Langlauf {
                 st.fails.add("k=" + st.cycle + " " + label(chapterStart, lvlStart) + ": " + one);
             }
         }
-        line((cap8 ? "OK" : "FAIL") + " 8:00-Grenze k=" + st.cycle + " " + secs + " s (maxDurationSeconds=" + cfg.maxDurationSeconds + ")");
+        line((cap8 ? "OK" : "FAIL") + " 8:00-Grenze k=" + st.cycle + " " + secs + " s art=" + kind + " (maxDurationSeconds=" + cfg.maxDurationSeconds + " bossPhaseMaxSeconds=" + cfg.bossPhaseMaxSeconds + ")");
         if (cap8) {
             st.ok++;
         } else {

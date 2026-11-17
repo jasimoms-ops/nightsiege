@@ -157,6 +157,11 @@ public final class SiegeManager {
     private boolean lateNight;
     /** What tonight is in the boss rhythm (counted at its end). */
     private com.mki.nightsiege.core.BossPlan.NightKind tonightKind = com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;
+
+    /** Tor 12 E (Langlauf): tonight's kind in the boss rhythm (NORMAL, BOSS, GROUP = finale, LATE). */
+    public com.mki.nightsiege.core.BossPlan.NightKind tonightKindForTests() {
+        return tonightKind;
+    }
     /** The bosses of the Vierer-Nacht or the late night that came so far (one service each). */
     private final List<BossService> finaleBosses = new ArrayList<>();
     /** Their bosses still to come, in their order. */
