@@ -1363,12 +1363,16 @@ public class EventLookTest implements FabricClientGameTest {
             if (!"axe".equals(sub)) {
                 fails.add("lifesteal test is no axe fighter: " + sub);
             }
-            if (ratio[1] < 0.045 || ratio[1] > 0.075) {
-                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not 0.06", ratio[1]));
+            // Tor 12 (v31): the expectations come from the config (the server's values), not from fixed numbers.
+            double want1 = cfg.hitLifestealAt("axe", 1) * cfg.hitLifestealLevelFactor(1);
+            double want15 = cfg.hitLifestealAt("axe", 15) * cfg.hitLifestealLevelFactor(15);
+            if (ratio[1] < want15 * 0.75 || ratio[1] > want15 * 1.25) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not %.3f", ratio[1], want15));
             }
-            if (ratio[1] <= 0 || ratio[0] / ratio[1] < 2.2 || ratio[0] / ratio[1] > 2.8) {
-                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not 2.5",
-                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1]));
+            double wantRatio = want15 <= 0 ? 0 : want1 / want15;
+            if (ratio[1] <= 0 || ratio[0] / ratio[1] < wantRatio * 0.88 || ratio[0] / ratio[1] > wantRatio * 1.12) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not %.2f",
+                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1], wantRatio));
             }
             // Two small hits at once: the first heals the floor (1 life point), the second only its share.
             float[] small = new float[2];
@@ -1392,8 +1396,9 @@ public class EventLookTest implements FabricClientGameTest {
             double h15 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 4, 15, false);
             System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight lifesteal formula: hit 10 on level 1 heals %.2f,"
                     + " on level 15 with 4 cleaved %.2f", h1, h15));
-            if (Math.abs(h1 - 1.5) > 1e-6 || Math.abs(h15 - (0.6 + 4 * 0.06 * 0.5)) > 1e-6) {
-                fails.add("life steal formula " + h1 + " / " + h15);
+            if (Math.abs(h1 - 10 * want1) > 1e-6 || Math.abs(h15 - (10 * want15 + 4 * want15 * cfg.hitLifestealCleave)) > 1e-6) {
+                fails.add("life steal formula " + h1 + " / " + h15 + ", config " + 10 * want1 + " / "
+                        + (10 * want15 + 4 * want15 * cfg.hitLifestealCleave));
             }
             manager.save().siegesWon = savedWon[0];
             own.levels.clear();
