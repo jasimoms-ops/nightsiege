@@ -329,8 +329,58 @@ final class SammelnScenes {
                 player.level().getServer().createCommandSourceStack(), "nightsiege stop"));
         context.waitTicks(40);
 
+        // --- Prüfer Tor 12 (4) + (1): ring 3–6 built full → a spot further out, still a participant;
+        // then a test night in the gathering: tonight's kit back first, one kit, own things whole after the test.
+        long dF = day[0] + 3;
+        prepareNight(context, game, dF, true, false);
+        final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> walled = new java.util.HashMap<>();
+        final List<List<String>> own = new ArrayList<>();
+        server(context, "full ring", (player, m) -> {
+            ServerLevel level = coreLevel(player.level().getServer());
+            CoreRecord c = core();
+            for (int[] off : GatherPhase.ringOffsets(3, 6)) {
+                for (int dy = -4; dy <= 6; dy++) {
+                    BlockPos at = new BlockPos(c.x + off[0], c.y + dy, c.z + off[1]);
+                    walled.put(at, level.getBlockState(at));
+                    level.setBlock(at, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2);
+                }
+            }
+            sendAway(player);
+            own.add(EventLookTest.survivalSnapshot(player));
+        });
+        hornAndWaitReady(context, game, dF, "full");
+        context.waitTicks(25);
+        server(context, "full arrived", (player, m) -> {
+            double dist = flatDistanceToCore(player);
+            ServerLevel level = coreLevel(player.level().getServer());
+            check(dist >= 6.5 && dist <= 17.0, "ring full: a spot further out (" + String.format("%.1f", dist) + ")");
+            check(SiegeManager.standable(level, player.blockPosition()) && !player.isInWall(), "ring full: safe ground");
+            check(m.gatherForTests().isMember(player.getUUID()), "ring full: still a participant");
+            check(m.kits().hasStash(player), "ring full: kit on");
+            for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e : walled.entrySet()) {
+                level.setBlock(e.getKey(), e.getValue(), 2);
+            }
+            player.level().getServer().getCommands().performPrefixedCommand(
+                    player.level().getServer().createCommandSourceStack(), "nightsiege test 1");
+        });
+        context.waitTicks(20);
+        server(context, "test in gathering", (player, m) -> {
+            check(!m.gathering(), "test night: the gathering ends");
+            check(m.isPreparing() || m.isActive(), "test night: runs (preparing=" + m.isPreparing() + ")");
+            check(m.kits().hasStash(player), "test night: one kit on");
+            check(!m.save().clockHeld || m.isActive(), "test night: the gathering's clock is released");
+            player.level().getServer().getCommands().performPrefixedCommand(
+                    player.level().getServer().createCommandSourceStack(), "nightsiege stop");
+        });
+        context.waitTicks(40);
+        server(context, "after test", (player, m) -> {
+            check(!m.kits().hasStash(player), "after the test: no kit left");
+            List<String> now = EventLookTest.survivalSnapshot(player);
+            check(now.equals(own.get(0)), "after the test: own things whole (" + now.size() + " vs " + own.get(0).size() + ")");
+        });
+
         // --- Late-comer (back to life): spectating at the horn → stays; survival → fetched, kit, counter 3 with B and D.
-        long dL = day[0] + 3;
+        long dL = day[0] + 4;
         prepareNight(context, game, dL, true, false);
         server(context, "late setup", (player, m) -> {
             sendAway(player);
