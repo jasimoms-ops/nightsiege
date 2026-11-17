@@ -893,7 +893,7 @@ public final class SiegeManager {
 
     /** Bossuhr: the boss phase's limit from the arrival, never shorter than the normal night (Prüfer 12.11.). */
     private int bossPhaseLimit() {
-        return com.mki.nightsiege.core.BossNight.phaseLimitTicks(totalTicks - bossPhaseFrom, config.bossPhaseMaxSeconds);
+        return com.mki.nightsiege.core.NightClock.bossPhaseLimit(totalTicks, bossPhaseFrom, config);   // Tor 12 F: ends at 8:00
     }
 
     // ------------------------------------------------------------------
@@ -2690,6 +2690,8 @@ public final class SiegeManager {
         if (finale) {
             finaleNight = true;
             finaleQueue.addAll(com.mki.nightsiege.core.Chapters.finaleBosses(chapter(), save.groupBosses));   // Tor 11
+            totalTicks = com.mki.nightsiege.core.NightClock.capTicks(config);   // Tor 12 F: the finale has a clock, 8:00
+            ticksLeft = totalTicks;
         } else if (kind == com.mki.nightsiege.core.BossPlan.NightKind.LATE) {
             lateNight = true;
             finaleQueue.addAll(com.mki.nightsiege.core.BossPlan.lateBosses(config.bossLateCount, random));
@@ -2876,9 +2878,10 @@ public final class SiegeManager {
             title = Component.empty().append(chapterLine).append(" · ").append(title);
         }
         if (finaleNight) {
-            // The Vierer-Nacht: no clock, the bosses are the goal.
+            // The Vierer-Nacht: the bosses are the goal, within the clock (Tor 12 F: 8:00).
             int total = finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
-            Component group = Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total);
+            Component group = Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total).copy()
+                    .append(" · " + com.mki.nightsiege.core.BossNight.clock(ticksLeft));
             return withCore((chapterLine == null ? group : Component.empty().append(chapterLine).append(" · ").append(group))
                     .copy().withStyle(ChatFormatting.GOLD));
         }
@@ -3225,8 +3228,8 @@ public final class SiegeManager {
 
         // Monsters no longer dig through walls (Simon, 27 October 2026): no pickaxe and axe monsters.
 
-        if (bossVictoryAt > 0 || finaleNight || bastionRound) {
-            return;   // the boss is down: the night ends in a moment, the clock stands (the finale and the bastion have none)
+        if (bossVictoryAt > 0 || bastionRound) {
+            return;   // the boss is down: the night ends in a moment, the clock stands (the bastion has none; the finale has one since Tor 12 F)
         }
         ticksLeft--;
         if (ticksLeft <= 0 && warRound) {
@@ -3256,7 +3259,7 @@ public final class SiegeManager {
                 broadcast(server, Component.translatable("nightsiege.msg.boss_survived",
                         Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.DARK_RED));
                 finish(server, false);
-            } else if (lateNight && (!finaleQueue.isEmpty() || finaleBosses.stream().anyMatch(b -> !b.fallen()))) {
+            } else if ((lateNight || finaleNight) && (!finaleQueue.isEmpty() || finaleBosses.stream().anyMatch(b -> !b.fallen()))) {
                 // Dawn and a boss of the late night still stands: the night is lost.
                 broadcast(server, Component.translatable("nightsiege.msg.late_survived").withStyle(ChatFormatting.DARK_RED));
                 finish(server, false);
@@ -3443,7 +3446,7 @@ public final class SiegeManager {
             finaleNextAt = now + 40L;
             return;
         }
-        finaleNextAt = now + config.bossGroupPairSeconds * 20L;
+        finaleNextAt = now + com.mki.nightsiege.core.NightClock.finalePairTicks(finaleBosses.size() + finaleQueue.size(), totalTicks, config);   // Tor 12 F: the pairs fit into 8:00
         traps.refillAll();   // the towers full and whole again for every pair
         broadcast(server, Component.translatable("nightsiege.msg.group_pair", bossNames(came),
                 finaleBosses.size(), finaleBosses.size() + finaleQueue.size()).withStyle(ChatFormatting.GOLD));
