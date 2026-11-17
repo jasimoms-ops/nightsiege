@@ -403,6 +403,15 @@ public final class KitService {
      * waited for the kit to go come right after (the playtest gives them itself, after its own swap).
      */
     public void restore(ServerPlayer player, boolean crates) {
+        restore(player, crates, true);
+    }
+
+    /**
+     * As above; with {@code keepFound} false whatever was picked up during the fight goes with the kit
+     * (the war camp, Simon 17.11.: "Gegenstände einfach verschwinden selbe regeln wie in der nacht"):
+     * only the own things come back.
+     */
+    public void restore(ServerPlayer player, boolean crates, boolean keepFound) {
         SiegeSave s = save.get();
         String id = player.getUUID().toString();
         SiegeSave.KitStash stash = s.kitStashes == null ? null : s.kitStashes.get(id);
@@ -412,13 +421,15 @@ public final class KitService {
         if (player.isDeadOrDying()) {
             // A dead body (death screen, logged out dead) would take the own things along and lose them
             // on respawn (Simon 31.10.: survival safety): they come back after the respawn.
-            if (!stash.restoreOnRespawn) {
+            if (!stash.restoreOnRespawn || !keepFound && !stash.dropFound) {
                 stash.restoreOnRespawn = true;
+                stash.dropFound |= !keepFound;   // a camp fight's finds go with the kit after the respawn too
                 persist.run();
             }
             NightSiegeMod.LOGGER.info("[Night Siege] Kit von {} geht nach dem Wiederbeleben zurück (gerade tot)", player.getScoreboardName());
             return;
         }
+        keepFound &= !stash.dropFound;   // noted while the player was dead (camp fight)
         if (settle(player)) {
             return;   // a crash had left the swap half done: the own inventory is there already
         }
@@ -476,7 +487,13 @@ public final class KitService {
             NightSiegeMod.LOGGER.info("[Night Siege] Alte Kit-Ausrüstung ohne Kennzeichen von {} geht mit dem Kit: {} Stück (Kit-Lager von vor dem 31.10.)",
                     player.getScoreboardName(), oldGear);
         }
-        loose.addAll(found);
+        if (keepFound) {
+            loose.addAll(found);
+        } else if (!found.isEmpty()) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Heerlager-Beute von {} geht mit dem Kit: {} Stapel",
+                    player.getScoreboardName(), found.size());
+            found.clear();   // no "taken along" message either
+        }
         int fell = giveBack(player, loose);
         resync(player);
         // Safety net (Simon 29.10.: kit items put into a vase): kit items left in containers, frames or on

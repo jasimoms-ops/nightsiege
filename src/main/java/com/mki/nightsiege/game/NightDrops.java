@@ -37,9 +37,14 @@ public final class NightDrops {
         }
     }
 
-    /** The monsters of a night and of a dungeon (halls, waves, champion). */
+    /**
+     * The monsters of a night, of a dungeon (halls, waves, champion) and the guards of the war camp
+     * (Simon 17.11.: "Gegenstände einfach verschwinden selbe regeln wie in der nacht": their axes,
+     * crossbows and loot never lie on the ground).
+     */
     static boolean dropsNothing(Entity entity) {
-        return entity.entityTags().contains(MobFactory.TAG) || entity.entityTags().contains(Expeditions.TAG);
+        return entity.entityTags().contains(MobFactory.TAG) || entity.entityTags().contains(Expeditions.TAG)
+                || SiegeCamp.isCampMob(entity);
     }
 
     /** True when this item or orb is the loot of a siege monster that just died (the caller removes it). */
