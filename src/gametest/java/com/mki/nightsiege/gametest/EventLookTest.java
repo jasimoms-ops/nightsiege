@@ -59,6 +59,7 @@ public class EventLookTest implements FabricClientGameTest {
                     manager.config().eliteMobs = false;
                     manager.config().lifestealCoupled = false;
                     manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
+                    manager.config().coreHealth = 0;   // Tor 12 F: no core life in the scenes; "rundum" has it
                 });
             }
             String only = System.getenv("NIGHTSIEGE_SCENES");

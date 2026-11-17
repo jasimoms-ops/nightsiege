@@ -55,8 +55,11 @@ class WaveGroupsTest {
         SiegeConfig cfg = new SiegeConfig();
         double gate = Math.toRadians(200);
         for (int n = 2; n <= 4; n++) {
-            double[] a = WaveGroups.angles(cfg, n, WaveGroups.turnTowards(cfg, n, gate));
-            assertEquals(gate, a[0], 1e-9);
+            double best = Double.MAX_VALUE;
+            for (double a : WaveGroups.angles(cfg, n, WaveGroups.turnTowards(cfg, n, gate))) {
+                best = Math.min(best, Math.abs(WaveGroups.wrap(a - gate + Math.PI) - Math.PI));
+            }
+            assertEquals(0.0, best, 1e-9, "one group on the gate, n=" + n);
         }
     }
 

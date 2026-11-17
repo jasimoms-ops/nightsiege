@@ -4825,9 +4825,9 @@ public class CoreScreen extends Screen {
             gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
             gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
                     x + 8, cy + 12, GRAY, true);
-            if (stats.killsRequired > 0) {
-                gui.text(font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills, stats.killsRequired).getString(),
-                        x + 8, cy + 24, stats.nightKills >= stats.killsRequired ? GREEN : GOLD, true);
+            if (stats.coreMax > 0) {   // Tor 12 F: the core's life instead of the kill goal
+                gui.text(font, Component.translatable("nightsiege.ui.stat_core", stats.coreLife, stats.coreMax).getString(),
+                        x + 8, cy + 24, stats.coreLife * 4 <= stats.coreMax ? RED : stats.coreLife * 2 <= stats.coreMax ? GOLD : GREEN, true);
             }
             return;
         }
