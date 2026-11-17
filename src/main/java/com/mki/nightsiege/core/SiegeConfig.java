@@ -2387,8 +2387,14 @@ public class SiegeConfig {
             mobsPerLevel = onOld(mobsPerLevel, 1.0, 1.8);
             liveCapByPlayers = onOldList(liveCapByPlayers, List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114),
                     List.of(9, 15, 20, 26, 30, 36, 40, 40, 40, 40));
-            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
-            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
+            // Tor 12 Abstimmung (Sim k2, Bogen je Nacht ohne Kill-Ziel): alone and in pairs a little easier, from the
+            // old default and from the server's flat table alike (alone 42 % -> 62 % in the sim).
+            List<Double> takenNew = List.of(0.7, 0.85, 1.0, 1.0);
+            List<Double> healthNew = List.of(0.75, 0.9, 1.0, 1.0);
+            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.9, 0.95, 1.0), takenNew);
+            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(1.0, 1.0, 1.0, 1.0), takenNew);
+            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), healthNew);
+            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(1.0, 1.0, 1.0, 1.0), healthNew);
             fieldRefCaps = onOldList(fieldRefCaps, List.of(), List.of(9, 15, 20, 26, 40, 51, 81, 97, 110, 124));
             refillSpawns = true;   // old default false = the server's switch was never set by hand
             fieldHealth = onOld(fieldHealth, 0.0, 0.4);
@@ -2397,7 +2403,7 @@ public class SiegeConfig {
             maxHealthMultiplier = onOld(maxHealthMultiplier, 2.5, 3.0);
             damagePerLevel = onOld(damagePerLevel, 0.04, 0.08);
             maxDamageMultiplier = onOld(maxDamageMultiplier, 2.0, 3.0);
-            lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.75, 0.9);
+            lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.9, 0.75);   // the server's 0.9 back to 0.75 (Sim k2)
             lowLevelDamageDealt = onOld(lowLevelDamageDealt, 1.15, 1.05);
             effectMobsFromLevel = (int) onOld(effectMobsFromLevel, 10, 5);
             executionerFromLevel = (int) onOld(executionerFromLevel, 10, 11);
