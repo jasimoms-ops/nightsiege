@@ -2349,6 +2349,11 @@ public final class SiegeManager {
         if (nearby.isEmpty()) {
             return false;
         }
+        if (gather.active()) {
+            // Prüfer Tor 12 (1): a test night in the gathering: tonight's kits go back first (no kit over a kit).
+            endGather(server, true);
+            endKits(server);
+        }
         if (config.testPrepSeconds <= 0) {   // 0 = no preparation at all, also no build-up (the scenes)
             testBoss = boss;
             return startTest(server, targetWorld, targetAnchor, level, event);
@@ -2403,6 +2408,8 @@ public final class SiegeManager {
     /** Brought to the core in this gathering (each once: who walks away is not fetched again). */
     private final Set<UUID> gatherBrought = new HashSet<>();
     private static final List<int[]> GATHER_RING = com.mki.nightsiege.core.GatherPhase.ringOffsets(3, 6);
+    /** Prüfer Tor 12 (4): the base built full within 6 blocks: further out before the roof of the core. */
+    private static final List<int[]> GATHER_RING_WIDE = com.mki.nightsiege.core.GatherPhase.ringOffsets(7, 16);
     private static final int[] GATHER_DY = {0, 1, -1, 2, -2, 3, -3, 4};
 
     /** Scene sammeln: more participants at the core without a second client (uuid → name). */
@@ -2564,6 +2571,17 @@ public final class SiegeManager {
                             gather.readyCount(), gather.memberCount()).withStyle(ChatFormatting.GRAY));
                 }
             }
+            // Prüfer Tor 12 (4): who was brought counts by the ground plan (a spot high up or further out stays in).
+            double r2 = config.participantRadius * config.participantRadius;
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                double dx = p.getX() - (pos.getX() + 0.5);
+                double dz = p.getZ() - (pos.getZ() + 0.5);
+                if (gatherBrought.contains(p.getUUID()) && !atCore.contains(p.getUUID()) && p.level() == level
+                        && dx * dx + dz * dz <= r2 && bringsToCore(p)) {
+                    atCore.add(p.getUUID());
+                    gather.join(p.getUUID(), p.getGameProfile().name());
+                }
+            }
             for (Map.Entry<UUID, String> guest : gatherTestGuests.entrySet()) {
                 gather.join(guest.getKey(), guest.getValue());
                 atCore.add(guest.getKey());
@@ -2600,8 +2618,9 @@ public final class SiegeManager {
     /** A free, safe spot 3–6 blocks around the core (nearest first, never next to another player's). */
     private static BlockPos gatherSpot(ServerLevel level, BlockPos core, Set<Long> taken) {
         level.getChunkAt(core);
-        for (int spacing = 1; spacing >= 0; spacing--) {
-            for (int[] off : GATHER_RING) {
+        for (int pass = 0; pass < 3; pass++) {
+            int spacing = pass == 0 ? 1 : 0;
+            for (int[] off : pass < 2 ? GATHER_RING : GATHER_RING_WIDE) {
                 int x = core.getX() + off[0];
                 int z = core.getZ() + off[1];
                 if (spotTaken(taken, x, z, spacing)) {
