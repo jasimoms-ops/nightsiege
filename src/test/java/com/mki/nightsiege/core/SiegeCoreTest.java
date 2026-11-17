@@ -34,6 +34,8 @@ class SiegeCoreTest {
      */
     static SiegeConfig beforeV31(SiegeConfig c) {
         c.mobsPerLevel = 1.0;
+        c.lowLevelExtraMobs = 0.0;
+        c.maxDurationSeconds = 600;
         c.healthPerLevel = 0.06;
         c.maxHealthMultiplier = 2.5;
         c.damagePerLevel = 0.04;

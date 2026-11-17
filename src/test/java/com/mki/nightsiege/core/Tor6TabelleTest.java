@@ -15,9 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Tor 6.2 (Chef 09.11.): the Grundtabelle is only built in; with its standard factors every wave stays as today. */
 class Tor6TabelleTest {
 
-    /** Today's batch before the Grundtabelle (SiegeMath.mobsWanted up to 0a3fad39f). */
+    /** Today's batch before the Grundtabelle (SiegeMath.mobsWanted up to 0a3fad39f, plus the low-level extra of Tor 12). */
     private static double oldWanted(int level, int n, SiegeConfig c, double perPlayer) {
-        double raw = c.baseMobsPerBatch + c.mobsPerLevel * SiegeMath.growthSteps(level, c);
+        double raw = c.baseMobsPerBatch + c.mobsPerLevel * SiegeMath.growthSteps(level, c)
+                + SiegeMath.lowLevelExtra(level, c);
         double players = Math.max(0.0, c.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, n - 1);
         return raw * players;
     }

@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class Tor12StandardTest {
 
-    /** Not balance: the spawn side belongs to the server's map, the test tools and the help text to the server. */
-    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp");
+    /** Not balance: the test tools and the help text belong to the server (the spawn side is all around since Tor 12 F). */
+    private static final List<String> NOT_BALANCE = List.of("testToolsForEveryone", "tuningHelp");
 
     private static SiegeConfig read(String path) throws Exception {
         SiegeConfig c = new Gson().fromJson(Files.readString(Path.of(path), StandardCharsets.UTF_8), SiegeConfig.class);
@@ -64,6 +64,12 @@ class Tor12StandardTest {
         assertTrue(fresh.refillSpawns);
         assertEquals(3, fresh.wardenFromLevel);
         assertEquals(3, server.wardenFromLevel);   // missing key: the field's default
+        // Tor 12 F: nights at most 8:00, the server's side 45-135 becomes all around; low levels get more monsters
+        assertEquals(480, server.maxDurationSeconds);
+        assertEquals(480, fresh.maxDurationSeconds);
+        assertEquals(0.0, server.spawnArcFrom, 1e-9);
+        assertEquals(360.0, server.spawnArcTo, 1e-9);
+        assertEquals(6, SiegeMath.mobsPerBatch(1, 1, fresh));
     }
 
     @Test
@@ -79,6 +85,9 @@ class Tor12StandardTest {
         JsonObject json = new Gson().fromJson(Files.readString(Path.of("src/test/resources/tor12/standard-v30.json"),
                 StandardCharsets.UTF_8), JsonObject.class);
         json.addProperty("mobsPerLevel", 1.3);
+        json.addProperty("maxDurationSeconds", 540);
+        json.addProperty("spawnArcFrom", 90.0);
+        json.addProperty("spawnArcTo", 180.0);
         json.addProperty("monsterDamage", 1.1);
         json.getAsJsonObject("subclassDamage").addProperty("axe", 1.4);
         JsonArray caps = new JsonArray();
@@ -99,6 +108,9 @@ class Tor12StandardTest {
         SiegeConfig c = new Gson().fromJson(json, SiegeConfig.class);
         c.sanitize();
         assertEquals(1.3, c.mobsPerLevel, 1e-9);
+        assertEquals(540, c.maxDurationSeconds);
+        assertEquals(90.0, c.spawnArcFrom, 1e-9);
+        assertEquals(180.0, c.spawnArcTo, 1e-9);
         assertEquals(1.1, c.monsterDamage, 1e-9);
         assertEquals(1.4, c.subclassDamage.get("axe"), 1e-9);
         assertEquals(List.of(10, 20), c.liveCapByPlayers);

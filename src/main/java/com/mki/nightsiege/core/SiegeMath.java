@@ -54,9 +54,18 @@ public final class SiegeMath {
      * (soloScaling + perPlayer × further players), per-player scaling of 29 October 2026.
      */
     public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
-        double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg);
+        double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg) + lowLevelExtra(level, cfg);
         double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
         return raw * players * budgetFactor(level, playerCount, cfg);
+    }
+
+    /** Tor 12: the extra base monsters of a low level, lowLevelExtraMobs on level 1 fading evenly to 0 at lowLevelMobsUntil. */
+    public static double lowLevelExtra(int level, SiegeConfig cfg) {
+        int until = Math.max(1, cfg.lowLevelMobsUntil);
+        if (cfg.lowLevelExtraMobs <= 0.0 || level >= until) {
+            return 0.0;
+        }
+        return cfg.lowLevelExtraMobs * (until - Math.max(1, level)) / (double) (until - 1);
     }
 
     /**

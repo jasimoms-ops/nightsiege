@@ -66,9 +66,16 @@ public class SiegeConfig {
 
     public int baseDurationSeconds = 240;
     public int durationSecondsPerLevel = 20;
-    public int maxDurationSeconds = 600;
+    /** Tor 12 F (Simon 17.11.: "eine Nacht maximal 8 Minuten"): every real night ends at this length (v31: 600 -> 480). */
+    public int maxDurationSeconds = 480;
 
     public int baseMobsPerBatch = 4;
+    /**
+     * Tor 12 (Simon 17.11.: "Nacht 1 ... ca. 3 mobs ... viel zu wenig"): extra monsters on a wave's base count (before
+     * the players' factor) on level 1, fading evenly to 0 at lowLevelMobsUntil. Smooths the early steps. 0 = off.
+     */
+    public double lowLevelExtraMobs = 6.0;
+    public int lowLevelMobsUntil = 10;
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
@@ -930,6 +937,8 @@ public class SiegeConfig {
     // The raid's plan (Simon, 27 October 2026: the raid keeps to the base; game/RaidPlan.java)
     /** Waves come from one side (and a flank), melee monsters wait in front of the wall for a way in. */
     public boolean raidPlan = true;
+    // raidFlankFromLevel and raidFlankShare: no effect since Tor 12 F (waves come in raidGroupsMin..Max groups
+    // around the base); kept so old configs still load.
     /** From this level a wave also sends a flank from a second side. */
     public int raidFlankFromLevel = 6;
     /** Share of a wave that goes to the flank. */
@@ -1749,6 +1758,8 @@ public class SiegeConfig {
         maxDurationSeconds = Math.max(baseDurationSeconds, maxDurationSeconds);
 
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
+        lowLevelExtraMobs = Double.isNaN(lowLevelExtraMobs) ? 0.0 : clampDouble(lowLevelExtraMobs, 0.0, 50.0);
+        lowLevelMobsUntil = clamp(lowLevelMobsUntil, 1, 100);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
         eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
@@ -2378,8 +2389,8 @@ public class SiegeConfig {
         if (settingsVersion < 31) {
             // Tor 12 Teil B (Simon 17.11.: Nacht 1 allein nur ca. 3 Monster): the mod's own defaults are the server's
             // balance (v30). A value still exactly on the old default becomes the server's value; an own value stays.
-            // A fresh config runs through here too, so fresh == server. Not moved: spawn arc (the server's map),
-            // testToolsForEveryone and tuningHelp (no balance). wardenFromLevel is a new field with its default 3.
+            // A fresh config runs through here too, so fresh == server. Not moved: testToolsForEveryone and
+            // tuningHelp (no balance). wardenFromLevel is a new field with its default 3.
             mobsPerLevel = onOld(mobsPerLevel, 1.0, 1.8);
             liveCapByPlayers = onOldList(liveCapByPlayers, List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114),
                     List.of(9, 15, 20, 26, 30, 36, 40, 40, 40, 40));
@@ -2420,6 +2431,12 @@ public class SiegeConfig {
             tweakValueIfMissing("bloodlust", "below", 1.01);
             tweakValueIfMissing("bloodlust", "steal", 0.12);
             tweakValueIfMissing("arrow_rain", "mult", 0.5);
+            // Tor 12 F (Simon 17.11.): nights at most 8:00, monsters from all around (the server's side 45-135 goes).
+            maxDurationSeconds = (int) onOld(maxDurationSeconds, 600, 480);
+            if (Math.abs(spawnArcFrom - 45.0) < 1e-6 && Math.abs(spawnArcTo - 135.0) < 1e-6) {
+                spawnArcFrom = 0.0;
+                spawnArcTo = 360.0;
+            }
             // The attackers: the axe illagers and the evoker as on the server; vex and phantom left the server's waves.
             if (mobs != null) {
                 mobs.removeIf(e -> e != null && isEntry(e, "minecraft:vex", 3, 2, 0.15)
