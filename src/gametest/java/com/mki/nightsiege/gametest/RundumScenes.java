@@ -1,8 +1,7 @@
 package com.mki.nightsiege.gametest;
 
+import com.mki.nightsiege.core.NightArc;
 import com.mki.nightsiege.game.MobFactory;
-import com.mki.nightsiege.game.RaidPlan;
-import com.mki.nightsiege.game.StatsRecorder;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
@@ -19,11 +18,11 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Tor 12 F (Simon 17.11. 15:23): monsters from all around in 2–4 groups, the core's life instead of the kill goal.
- * Pictures: a map from above with a gold block where each monster first showed up (rundum_karte), the bar with
- * "Core x/100 · Welle x/y" in English and German at GUI 2 and 3 (rundum_leiste_*), the core falling
- * (rundum_core_fall). Cases: monsters came, from at least two sides, the wave's groups 2–4 and evenly apart,
- * the bar shows the core and no kills, hits cost life, at 0 the night is lost. Log lines start with "[rundum]".
+ * Tor 12 F (Simon 17.11. 15:30): every night the monsters come from one 90° side, another one each night; no kill
+ * goal (Simon 15:28). Pictures: a map from above with a gold block where each monster first showed up
+ * (rundum_karte), the bar "time · wave x/y · kills N" in English and German at GUI 2 and 3 (rundum_leiste_*).
+ * Cases: monsters came, all within tonight's side, the bar shows wave and kills without a goal, the next night
+ * has another side. A FAIL ends the run with an AssertionError. Log lines start with "[rundum]".
  */
 final class RundumScenes {
 
@@ -91,71 +90,73 @@ final class RundumScenes {
         context.waitTicks(20);
         final BlockPos core = new BlockPos(cx, cy, cz);
         final int[] saved = new int[2];
-        final double[] arc = new double[2];
+        final int[] arc = {NightArc.NONE};
         server(context, "start", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
-            saved[0] = m.config().coreHealth;
+            saved[0] = m.config().spawnArcRotate ? 1 : 0;
             saved[1] = m.config().testPrepSeconds;
-            arc[0] = m.config().spawnArcFrom;
-            arc[1] = m.config().spawnArcTo;
-            m.config().coreHealth = 100;   // the scenes run without the core (EventLookTest); this one with it
+            m.config().spawnArcRotate = true;
             m.config().testPrepSeconds = 1;
-            m.config().spawnArcFrom = 0.0;   // all around, as Simon wants it
-            m.config().spawnArcTo = 360.0;
             log("night prepared=" + m.prepareTest(level.getServer(), level, core, 10, com.mki.nightsiege.core.SiegeEvent.NONE, null));
         });
         context.waitTicks(60);
         EventLookTest.closeScreen(context);
-        server(context, "life", (player, m) -> check(m.coreMax() == 100 && m.coreLife() == 100,
-                "the core starts with 100 life (" + m.coreLife() + "/" + m.coreMax() + ")"));
+        server(context, "arc", (player, m) -> {
+            arc[0] = m.nightArcForTest();
+            check(arc[0] >= 0 && arc[0] < 8, "tonight has a side (" + arc[0] + ")");
+        });
+        double width = 90.0;
+        double from = NightArc.from(Math.max(0, arc[0]), width);
+        log("tonight's side: " + NightArc.key(from) + " to " + NightArc.key(NightArc.to(Math.max(0, arc[0]), width)));
 
-        // Where each monster first shows up, once a second for 40 s (two waves at least).
+        // Where each monster first shows up, four times a second for 40 s. Flyers (phantoms, vexes) spawn in the side
+        // too but are far off within a moment (CI 17.11.: 2 of 19 seen in the south-west): logged, not counted.
         final Map<UUID, double[]> first = new HashMap<>();
-        for (int s = 0; s < 40; s++) {
+        final Map<UUID, String> kinds = new HashMap<>();
+        for (int s = 0; s < 160; s++) {
             server(context, "look", (player, m) -> {
                 ServerLevel level = (ServerLevel) player.level();
                 for (Mob mob : level.getEntitiesOfClass(Mob.class, new net.minecraft.world.phys.AABB(core).inflate(120),
                         e -> e.entityTags().contains(MobFactory.TAG))) {
-                    first.putIfAbsent(mob.getUUID(), new double[] {mob.getX(), mob.getZ()});
+                    if (first.putIfAbsent(mob.getUUID(), new double[] {mob.getX(), mob.getZ()}) == null) {
+                        kinds.put(mob.getUUID(), net.minecraft.world.entity.EntityType.getKey(mob.getType()).getPath()
+                                + (mob.isPassenger() ? "(rider)" : ""));
+                    }
                 }
             });
-            context.waitTicks(20);
+            context.waitTicks(5);
         }
+        int flyers = 0;
+        int in = 0;
+        int out = 0;
         int[] compass = new int[8];
-        for (double[] p : first.values()) {
+        double middle = Math.max(0, arc[0]) * 45.0;
+        for (Map.Entry<UUID, double[]> e : first.entrySet()) {
+            double[] p = e.getValue();
+            String kind = kinds.getOrDefault(e.getKey(), "?");
             double deg = (Math.toDegrees(Math.atan2(p[1] - (core.getZ() + 0.5), p[0] - (core.getX() + 0.5))) + 90.0 + 360.0) % 360.0;
             compass[(int) Math.floorMod(Math.round(deg / 45.0), 8L)]++;
+            double off = Math.abs(((deg - middle) % 360.0 + 540.0) % 360.0 - 180.0);
+            if (kind.startsWith("phantom") || kind.startsWith("vex")) {
+                flyers++;
+            } else if (off <= width / 2 + 12.0) {   // a little room: the first sight is up to 5 ticks after the spawn
+                in++;
+            } else {
+                out++;
+                log(String.format(Locale.ROOT, "outside: %s at %.0f deg (%.0f off the middle) %.0f/%.0f", kind, deg, off,
+                        p[0] - core.getX(), p[1] - core.getZ()));
+            }
         }
-        int sides = 0;
-        for (int c : compass) {
-            sides += c > 0 ? 1 : 0;
-        }
-        log(String.format(Locale.ROOT, "monsters %d by compass N %d NE %d E %d SE %d S %d SW %d W %d NW %d",
-                first.size(), compass[0], compass[1], compass[2], compass[3], compass[4], compass[5], compass[6], compass[7]));
+        log(String.format(Locale.ROOT, "monsters %d, flyers %d, in the side %d, outside %d, by compass N %d NE %d E %d SE %d S %d SW %d W %d NW %d",
+                first.size(), flyers, in, out, compass[0], compass[1], compass[2], compass[3], compass[4], compass[5], compass[6], compass[7]));
         check(first.size() >= 8, "monsters came (" + first.size() + ")");
-        check(sides >= 2, "monsters from at least two sides (" + sides + ")");
-        server(context, "wave", (player, m) -> {
-            RaidPlan.Wave w = m.raid().lastWave();
-            if (w == null) {
-                log("no raid plan in this yard (old spawning): groups not checked, sides " + 0);
-                return;
-            }
-            int n = w.groups().size();
-            check(n >= 1 && n <= 4, "the wave has 1–4 groups (" + n + ", planned 2–4, fewer only without ground)");
-            StringBuilder dirs = new StringBuilder();
-            for (double a : w.groups()) {
-                dirs.append(RaidPlan.compass(a)).append(' ');
-            }
-            log("wave " + w.number() + " groups " + n + ": " + dirs + "flank=" + w.hasFlank());
-            check(!w.hasFlank(), "no flank any more");
-        });
+        check(out == 0, "every monster came from tonight's side (" + out + " outside)");
 
-        // The map: a gold block under where each monster showed up, a red one under the core; seen from above.
+        // The map: a gold block under where each monster showed up, a redstone block under the core; from above.
         server(context, "map", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             for (double[] p : first.values()) {
-                BlockPos at = BlockPos.containing(p[0], cy - 1, p[1]);
-                level.setBlockAndUpdate(at, net.minecraft.world.level.block.Blocks.GOLD_BLOCK.defaultBlockState());
+                level.setBlockAndUpdate(BlockPos.containing(p[0], cy - 1, p[1]), net.minecraft.world.level.block.Blocks.GOLD_BLOCK.defaultBlockState());
             }
             level.setBlockAndUpdate(core.below(), net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState());
         });
@@ -164,14 +165,16 @@ final class RundumScenes {
         context.waitTicks(40);
         shot(context, "rundum_karte");
 
-        // The bar: "Core x/100 · Welle x/y" and the sides, no kills; English and German, GUI 2 and 3.
+        // The bar: time, wave x/y with its side, kills as a number without a goal; English and German, GUI 2 and 3.
         game.getServer().runCommand(String.format(Locale.ROOT, "tp @p %d.5 %d %d.5 0 0", cx, cy + 2, cz - 6));
         context.waitTicks(25);
         server(context, "bar", (player, m) -> {
             String bar = m.bossBarText();
-            log("bar: " + bar);
-            check(bar.contains("/100") && bar.toLowerCase(Locale.ROOT).contains("core"), "the bar shows the core's life");
-            check(!bar.toLowerCase(Locale.ROOT).contains("kills"), "the bar shows no kill goal");
+            log("bar: " + bar + " (night active=" + m.isActive() + ")");
+            check(java.util.regex.Pattern.compile("Wave \\d+/\\d+").matcher(bar).find(), "the bar shows wave x/y");
+            check(java.util.regex.Pattern.compile("Kills \\d+(?!/)").matcher(bar).find() && !bar.matches(".*Kills \\d+/.*"),
+                    "the bar shows the kills without a goal");
+            check(!bar.toLowerCase(Locale.ROOT).contains("core"), "no core life in the bar");
         });
         int scaleBefore = context.computeOnClient(client -> client.options.guiScale().get());
         String langBefore = context.computeOnClient(client -> client.options.languageCode);
@@ -186,43 +189,25 @@ final class RundumScenes {
         LayoutCheck.language(context, langBefore);
         guiScale(context, scaleBefore);
 
-        // Core hits until the defeat: the life set low, the night's monsters brought to the core.
-        server(context, "low", (player, m) -> m.testCoreLife(30));
-        game.getServer().runCommand(String.format(Locale.ROOT, "tp @e[tag=nightsiege] %d.5 %d %d.5", cx, cy, cz + 1));
-        final int[] seen = {30, -1};
-        boolean ended = false;
-        for (int t = 0; t < 30 && !ended; t++) {   // at most 30 s
-            context.waitTicks(20);
-            final boolean[] over = new boolean[1];
-            server(context, "watch", (player, m) -> {
-                over[0] = !m.isActive();
-                if (!over[0]) {
-                    seen[0] = Math.min(seen[0], m.coreLife());
-                }
-            });
-            if (!over[0] && seen[0] <= 20 && seen[1] < 0) {
-                seen[1] = 1;
-                shot(context, "rundum_core_fall");
-            }
-            ended = over[0];
-            if (!ended) {
-                game.getServer().runCommand(String.format(Locale.ROOT, "tp @e[tag=nightsiege] %d.5 %d %d.5", cx, cy, cz + 1));
-            }
-        }
-        check(seen[0] < 30, "hits on the core cost life (lowest seen " + seen[0] + ")");
-        check(ended, "the night ended with the core at 0");
-        StatsRecorder.NightFile night = StatsRecorder.lastFinished;
-        check(night != null && "test_verloren".equals(night.ergebnis) && night.coreLeben == 0,
-                "lost with coreLeben 0 (" + (night == null ? "none" : night.ergebnis + ", " + night.coreLeben) + ")");
+        // The next night comes from another side.
+        server(context, "next", (player, m) -> {
+            ServerLevel level = (ServerLevel) player.level();
+            m.abort(level.getServer());
+            log("next night prepared=" + m.prepareTest(level.getServer(), level, core, 10, com.mki.nightsiege.core.SiegeEvent.NONE, null));
+        });
+        context.waitTicks(60);
+        EventLookTest.closeScreen(context);
+        server(context, "next arc", (player, m) -> {
+            int next = m.nightArcForTest();
+            check(next >= 0 && next != arc[0], "the next night has another side (" + arc[0] + " -> " + next + ")");
+        });
 
         server(context, "end", (player, m) -> {
             if (m.isActive()) {
                 m.abort(player.level().getServer());
             }
-            m.config().coreHealth = saved[0];
+            m.config().spawnArcRotate = saved[0] > 0;
             m.config().testPrepSeconds = saved[1];
-            m.config().spawnArcFrom = arc[0];
-            m.config().spawnArcTo = arc[1];
         });
         context.waitTicks(40);
         EventLookTest.closeScreen(context);
@@ -230,5 +215,9 @@ final class RundumScenes {
             FAILS.add("no checks or pictures");
         }
         log("summary: " + checks + " checks, " + shots + " pictures, " + FAILS.size() + " failed" + (FAILS.isEmpty() ? "" : ": " + FAILS));
+        System.out.println("[Night Siege test] rundum: " + (checks - FAILS.size()) + " von " + checks);
+        if (!FAILS.isEmpty()) {
+            throw new AssertionError("rundum: " + String.join("; ", FAILS));   // a FAIL ends the client with exit != 0
+        }
     }
 }

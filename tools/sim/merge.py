@@ -43,7 +43,7 @@ def main(src, dst):
             elif f.startswith("sim-log-"):
                 logs.append(open(path, encoding="utf-8", errors="replace").read())
     with open(os.path.join(dst, "teamsim.csv"), "w", encoding="utf-8") as out:
-        out.write("art;variante;stufe;gruppe;mischung;lauf;ergebnis;gehalten;sieg;kills;coreLeben;sekunden;tode;unterklassen\n")
+        out.write("art;variante;stufe;gruppe;mischung;lauf;ergebnis;gehalten;sieg;kills;ziel;sekunden;tode;unterklassen\n")
         for r in runs:
             out.write(";".join(r) + "\n")
         out.write("art;variante;stufe;gruppe;mischung;lauf;unterklasse;schaden;erhalten;heilung;kills;tode\n")

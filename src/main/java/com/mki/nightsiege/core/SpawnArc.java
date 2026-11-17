@@ -13,9 +13,31 @@ public final class SpawnArc {
     private SpawnArc() {
     }
 
+    /** Tor 12 F: tonight's side (compass degrees), over the config's arc; NaN = the config's. */
+    private static volatile double nightFrom = Double.NaN;
+    private static volatile double nightTo = Double.NaN;
+
+    public static void tonight(double from, double to) {
+        nightFrom = from;
+        nightTo = to;
+    }
+
+    public static void clearTonight() {
+        nightFrom = Double.NaN;
+        nightTo = Double.NaN;
+    }
+
+    private static double from(SiegeConfig cfg) {
+        return Double.isNaN(nightFrom) ? cfg.spawnArcFrom : nightFrom;
+    }
+
+    private static double to(SiegeConfig cfg) {
+        return Double.isNaN(nightTo) ? cfg.spawnArcTo : nightTo;
+    }
+
     /** Width of the arc in degrees, 360 for all around. */
     public static double widthDegrees(SiegeConfig cfg) {
-        double span = cfg.spawnArcTo - cfg.spawnArcFrom;
+        double span = to(cfg) - from(cfg);
         if (span >= 360.0 || span <= -360.0) {
             return 360.0;
         }
@@ -29,7 +51,7 @@ public final class SpawnArc {
 
     /** The arc's start as a game angle (compass − 90°). */
     private static double start(SiegeConfig cfg) {
-        return Math.toRadians(cfg.spawnArcFrom - 90.0);
+        return Math.toRadians(from(cfg) - 90.0);
     }
 
     /** Whether a game angle lies in the arc. */

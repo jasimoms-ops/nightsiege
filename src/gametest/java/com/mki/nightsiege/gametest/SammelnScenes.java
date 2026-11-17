@@ -5,7 +5,16 @@ import com.mki.nightsiege.game.CoreRecord;
 import com.mki.nightsiege.game.SiegeManager;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPipeline;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import java.lang.reflect.Field;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -61,6 +70,44 @@ final class SammelnScenes {
     }
 
     /** Waits for a condition, at most maxTicks; returns the ticks waited, -1 when it never came. */
+    /** Teil G: the sound packets this client received (sound ids), from a tap in its netty pipeline. */
+    private static final List<String> HEARD = Collections.synchronizedList(new ArrayList<>());
+    private static final String TAP = "nightsiege_sound_tap";
+
+    private static void tapSounds(ClientGameTestContext context, boolean on) {
+        HEARD.clear();
+        context.runOnClient(client -> {
+            try {
+                Field f = Connection.class.getDeclaredField("channel");
+                f.setAccessible(true);
+                ChannelPipeline pipe = ((Channel) f.get(client.getConnection().getConnection())).pipeline();
+                if (pipe.get(TAP) != null) {
+                    pipe.remove(TAP);
+                }
+                if (on) {
+                    pipe.addBefore("packet_handler", TAP, new ChannelInboundHandlerAdapter() {
+                        @Override
+                        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                            if (msg instanceof ClientboundSoundPacket s) {
+                                HEARD.add(s.getSound().value().location().toString());
+                            }
+                            super.channelRead(ctx, msg);
+                        }
+                    });
+                }
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                FAILS.add("sound tap: " + e);
+            }
+        });
+    }
+
+    private static int heard(SoundEvent sound) {
+        String id = sound.location().toString();
+        synchronized (HEARD) {
+            return (int) HEARD.stream().filter(id::equals).count();
+        }
+    }
+
     private static int until(ClientGameTestContext context, int maxTicks, BooleanSupplier cond) {
         for (int t = 0; t <= maxTicks; t++) {
             if (context.computeOnClient(client -> cond.getAsBoolean())) {
@@ -244,10 +291,12 @@ final class SammelnScenes {
             sendAway(player);
             m.gatherTestGuests.put(GUEST_B, "Brunhild");
         });
+        tapSounds(context, true);   // Teil G: which sound packets reach this client (alone)
         game.getServer().runCommand("time set " + (dA * 24000L + 11990L));
         int horn = until(context, 120, () -> m().gathering());
         check(horn >= 0, "A: the horn starts the gathering (" + horn + " ticks)");
         context.waitTicks(20);
+        check(heard(SoundEvents.RAID_HORN.value()) > 0, "A alone hears the horn (sound packets: " + HEARD + ")");
         shot(context, "sammeln_horn");   // title "To the core!" and the chat line
         card(context, "sammeln_horn_fenster", false);   // Horn/Sammeln
         int ready = until(context, 140, () -> m().gatherForTests().phase() == GatherPhase.Phase.READY);
@@ -279,6 +328,10 @@ final class SammelnScenes {
         shot(context, "sammeln_countdown");   // 3-2-1 title, green bar
         int started = until(context, 100, () -> m().isActive());
         check(started >= 0, "after the countdown the night runs (" + started + " ticks)");
+        check(heard(SoundEvents.NOTE_BLOCK_PLING.value()) > 0, "A hears the countdown (" + heard(SoundEvents.NOTE_BLOCK_PLING.value()) + " plings)");
+        int start = until(context, 40, () -> heard(SoundEvents.WITHER_SPAWN) > 0);
+        check(start >= 0, "A alone hears the night's start (sound packets: " + HEARD + ")");
+        tapSounds(context, false);
         server(context, "A night", (player, m) -> {
             int t = m.clockTimeFor(player.level().getServer());
             check(t >= m.config().startDayTime && t <= m.config().startDayTime + 200, "the clock jumped to the start (" + t + ")");
@@ -329,8 +382,65 @@ final class SammelnScenes {
                 player.level().getServer().createCommandSourceStack(), "nightsiege stop"));
         context.waitTicks(40);
 
+        // --- Prüfer Tor 12 (4) + (1): ring 3–6 built full → a spot further out, still a participant;
+        // then a test night in the gathering: tonight's kit back first, one kit, own things whole after the test.
+        long dF = day[0] + 3;
+        prepareNight(context, game, dF, true, false);
+        final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> walled = new java.util.HashMap<>();
+        final List<List<String>> own = new ArrayList<>();
+        server(context, "full ring", (player, m) -> {
+            ServerLevel level = coreLevel(player.level().getServer());
+            CoreRecord c = core();
+            for (int[] off : GatherPhase.ringOffsets(3, 6)) {
+                for (int dy = -4; dy <= 6; dy++) {
+                    BlockPos at = new BlockPos(c.x + off[0], c.y + dy, c.z + off[1]);
+                    walled.put(at, level.getBlockState(at));
+                    level.setBlock(at, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 2);
+                }
+            }
+            sendAway(player);
+            own.add(EventLookTest.survivalSnapshot(player));
+        });
+        hornAndWaitReady(context, game, dF, "full");
+        context.waitTicks(25);
+        server(context, "full arrived", (player, m) -> {
+            double dist = flatDistanceToCore(player);
+            ServerLevel level = coreLevel(player.level().getServer());
+            check(dist >= 6.5 && dist <= 17.0, "ring full: a spot further out (" + String.format("%.1f", dist) + ")");
+            check(SiegeManager.standable(level, player.blockPosition()) && !player.isInWall(), "ring full: safe ground");
+            check(m.gatherForTests().isMember(player.getUUID()), "ring full: still a participant");
+            check(m.kits().hasStash(player), "ring full: kit on");
+            for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e : walled.entrySet()) {
+                level.setBlock(e.getKey(), e.getValue(), 2);
+            }
+        });
+        game.getServer().runCommand("execute as @p at @s run nightsiege test 1");   // the test command needs a player
+        context.waitTicks(20);
+        server(context, "test in gathering", (player, m) -> {
+            check(!m.gathering(), "test night: the gathering ends");
+            check(m.isPreparing() || m.isActive(), "test night: runs (preparing=" + m.isPreparing() + ")");
+            check(m.kits().hasStash(player), "test night: one kit on");
+            check(!m.save().clockHeld || m.isActive(), "test night: the gathering's clock is released");
+            player.level().getServer().getCommands().performPrefixedCommand(
+                    player.level().getServer().createCommandSourceStack(), "nightsiege stop");
+        });
+        context.waitTicks(40);
+        // Tonight's night still comes after the test (as before the gathering): one kit again, then called off.
+        server(context, "after test", (player, m) -> {
+            check(m.nightComing(player.level().getServer()) && m.kits().hasStash(player),
+                    "after the test: tonight still comes, one kit for it");
+            player.level().getServer().getCommands().performPrefixedCommand(
+                    player.level().getServer().createCommandSourceStack(), "nightsiege stop");
+        });
+        context.waitTicks(40);
+        server(context, "night called off", (player, m) -> {
+            check(!m.kits().hasStash(player), "tonight called off: no kit left");
+            List<String> now = EventLookTest.survivalSnapshot(player);
+            check(now.equals(own.get(0)), "after the test: own things whole (" + now.size() + " vs " + own.get(0).size() + ")");
+        });
+
         // --- Late-comer (back to life): spectating at the horn → stays; survival → fetched, kit, counter 3 with B and D.
-        long dL = day[0] + 3;
+        long dL = day[0] + 4;
         prepareNight(context, game, dL, true, false);
         server(context, "late setup", (player, m) -> {
             sendAway(player);
@@ -367,6 +477,21 @@ final class SammelnScenes {
         server(context, "abort clock", (player, m) -> {
             int t = m.clockTimeFor(player.level().getServer());
             check(t > clock[0], "after the abort the clock runs (" + clock[0] + " → " + t + ")");
+        });
+
+        // --- Tor 12 (Simon 17.11. 15:25): the war leader's round is off by default, not even a command starts it.
+        server(context, "war off", (player, m) -> {
+            boolean was = m.config().warLeaderEnabled;
+            m.config().warLeaderEnabled = new com.mki.nightsiege.core.SiegeConfig().warLeaderEnabled;
+            check(!m.config().warLeaderEnabled, "the war leader's round is off by default");
+            MinecraftServer server = player.level().getServer();
+            String why = m.warLeader().startBot(server);
+            check("nightsiege.war.off".equals(why), "off: the bot round does not start (" + why + ")");
+            m.warLeader().onAction(player, "start");
+            m.warLeader().onAction(player, "sandbox:5");
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "nightsiege kriegsfuehrer bot");
+            check(!m.warLeader().busy(), "off: no round from the window, the sandbox or the command");
+            m.config().warLeaderEnabled = was;
         });
 
         server(context, "end", (player, m) -> {

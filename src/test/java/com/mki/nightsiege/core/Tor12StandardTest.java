@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class Tor12StandardTest {
 
     /** Not balance: the spawn side belongs to the server's map, the test tools and the help text to the server. */
-    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp");
+    private static final List<String> NOT_BALANCE = List.of("spawnArcFrom", "spawnArcTo", "testToolsForEveryone", "tuningHelp",
+            "warLeaderEnabled");   // a mode switch (Tor 12: off by default, Simon 17.11.), not balance
 
     private static SiegeConfig read(String path) throws Exception {
         SiegeConfig c = new Gson().fromJson(Files.readString(Path.of(path), StandardCharsets.UTF_8), SiegeConfig.class);
@@ -64,6 +65,14 @@ class Tor12StandardTest {
         assertTrue(fresh.refillSpawns);
         assertEquals(3, fresh.wardenFromLevel);
         assertEquals(3, server.wardenFromLevel);   // missing key: the field's default
+        // Tor 12 F: nights at most 8:00, the server's side stays, war leader off; low levels get more monsters
+        assertEquals(480, server.maxDurationSeconds);
+        assertEquals(480, fresh.maxDurationSeconds);
+        assertEquals(45.0, server.spawnArcFrom, 1e-9);
+        assertEquals(135.0, server.spawnArcTo, 1e-9);
+        assertFalse(server.warLeaderEnabled);
+        assertFalse(fresh.warLeaderEnabled);
+        assertEquals(6, SiegeMath.mobsPerBatch(1, 1, fresh));
     }
 
     @Test
@@ -79,6 +88,9 @@ class Tor12StandardTest {
         JsonObject json = new Gson().fromJson(Files.readString(Path.of("src/test/resources/tor12/standard-v30.json"),
                 StandardCharsets.UTF_8), JsonObject.class);
         json.addProperty("mobsPerLevel", 1.3);
+        json.addProperty("maxDurationSeconds", 540);
+        json.addProperty("spawnArcFrom", 90.0);
+        json.addProperty("spawnArcTo", 180.0);
         json.addProperty("monsterDamage", 1.1);
         json.getAsJsonObject("subclassDamage").addProperty("axe", 1.4);
         JsonArray caps = new JsonArray();
@@ -99,6 +111,9 @@ class Tor12StandardTest {
         SiegeConfig c = new Gson().fromJson(json, SiegeConfig.class);
         c.sanitize();
         assertEquals(1.3, c.mobsPerLevel, 1e-9);
+        assertEquals(540, c.maxDurationSeconds);
+        assertEquals(90.0, c.spawnArcFrom, 1e-9);
+        assertEquals(180.0, c.spawnArcTo, 1e-9);
         assertEquals(1.1, c.monsterDamage, 1e-9);
         assertEquals(1.4, c.subclassDamage.get("axe"), 1e-9);
         assertEquals(List.of(10, 20), c.liveCapByPlayers);
@@ -117,5 +132,10 @@ class Tor12StandardTest {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"wardenFromLevel\":0}", SiegeConfig.class);
         c.sanitize();
         assertEquals(1, c.wardenFromLevel);
+    }
+
+    @Test
+    void warLeaderOffByDefault() {   // Simon 17.11. 15:25: "deaktiviere den Kriegsführer modus"
+        assertFalse(new SiegeConfig().warLeaderEnabled);
     }
 }

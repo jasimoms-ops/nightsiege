@@ -34,6 +34,9 @@ class SiegeCoreTest {
      */
     static SiegeConfig beforeV31(SiegeConfig c) {
         c.mobsPerLevel = 1.0;
+        c.lowLevelExtraMobs = 0.0;
+        c.minMobsPerWave = 0;
+        c.maxDurationSeconds = 600;
         c.healthPerLevel = 0.06;
         c.maxHealthMultiplier = 2.5;
         c.damagePerLevel = 0.04;
@@ -126,7 +129,7 @@ class SiegeCoreTest {
         assertEquals(26, SiegeMath.liveCap(4, server));    // Tor 12 (v31): the old table moves to the server's
         assertEquals(40, SiegeMath.liveCap(10, server));
         assertEquals(56, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
-        assertEquals(1.0, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v31: flat, as on the server since Tor 8
+        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v31: alone a little easier (Sim k2)
         assertEquals(1.0, SiegeMath.healthForGroup(3, server), 1e-9);
         assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
         assertTrue(server.quotaSkipsVanished);

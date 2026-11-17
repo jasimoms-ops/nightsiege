@@ -231,6 +231,10 @@ public final class SiegeManager {
     /** Nachschub (refillSpawns): game time of the next replacement, the raid plan and monster counts of the running wave. */
     private long nextRefill;
     private RaidPlan.Wave wavePlan;
+    /** Tor 12 F: the sides the last wave with monsters came from, for the bar (its plan's groups, or where they stood). */
+    private List<Double> waveSides = List.of();
+    /** Tor 12 F: the last test night's side (test nights keep the save's side untouched). */
+    private int testArc = com.mki.nightsiege.core.NightArc.NONE;
     private Map<String, Integer> waveFoesNow = new HashMap<>();
     /** Schlaue Nacht (Simon 05.11. 20:26): the night turns itself up or down by how the defenders do. */
     private final com.mki.nightsiege.core.SmartNight smart = new com.mki.nightsiege.core.SmartNight();
@@ -2201,6 +2205,12 @@ public final class SiegeManager {
         broadcast(server, Component.translatable(eclipse ? "nightsiege.msg.eclipse_warning" : "nightsiege.msg.warning",
                 currentLevel()).withStyle(eclipse ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD));
         Fx.warning(server, config);
+        safe("Seite der Nacht", () -> {
+            int arc = nightArc(levelByName(server, core.dimension), new BlockPos(core.x, core.y, core.z), false);
+            if (arc >= 0) {
+                broadcast(server, arcNotice(arc).copy().withStyle(ChatFormatting.GOLD));   // Tor 12 F
+            }
+        });
         wakeSleepers(server);   // nobody sleeps the night away (Simon 31.10.)
         boolean gathering = com.mki.nightsiege.core.GatherPhase.gathers(config, true);
         handOutAtWarning(server, core, gathering);
@@ -2277,9 +2287,6 @@ public final class SiegeManager {
     private int spawnedTotal;
     /** Monsters of the night gone without being slain (quotaSkipsVanished, 29.10.). */
     private int vanishedTotal;
-    /** Tor 12 F: the core's life tonight and its start (0 = no core: war round, bastion, scenes). */
-    private int coreLife;
-    private int coreMax;
     private final Set<UUID> slainNightMobs = new HashSet<>();
     private int killQuota;
     /**
@@ -2348,6 +2355,11 @@ public final class SiegeManager {
         if (nearby.isEmpty()) {
             return false;
         }
+        if (gather.active()) {
+            // Prüfer Tor 12 (1): a test night in the gathering: tonight's kits go back first (no kit over a kit).
+            endGather(server, true);
+            endKits(server);
+        }
         if (config.testPrepSeconds <= 0) {   // 0 = no preparation at all, also no build-up (the scenes)
             testBoss = boss;
             return startTest(server, targetWorld, targetAnchor, level, event);
@@ -2402,6 +2414,8 @@ public final class SiegeManager {
     /** Brought to the core in this gathering (each once: who walks away is not fetched again). */
     private final Set<UUID> gatherBrought = new HashSet<>();
     private static final List<int[]> GATHER_RING = com.mki.nightsiege.core.GatherPhase.ringOffsets(3, 6);
+    /** Prüfer Tor 12 (4): the base built full within 6 blocks: further out before the roof of the core. */
+    private static final List<int[]> GATHER_RING_WIDE = com.mki.nightsiege.core.GatherPhase.ringOffsets(7, 16);
     private static final int[] GATHER_DY = {0, 1, -1, 2, -2, 3, -3, 4};
 
     /** Scene sammeln: more participants at the core without a second client (uuid → name). */
@@ -2563,6 +2577,17 @@ public final class SiegeManager {
                             gather.readyCount(), gather.memberCount()).withStyle(ChatFormatting.GRAY));
                 }
             }
+            // Prüfer Tor 12 (4): who was brought counts by the ground plan (a spot high up or further out stays in).
+            double r2 = config.participantRadius * config.participantRadius;
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                double dx = p.getX() - (pos.getX() + 0.5);
+                double dz = p.getZ() - (pos.getZ() + 0.5);
+                if (gatherBrought.contains(p.getUUID()) && !atCore.contains(p.getUUID()) && p.level() == level
+                        && dx * dx + dz * dz <= r2 && bringsToCore(p)) {
+                    atCore.add(p.getUUID());
+                    gather.join(p.getUUID(), p.getGameProfile().name());
+                }
+            }
             for (Map.Entry<UUID, String> guest : gatherTestGuests.entrySet()) {
                 gather.join(guest.getKey(), guest.getValue());
                 atCore.add(guest.getKey());
@@ -2599,8 +2624,9 @@ public final class SiegeManager {
     /** A free, safe spot 3–6 blocks around the core (nearest first, never next to another player's). */
     private static BlockPos gatherSpot(ServerLevel level, BlockPos core, Set<Long> taken) {
         level.getChunkAt(core);
-        for (int spacing = 1; spacing >= 0; spacing--) {
-            for (int[] off : GATHER_RING) {
+        for (int pass = 0; pass < 3; pass++) {
+            int spacing = pass == 0 ? 1 : 0;
+            for (int[] off : pass < 2 ? GATHER_RING : GATHER_RING_WIDE) {
                 int x = core.getX() + off[0];
                 int z = core.getZ() + off[1];
                 if (spotTaken(taken, x, z, spacing)) {
@@ -3035,11 +3061,11 @@ public final class SiegeManager {
                 : bastionRound ? 20 * 60 * 120   // the bastion has no clock: two hours that never run down
                 : SiegeMath.durationSeconds(siegeLevel, config) * 20;
         ticksLeft = totalTicks;
-        coreMax = warRound || bastionRound ? 0 : Math.max(0, config.coreHealth);   // Tor 12 F: full life every night
-        coreLife = coreMax;
+        applyNightArc(testRun);   // Tor 12 F: tonight's side (before the raid plans its waves)
         batchCooldown = 0;
         nextRefill = 0L;
         wavePlan = null;
+        waveSides = List.of();
         waveFoesNow = new HashMap<>();
         digAccumulator = 0;
         participants.clear();
@@ -3281,8 +3307,8 @@ public final class SiegeManager {
             int total = finaleDown + finaleQueue.size() + (int) finaleBosses.stream().filter(b -> !b.fallen()).count();
             Component group = Component.translatable("nightsiege.bar.group", siegeLevel, finaleDown, total).copy()
                     .append(" · " + com.mki.nightsiege.core.BossNight.clock(ticksLeft));
-            return withCore((chapterLine == null ? group : Component.empty().append(chapterLine).append(" · ").append(group))
-                    .copy().withStyle(ChatFormatting.GOLD));
+            return (chapterLine == null ? group : Component.empty().append(chapterLine).append(" · ").append(group))
+                    .copy().withStyle(ChatFormatting.GOLD);
         }
         if (lateNight) {
             // A late boss night: the clock and the bosses (coming, or how many still stand).
@@ -3291,120 +3317,89 @@ public final class SiegeManager {
                     ? Component.translatable("nightsiege.bar.late_coming", finaleQueue.size(),
                             Math.max(0, (lateTicks() - (totalTicks - ticksLeft)) / 20))
                     : Component.translatable("nightsiege.bar.late_here", standing);
-            return withCore(Component.empty().append(title).append(Component.literal("  ·  "))
-                    .append(state.copy().withStyle(ChatFormatting.RED)));
+            return Component.empty().append(title).append(Component.literal("  ·  "))
+                    .append(state.copy().withStyle(ChatFormatting.RED));
         }
         if (bosses.planned()) {
-            // A boss night: the boss is the goal (and the core must hold).
-            return withCore(Component.empty().append(title).append(Component.literal("  ·  "))
+            // A boss night: the boss is the goal.
+            return Component.empty().append(title).append(Component.literal("  ·  "))
                     .append(Component.translatable(bosses.spawned() ? "nightsiege.bar.boss_here" : "nightsiege.bar.boss_coming",
-                            Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED)));
+                            Component.translatable("nightsiege.boss." + bosses.kind().id())).withStyle(ChatFormatting.RED));
         }
         if (warden.spawned()) {
             // The warden came: he is the goal now.
-            return withCore(Component.empty().append(title).append(Component.literal("  ·  "))
-                    .append(Component.translatable("nightsiege.bar.warden_here", WardenNight.name(warden.kind()))));
+            return Component.empty().append(title).append(Component.literal("  ·  "))
+                    .append(Component.translatable("nightsiege.bar.warden_here", WardenNight.name(warden.kind())));
         }
-        // Tor 12 F (Simon 17.11.): no kill goal any more; a fixed number, the core's life, then wave x/y and its sides.
-        MutableComponent bar = withCore(title);
+        // Tor 12 F (Simon 17.11. 15:28): no kill goal any more; the time, wave x/y with its sides and the kills.
+        MutableComponent bar = Component.empty().append(title);
         bar.append(Component.literal("  ·  ")).append(Component.translatable("nightsiege.bar.wave",
                 Math.min(wavesStarted, plannedWaves()), plannedWaves()));
-        if (wavePlan != null && !wavePlan.groups().isEmpty()) {
-            bar.append(Component.literal(" ")).append(RaidPlan.directions(wavePlan.groups(), true).copy().withStyle(ChatFormatting.GRAY));
+        if (!waveSides.isEmpty()) {
+            bar.append(Component.literal(" ")).append(RaidPlan.directions(waveSides, true).copy().withStyle(ChatFormatting.GRAY));
         }
+        bar.append(Component.literal("  ·  ")).append(Component.translatable("nightsiege.bar.kills", nightKills).withStyle(ChatFormatting.YELLOW));
         if (goalNote != null && ticksLeft > goalNoteUntil) {
             bar.append(Component.literal(" ")).append(goalNote);
         }
         return bar;
     }
 
-    /** Tor 12 F: "Core 87/100" behind a bar's text (green, yellow at half, red at a quarter); nothing without a core. */
-    private MutableComponent withCore(Component text) {
-        MutableComponent out = Component.empty().append(text);
-        if (coreMax <= 0) {
-            return out;
-        }
-        ChatFormatting colour = coreLife * 4 <= coreMax ? ChatFormatting.RED
-                : coreLife * 2 <= coreMax ? ChatFormatting.YELLOW : ChatFormatting.GREEN;
-        return out.append(Component.literal("  ·  ")).append(Component.translatable("nightsiege.bar.core", coreLife, coreMax).withStyle(colour));
-    }
-
-    /** Tor 12 F: the core's life tonight and its start (0 without a core), for the core window and the tests. */
-    public int coreLife() {
-        return coreLife;
-    }
-
-    public int coreMax() {
-        return coreMax;
-    }
-
-    /** For the tests: sets the core's life tonight. */
-    public void testCoreLife(int life) {
-        coreLife = Math.max(0, Math.min(coreMax, life));
-    }
-
     /**
-     * Tor 12 F: every coreHitSeconds each monster of the night within coreHitRange hits the core (a normal one
-     * coreDamageNormal, an elite, champion or nemesis coreDamageStrong, a boss coreDamageBoss); a hit shows and
-     * sounds at the core, the fall below a half and a quarter is told to everyone.
+     * Tor 12 F (Simon 17.11. 15:30): tonight's side, a spawnArcWidth arc round one of the eight directions, chosen
+     * anew when the last night was played out (never the same twice in a row), kept in the save so a restart keeps
+     * it. Test nights pick their own without touching the save. -1 when the arc is fixed (spawnArcRotate false).
      */
-    private void tickCore(MinecraftServer server) {
-        long now = world.getGameTime();
-        if (coreLife <= 0 || now % (Math.max(1, config.coreHitSeconds) * 20L) != 0) {
-            return;
+    private int nightArc(ServerLevel level, BlockPos core, boolean test) {
+        if (!config.spawnArcRotate) {
+            return com.mki.nightsiege.core.NightArc.NONE;
         }
-        double r = config.coreHitRange;
-        double cx = anchor.getX() + 0.5;
-        double cz = anchor.getZ() + 0.5;
-        int before = coreLife;
-        int hits = 0;
-        for (Mob mob : world.getEntitiesOfClass(Mob.class, new net.minecraft.world.phys.AABB(anchor).inflate(r + 1.0), Mob::isAlive)) {
-            if (!hitsCore(mob) || !com.mki.nightsiege.core.CoreLife.inReach(mob.getX() - cx, mob.getY() - anchor.getY(), mob.getZ() - cz, r)) {
-                continue;
-            }
-            coreLife = com.mki.nightsiege.core.CoreLife.afterHit(coreLife,
-                    com.mki.nightsiege.core.CoreLife.damage(coreRank(mob), config));
-            hits++;
-            if (coreLife <= 0) {
-                break;
-            }
+        java.util.function.IntPredicate ground = d -> arcHasGround(level, core, d);
+        if (test) {
+            testArc = com.mki.nightsiege.core.NightArc.pick(testArc, random, ground);
+            return testArc;
         }
-        if (hits == 0) {
-            return;
+        if (save.spawnArcDone || save.spawnArcDir < 0) {
+            save.spawnArcDir = com.mki.nightsiege.core.NightArc.pick(save.spawnArcDir, random, ground);
+            save.spawnArcDone = false;
+            persist();
         }
-        world.sendParticles(ParticleTypes.CRIT, cx, anchor.getY() + 1.0, cz, 10 + 5 * hits, 0.5, 0.6, 0.5, 0.3);
-        world.sendParticles(ParticleTypes.DAMAGE_INDICATOR, cx, anchor.getY() + 1.2, cz, 2 + hits, 0.4, 0.3, 0.4, 0.1);
-        world.playSound(null, anchor, SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 0.7f, 0.6f);
-        int warning = com.mki.nightsiege.core.CoreLife.warning(before, coreLife, coreMax);
-        if (warning > 0 && coreLife > 0) {
-            world.playSound(null, anchor, SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 3.0f, 0.6f);
-            Component text = Component.translatable("nightsiege.msg.core_warning", coreLife, coreMax)
-                    .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
-            broadcast(server, text);
-            for (UUID id : participants) {   // on the screen too, not only in the chat
-                ServerPlayer player = server.getPlayerList().getPlayer(id);
-                if (player != null) {
-                    player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(text));
-                }
-            }
+        return save.spawnArcDir;
+    }
+
+    /** Whether the base has spawn ground (a way to the wall) towards a direction; true without a scan. */
+    private boolean arcHasGround(ServerLevel level, BlockPos core, int direction) {
+        if (level == null || core == null) {
+            return true;
+        }
+        BaseScan base = BaseDefense.scanFor(level, core, config);
+        return base == null || base.spawnSpotCount() == 0
+                || base.spawnNear(com.mki.nightsiege.core.NightArc.gameAngle(direction), 9, random) != null;
+    }
+
+    /** Sets tonight's side for every spawn of the night (the config's fixed arc when not rotating). */
+    private void applyNightArc(boolean test) {
+        int arc = warRound || bastionRound ? com.mki.nightsiege.core.NightArc.NONE : nightArc(world, anchor, test);
+        if (arc < 0) {
+            com.mki.nightsiege.core.SpawnArc.clearTonight();
+        } else {
+            com.mki.nightsiege.core.SpawnArc.tonight(com.mki.nightsiege.core.NightArc.from(arc, config.spawnArcWidth),
+                    com.mki.nightsiege.core.NightArc.to(arc, config.spawnArcWidth));
+            NightSiegeMod.LOGGER.info("[Night Siege] Seite der Nacht: {} ({} Grad)", com.mki.nightsiege.core.NightArc.key(arc * 45.0),
+                    config.spawnArcWidth);
         }
     }
 
-    /** Whether a mob is one of the night's attackers (a companion of the defenders never is). */
-    private static boolean hitsCore(Mob mob) {
-        if (Companions.isCompanion(mob)) {
-            return false;
-        }
-        Set<String> tags = mob.entityTags();
-        return tags.contains(MobFactory.TAG) || BossService.isBoss(mob) || tags.contains(WardenNight.TAG)
-                || tags.contains(WardenNight.GUARD_TAG) || Nemesis.isNemesis(mob);
+    /** "Tonight they come from south-west to south-east" for the horn. */
+    private Component arcNotice(int arc) {
+        return Component.translatable("nightsiege.msg.arc_tonight",
+                Component.translatable("nightsiege.dir." + com.mki.nightsiege.core.NightArc.key(com.mki.nightsiege.core.NightArc.from(arc, config.spawnArcWidth))),
+                Component.translatable("nightsiege.dir." + com.mki.nightsiege.core.NightArc.key(com.mki.nightsiege.core.NightArc.to(arc, config.spawnArcWidth))));
     }
 
-    private static com.mki.nightsiege.core.CoreLife.Rank coreRank(Mob mob) {
-        Set<String> tags = mob.entityTags();
-        return com.mki.nightsiege.core.CoreLife.rank(BossService.isBoss(mob),
-                tags.contains(MobFactory.TAG_ELITE) || Elites.isElite(mob),
-                tags.contains(WardenNight.TAG) || tags.contains(WardenNight.GUARD_TAG), Nemesis.isNemesis(mob));
+    /** For the tests: the side of the night (-1 = the fixed arc). */
+    public int nightArcForTest() {
+        return testRun ? testArc : save.spawnArcDir;
     }
 
     /** For the tests: the boss bar's text right now. */
@@ -3506,17 +3501,6 @@ public final class SiegeManager {
             }
             return;
         }
-        // Tor 12 F (Chef 17.11.): monsters at the core hit it; at 0 the night is lost.
-        if (coreMax > 0 && bossVictoryAt < 0) {
-            safe("Core", () -> tickCore(server));
-            if (com.mki.nightsiege.core.CoreLife.outcome(true, coreLife, standing, fallenCount, false, false)
-                    == com.mki.nightsiege.core.CoreLife.End.LOST) {
-                broadcast(server, Component.translatable("nightsiege.msg.core_fallen").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD));
-                finish(server, false);
-                return;
-            }
-        }
-
         // Bossnacht neu (Simon 11.11.): after bossFinaleSeconds the boss and his guard come, the others withdraw;
         // after that no more waves (the last big wave of the old finale is gone).
         if (!warRound && !bastionRound && bosses.planned() && !bosses.spawned() && world.getGameTime() % 20 == 0
@@ -4969,6 +4953,11 @@ public final class SiegeManager {
                 spawned++;
             }
         }
+        if (plan != null) {
+            waveSides = plan.hasFlank() ? List.of(plan.main(), plan.flank()) : List.of(plan.main());   // Tor 12 F: for the bar
+        } else if (!wave.isEmpty()) {
+            waveSides = RaidPlan.sides(anchor.getX() + 0.5, anchor.getZ() + 0.5, wave);   // no plan: where they stand
+        }   // a wave without monsters (the field full): the sides of the last one, whose monsters are still out there
         if (count < wanted && !config.refillSpawns) {
             goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
         } else if (spawned < count) {
@@ -5434,7 +5423,7 @@ public final class SiegeManager {
             }
         }
         try {
-            finished = stats.endNight(world == null ? 0L : world.getGameTime(), result, coreLife, nightKills, liveMobs);
+            finished = stats.endNight(world == null ? 0L : world.getGameTime(), result, nightKills, liveMobs);
         } catch (RuntimeException e) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Statistik fehlgeschlagen: {}", e.toString());
         }
@@ -5720,6 +5709,7 @@ public final class SiegeManager {
         }
 
         save.highestLevel = Math.max(save.highestLevel, siegeLevel);
+        save.spawnArcDone = true;   // Tor 12 F: played out, the next night picks a new side
         boolean chapterWon = false;
         if (finale) {
             // The Vierer-Nacht: won, a crown for every defender.
@@ -5743,7 +5733,7 @@ public final class SiegeManager {
         // The rhythm's count: a lost boss night or Vierer-Nacht comes again.
         bossNights();
         save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won && bossDown);
-        String result = won ? (quotaMet ? "gewonnen" : "ziel_verfehlt") : "verloren";
+        String result = com.mki.nightsiege.core.NightEnd.result(won);   // Tor 12 F: kills do not count
         int blasted = 0;
         if (won && !quotaMet) {
             // Held, but too few monsters fell: the night comes again at the same level.

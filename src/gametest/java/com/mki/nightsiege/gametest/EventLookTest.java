@@ -59,7 +59,6 @@ public class EventLookTest implements FabricClientGameTest {
                     manager.config().eliteMobs = false;
                     manager.config().lifestealCoupled = false;
                     manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
-                    manager.config().coreHealth = 0;   // Tor 12 F: no core life in the scenes; "rundum" has it
                 });
             }
             String only = System.getenv("NIGHTSIEGE_SCENES");
@@ -68,7 +67,7 @@ public class EventLookTest implements FabricClientGameTest {
                 java.util.List<String> want = java.util.Arrays.asList(only.toLowerCase(Locale.ROOT).replace(" ", "").split(","));
                 if (want.contains("camp")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
-                    campScene(context, game);
+                    failOnLines("camp", () -> campScene(context, game));   // Tor 12: a "[camp] FAIL" line fails the run
                 }
                 if (want.contains("base")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
@@ -127,7 +126,17 @@ public class EventLookTest implements FabricClientGameTest {
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
                 if (want.contains("warleader") || want.contains("krieg")) {
-                    warLeaderScene(context, game);   // the war leader's round (29 October 2026)
+                    // Tor 12: the round is off by default (Simon 17.11.); the scene switches it on for itself.
+                    final boolean[] warWas = new boolean[1];
+                    onServer(context, (p, mgr) -> {
+                        warWas[0] = mgr.config().warLeaderEnabled;
+                        mgr.config().warLeaderEnabled = true;
+                    });
+                    try {
+                        warLeaderScene(context, game);   // the war leader's round (29 October 2026)
+                    } finally {
+                        onServer(context, (p, mgr) -> mgr.config().warLeaderEnabled = warWas[0]);
+                    }
                 }
                 if (want.contains("fadenkreuz")) {
                     WarCursorScenes.run(context, game);   // Tor 10 / K2: the war leader's ground cross
@@ -1354,12 +1363,16 @@ public class EventLookTest implements FabricClientGameTest {
             if (!"axe".equals(sub)) {
                 fails.add("lifesteal test is no axe fighter: " + sub);
             }
-            if (ratio[1] < 0.045 || ratio[1] > 0.075) {
-                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not 0.06", ratio[1]));
+            // Tor 12 (v31): the expectations come from the config (the server's values), not from fixed numbers.
+            double want1 = cfg.hitLifestealAt("axe", 1) * cfg.hitLifestealLevelFactor(1);
+            double want15 = cfg.hitLifestealAt("axe", 15) * cfg.hitLifestealLevelFactor(15);
+            if (ratio[1] < want15 * 0.75 || ratio[1] > want15 * 1.25) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal on level 15 is %.3f of the hit, not %.3f", ratio[1], want15));
             }
-            if (ratio[1] <= 0 || ratio[0] / ratio[1] < 2.2 || ratio[0] / ratio[1] > 2.8) {
-                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not 2.5",
-                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1]));
+            double wantRatio = want15 <= 0 ? 0 : want1 / want15;
+            if (ratio[1] <= 0 || ratio[0] / ratio[1] < wantRatio * 0.88 || ratio[0] / ratio[1] > wantRatio * 1.12) {
+                fails.add(String.format(java.util.Locale.ROOT, "life steal level 1 / level 15 = %.2f, not %.2f",
+                        ratio[1] <= 0 ? 0 : ratio[0] / ratio[1], wantRatio));
             }
             // Two small hits at once: the first heals the floor (1 life point), the second only its share.
             float[] small = new float[2];
@@ -1383,8 +1396,9 @@ public class EventLookTest implements FabricClientGameTest {
             double h15 = com.mki.nightsiege.game.CombatEffects.hitHeal(cfg, "axe", 10, 4, 15, false);
             System.out.println(String.format(java.util.Locale.ROOT, "[Night Siege test] fight lifesteal formula: hit 10 on level 1 heals %.2f,"
                     + " on level 15 with 4 cleaved %.2f", h1, h15));
-            if (Math.abs(h1 - 1.5) > 1e-6 || Math.abs(h15 - (0.6 + 4 * 0.06 * 0.5)) > 1e-6) {
-                fails.add("life steal formula " + h1 + " / " + h15);
+            if (Math.abs(h1 - 10 * want1) > 1e-6 || Math.abs(h15 - (10 * want15 + 4 * want15 * cfg.hitLifestealCleave)) > 1e-6) {
+                fails.add("life steal formula " + h1 + " / " + h15 + ", config " + 10 * want1 + " / "
+                        + (10 * want15 + 4 * want15 * cfg.hitLifestealCleave));
             }
             manager.save().siegesWon = savedWon[0];
             own.levels.clear();
@@ -8949,6 +8963,45 @@ public class EventLookTest implements FabricClientGameTest {
     }
 
     /** Something to do on the integrated server with the test player and the siege manager. */
+    /**
+     * Tor 12 (CI 17.11.: FAIL lines with exit=0): runs a scene that prints "[name] OK …" / "[name] FAIL …" and
+     * throws once it is done if any FAIL line came (from any thread), so the client ends with exit != 0.
+     */
+    static void failOnLines(String name, Runnable scene) {
+        java.io.PrintStream before = System.out;
+        java.util.concurrent.atomic.AtomicInteger ok = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.List<String> fails = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        String okMark = "[" + name + "] OK";
+        String failMark = "[" + name + "] FAIL";
+        java.io.PrintStream tee = new java.io.PrintStream(before, true) {
+            @Override
+            public void println(String line) {
+                before.println(line);   // through the game's own stream, so the log keeps its [STDOUT] lines
+                if (line != null && line.startsWith(failMark)) {
+                    fails.add(line.length() > 160 ? line.substring(0, 160) : line);
+                } else if (line != null && line.startsWith(okMark)) {
+                    ok.incrementAndGet();
+                }
+            }
+
+            @Override
+            public void println(Object line) {
+                println(String.valueOf(line));
+            }
+        };
+        System.setOut(tee);
+        try {
+            scene.run();
+        } finally {
+            System.setOut(before);
+        }
+        int checks = ok.get() + fails.size();
+        System.out.println("[Night Siege test] " + name + ": " + ok.get() + " von " + checks);
+        if (!fails.isEmpty()) {
+            throw new AssertionError(name + ": " + String.join("; ", fails));
+        }
+    }
+
     interface OnServer {
         void run(net.minecraft.server.level.ServerPlayer player, com.mki.nightsiege.game.SiegeManager manager);
     }
@@ -10931,6 +10984,7 @@ public class EventLookTest implements FabricClientGameTest {
         onServer(context, (player, manager) -> {
             net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level();
             oldCores.addAll(manager.save().cores);
+            manager.config().warLeaderEnabled = true;   // Tor 12: off by default (Simon 17.11.), this scene switches it on
             manager.save().cores.clear();
             manager.save().cores.add(new com.mki.nightsiege.game.CoreRecord(
                     com.mki.nightsiege.game.SiegeManager.dimensionName(level), core.getX(), core.getY(), core.getZ()));

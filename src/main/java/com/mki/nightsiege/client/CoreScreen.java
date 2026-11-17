@@ -972,7 +972,25 @@ public class CoreScreen extends Screen {
                     bx += rw + 4;
                 }
             }
-            if (stats.warOn) {
+            if (!stats.warOn) {
+                // Tor 12 (Simon 17.11. 15:25): switched off – a grey button with the reason, left out when it does not fit.
+                int rightLimit = left + W - 66 - (!stats.siegeActive && !stats.nightComing
+                        ? Math.max(70, font.width(Component.translatable("nightsiege.ui.unregister")) + 12) + 4 : 0);
+                Component war = Component.translatable("nightsiege.ui.war_short");
+                int ww = Math.max(60, font.width(war) + 12);
+                if (bx + ww > rightLimit) {
+                    war = Component.literal("⚔");
+                    ww = 22;
+                }
+                if (bx + ww <= rightLimit) {
+                    Button wb = Button.builder(war, b -> { }).bounds(bx, footerY, ww, 18)
+                            .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                                    Component.translatable("nightsiege.ui.war_off_hint"))).build();
+                    wb.active = false;
+                    addRenderableWidget(wb);
+                    bx += ww + 4;
+                }
+            } else {
                 // The war leader's round (Kriegsführer, 29 October 2026): whoever presses first leads the monsters.
                 boolean running = !stats.warLeader.isEmpty();
                 boolean free = stats.warMine || !running && stats.warBlock.isEmpty();
@@ -4893,10 +4911,9 @@ public class CoreScreen extends Screen {
             bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, w - 16, RED, cardFoot, bottom);
             bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
                     x + 8, cy + 12, w - 16, GRAY, cardFoot, bottom);
-            if (stats.coreMax > 0) {   // Tor 12 F: the core's life instead of the kill goal
-                bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_core", stats.coreLife, stats.coreMax).getString(),
-                        x + 8, cy + 24, w - 16, stats.coreLife * 4 <= stats.coreMax ? RED : stats.coreLife * 2 <= stats.coreMax ? GOLD : GREEN, cardFoot, bottom);
-            }
+            // Tor 12 F: the kills as a number, no goal
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills).getString(),
+                    x + 8, cy + 24, w - 16, GOLD, cardFoot, bottom);
             nextSiegeFoot(gui, font, x, y, w, h, bottom);
             return;
         }

@@ -165,6 +165,11 @@ final class KapitelScenes {
         CoreCardCheck.fake(context, com.mki.nightsiege.game.CoreNetworking.GatherPayload.COUNTDOWN, 3, 7, 8);
         shots += CoreCardCheck.matrix(context, "sammeln_countdown", true, KapitelScenes::check);
         CoreCardCheck.clear(context);
+        // Tor 12 (Simon 17.11. 15:25): the war leader switched off – a grey button (or none), the footer still whole.
+        server(context, "war off", (player, m) -> m.config().warLeaderEnabled = false);
+        tab(context, "STATS");
+        shots += CoreCardCheck.matrix(context, "kriegsfuehrer_aus", false, KapitelScenes::check);
+        server(context, "war on", (player, m) -> m.config().warLeaderEnabled = true);
         EventLookTest.closeScreen(context);
 
         // The finale is won: the night counted (rhythm 20, won 20), then the chapter closes.

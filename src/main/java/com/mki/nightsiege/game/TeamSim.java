@@ -690,7 +690,7 @@ public final class TeamSim {
         String outcome = problem != null ? problem : night == null ? "unbekannt" : night.ergebnis;
         boolean held = "test_gehalten".equals(outcome);
         int kills = night == null ? 0 : night.kills;
-        int goal = night == null ? 0 : night.coreLeben;   // Tor 12 F: the core's life left (no kill goal)
+        int goal = 0;   // Tor 12 F: no kill goal any more (the column "ziel" stays for merge.py)
         boolean won = held;
         Map<String, double[]> bySub = new TreeMap<>();
         if (night != null) {
@@ -1225,7 +1225,7 @@ public final class TeamSim {
     private static void writeFiles(List<String> summary) {
         try {
             List<String> csv = new ArrayList<>();
-            csv.add("art;variante;stufe;gruppe;mischung;lauf;ergebnis;gehalten;sieg;kills;coreLeben;sekunden;tode;unterklassen");
+            csv.add("art;variante;stufe;gruppe;mischung;lauf;ergebnis;gehalten;sieg;kills;ziel;sekunden;tode;unterklassen");
             for (Result r : results) {
                 StringBuilder subs = new StringBuilder();
                 for (String[] s : r.run().subs()) {

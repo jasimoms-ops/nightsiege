@@ -66,9 +66,18 @@ public class SiegeConfig {
 
     public int baseDurationSeconds = 240;
     public int durationSecondsPerLevel = 20;
-    public int maxDurationSeconds = 600;
+    /** Tor 12 F (Simon 17.11.: "eine Nacht maximal 8 Minuten"): every real night ends at this length (v31: 600 -> 480). */
+    public int maxDurationSeconds = 480;
 
     public int baseMobsPerBatch = 4;
+    /**
+     * Tor 12 (Simon 17.11.: "Nacht 1 ... ca. 3 mobs ... viel zu wenig"): extra monsters on a wave's base count (before
+     * the players' factor) on level 1, fading evenly to 0 at lowLevelMobsUntil. Smooths the early steps. 0 = off.
+     */
+    public double lowLevelExtraMobs = 3.0;
+    public int lowLevelMobsUntil = 6;
+    /** Tor 12 (Simon 17.11.): a wave brings at least this many monsters (before the live cap), alone too. 0 = off. */
+    public int minMobsPerWave = 6;
     public double mobsPerLevel = 1.0;
     /** Each additional player multiplies the batch size by this much. */
     public double playerScaling = 0.6;
@@ -200,6 +209,10 @@ public class SiegeConfig {
      */
     public double spawnArcFrom = 0.0;
     public double spawnArcTo = 360.0;
+    /** Tor 12 F (Simon 17.11.): every night a side this wide (degrees) round one of the eight directions, never the last one. */
+    public double spawnArcWidth = 90.0;
+    /** Tor 12 F: the side changes every night; false = the fixed arc spawnArcFrom/To. */
+    public boolean spawnArcRotate = true;
     /** How far from the core the base scan looks for walls (set with /nightsiege base radius). */
     public int baseRadius = 64;
 
@@ -559,7 +572,7 @@ public class SiegeConfig {
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
     /** The round can be started from the core window. */
-    public boolean warLeaderEnabled = true;
+    public boolean warLeaderEnabled = false;   // Chef 17.11. (v31): off by default
     /**
      * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon
@@ -942,18 +955,6 @@ public class SiegeConfig {
     public int raidStuckSeconds = 15;
     /** Ladder carriers every wave brings at least, when the base has walls. */
     public int raidMinLadders = 1;
-    /** Tor 12 F (Simon 17.11.): a wave splits into this many groups around the base (evenly, turned each wave). */
-    public int raidGroupsMin = 2;
-    public int raidGroupsMax = 4;
-    /** Tor 12 F: the core's life in every night, no healing (0 = off). Replaces the kill goal. */
-    public int coreHealth = 100;
-    /** Monsters this close to the core (blocks) hit it, each once every coreHitSeconds. */
-    public double coreHitRange = 3.0;
-    public int coreHitSeconds = 1;
-    /** Life a hit on the core costs: a normal monster, an elite/champion/nemesis, a boss. */
-    public int coreDamageNormal = 1;
-    public int coreDamageStrong = 3;
-    public int coreDamageBoss = 10;
 
     // Update 2 "Fluch & Rache" (Simon, 28 October 2026)
     /** The curse altar in the core window: curses for the next night, for better rewards. */
@@ -1749,6 +1750,9 @@ public class SiegeConfig {
         maxDurationSeconds = Math.max(baseDurationSeconds, maxDurationSeconds);
 
         baseMobsPerBatch = Math.max(1, baseMobsPerBatch);
+        lowLevelExtraMobs = Double.isNaN(lowLevelExtraMobs) ? 0.0 : clampDouble(lowLevelExtraMobs, 0.0, 50.0);
+        lowLevelMobsUntil = clamp(lowLevelMobsUntil, 1, 100);
+        minMobsPerWave = clamp(minMobsPerWave, 0, 200);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
         eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
@@ -2383,8 +2387,14 @@ public class SiegeConfig {
             mobsPerLevel = onOld(mobsPerLevel, 1.0, 1.8);
             liveCapByPlayers = onOldList(liveCapByPlayers, List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114),
                     List.of(9, 15, 20, 26, 30, 36, 40, 40, 40, 40));
-            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
-            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), List.of(1.0, 1.0, 1.0, 1.0));
+            // Tor 12 Abstimmung (Sim k2, Bogen je Nacht ohne Kill-Ziel): alone and in pairs a little easier, from the
+            // old default and from the server's flat table alike (alone 42 % -> 62 % in the sim).
+            List<Double> takenNew = List.of(0.7, 0.85, 1.0, 1.0);
+            List<Double> healthNew = List.of(0.75, 0.9, 1.0, 1.0);
+            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.9, 0.95, 1.0), takenNew);
+            damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(1.0, 1.0, 1.0, 1.0), takenNew);
+            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.7, 0.9, 0.95, 1.0), healthNew);
+            mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(1.0, 1.0, 1.0, 1.0), healthNew);
             fieldRefCaps = onOldList(fieldRefCaps, List.of(), List.of(9, 15, 20, 26, 40, 51, 81, 97, 110, 124));
             refillSpawns = true;   // old default false = the server's switch was never set by hand
             fieldHealth = onOld(fieldHealth, 0.0, 0.4);
@@ -2393,7 +2403,7 @@ public class SiegeConfig {
             maxHealthMultiplier = onOld(maxHealthMultiplier, 2.5, 3.0);
             damagePerLevel = onOld(damagePerLevel, 0.04, 0.08);
             maxDamageMultiplier = onOld(maxDamageMultiplier, 2.0, 3.0);
-            lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.75, 0.9);
+            lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.9, 0.75);   // the server's 0.9 back to 0.75 (Sim k2)
             lowLevelDamageDealt = onOld(lowLevelDamageDealt, 1.15, 1.05);
             effectMobsFromLevel = (int) onOld(effectMobsFromLevel, 10, 5);
             executionerFromLevel = (int) onOld(executionerFromLevel, 10, 11);
@@ -2420,6 +2430,11 @@ public class SiegeConfig {
             tweakValueIfMissing("bloodlust", "below", 1.01);
             tweakValueIfMissing("bloodlust", "steal", 0.12);
             tweakValueIfMissing("arrow_rain", "mult", 0.5);
+            // Tor 12 F (Simon 17.11.): nights at most 8:00. Chef 17.11.: the war leader's round is off by default.
+            maxDurationSeconds = (int) onOld(maxDurationSeconds, 600, 480);
+            if (warLeaderEnabled) {
+                warLeaderEnabled = false;   // old default true = never switched by hand
+            }
             // The attackers: the axe illagers and the evoker as on the server; vex and phantom left the server's waves.
             if (mobs != null) {
                 mobs.removeIf(e -> e != null && isEntry(e, "minecraft:vex", 3, 2, 0.15)
@@ -2560,14 +2575,7 @@ public class SiegeConfig {
         raidRegroupSeconds = clamp(raidRegroupSeconds <= 0 ? 45 : raidRegroupSeconds, 5, 600);
         raidStuckSeconds = clamp(raidStuckSeconds <= 0 ? 15 : raidStuckSeconds, 5, 120);
         raidMinLadders = clamp(raidMinLadders, 0, 6);
-        raidGroupsMin = clamp(raidGroupsMin, 1, 8);
-        raidGroupsMax = clamp(raidGroupsMax, raidGroupsMin, 8);
-        coreHealth = clamp(coreHealth, 0, 100000);
-        coreHitRange = Double.isNaN(coreHitRange) ? 3.0 : clampDouble(coreHitRange, 1.0, 16.0);
-        coreHitSeconds = clamp(coreHitSeconds, 1, 60);
-        coreDamageNormal = clamp(coreDamageNormal, 0, 100000);
-        coreDamageStrong = clamp(coreDamageStrong, 0, 100000);
-        coreDamageBoss = clamp(coreDamageBoss, 0, 100000);
+        spawnArcWidth = Double.isNaN(spawnArcWidth) ? 90.0 : clampDouble(spawnArcWidth, 10.0, 360.0);
         curseMax = clamp(curseMax <= 0 ? 3 : curseMax, 1, CurseKind.values().length);
         curseCrateChance = Double.isNaN(curseCrateChance) ? 0.15 : Math.min(1.0, Math.max(0.0, curseCrateChance));
         cursePoints = clamp(cursePoints, 0, 20);

@@ -5,6 +5,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -223,8 +225,15 @@ public final class Fx {
     // plumbing
     // ------------------------------------------------------------------
 
+    /**
+     * A sound for exactly this player. Tor 12 (Simon 17.11.: "man hört kein Horn"): Player#playSound on the
+     * server plays for everyone around but leaves the player himself out (his client would predict it), so
+     * alone nobody heard the horn or the night's start. A sound packet goes straight to him.
+     */
     private static void play(ServerPlayer player, SoundEvent sound, float volume, float pitch) {
-        player.playSound(sound, volume, pitch);
+        player.connection.send(new ClientboundSoundPacket(BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound),
+                SoundSource.PLAYERS, player.getX(), player.getY(), player.getZ(), volume, pitch,
+                player.getRandom().nextLong()));
     }
 
     private static void playAt(ServerLevel level, double x, double y, double z,
