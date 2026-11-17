@@ -372,8 +372,16 @@ final class SammelnScenes {
                     player.level().getServer().createCommandSourceStack(), "nightsiege stop");
         });
         context.waitTicks(40);
+        // Tonight's night still comes after the test (as before the gathering): one kit again, then called off.
         server(context, "after test", (player, m) -> {
-            check(!m.kits().hasStash(player), "after the test: no kit left");
+            check(m.nightComing(player.level().getServer()) && m.kits().hasStash(player),
+                    "after the test: tonight still comes, one kit for it");
+            player.level().getServer().getCommands().performPrefixedCommand(
+                    player.level().getServer().createCommandSourceStack(), "nightsiege stop");
+        });
+        context.waitTicks(40);
+        server(context, "night called off", (player, m) -> {
+            check(!m.kits().hasStash(player), "tonight called off: no kit left");
             List<String> now = EventLookTest.survivalSnapshot(player);
             check(now.equals(own.get(0)), "after the test: own things whole (" + now.size() + " vs " + own.get(0).size() + ")");
         });
