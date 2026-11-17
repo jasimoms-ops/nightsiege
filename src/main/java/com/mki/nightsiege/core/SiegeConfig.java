@@ -559,7 +559,7 @@ public class SiegeConfig {
     public int campGraceSeconds = 0;   // Simon 30.10. 23:52: the guards attack at once (was 10)
     // ---- the war leader's round (Kriegsführer, Simon 29.10.2026)
     /** The round can be started from the core window. */
-    public boolean warLeaderEnabled = true;
+    public boolean warLeaderEnabled = false;   // Tor 12 (Simon 17.11. 15:25): off; then no round, not even by command
     /**
      * Gold: what a normal night of the same level and team sends per minute (its monsters, sappers,
      * a share of machines and boss, in gold), over the round's waves, times this share (Simon

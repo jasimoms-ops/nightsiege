@@ -127,7 +127,17 @@ public class EventLookTest implements FabricClientGameTest {
                     dungeonDumpScene(context, game);   // every block of the eight dungeons as a file (29 October 2026)
                 }
                 if (want.contains("warleader") || want.contains("krieg")) {
-                    warLeaderScene(context, game);   // the war leader's round (29 October 2026)
+                    // Tor 12: the round is off by default (Simon 17.11.); the scene switches it on for itself.
+                    final boolean[] warWas = new boolean[1];
+                    onServer(context, (p, mgr) -> {
+                        warWas[0] = mgr.config().warLeaderEnabled;
+                        mgr.config().warLeaderEnabled = true;
+                    });
+                    try {
+                        warLeaderScene(context, game);   // the war leader's round (29 October 2026)
+                    } finally {
+                        onServer(context, (p, mgr) -> mgr.config().warLeaderEnabled = warWas[0]);
+                    }
                 }
                 if (want.contains("fadenkreuz")) {
                     WarCursorScenes.run(context, game);   // Tor 10 / K2: the war leader's ground cross
