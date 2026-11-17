@@ -2160,6 +2160,9 @@ public final class SiegeManager {
 
     /** Too few accepts or nobody at the core: the night is skipped, the next invitation comes a few days later. */
     private void cancelNight(MinecraftServer server, long day, String key) {
+        if (gather.active()) {
+            endGather(server, true);   // Tor 12: called off in the gathering (/nightsiege stop): the clock runs again
+        }
         safe("Heerlager", () -> camp.onCancel(server));
         long next = nextSiegeDayAfter(server, day);
         int days = (int) (next - day);
@@ -2392,6 +2395,15 @@ public final class SiegeManager {
     private static final List<int[]> GATHER_RING = com.mki.nightsiege.core.GatherPhase.ringOffsets(3, 6);
     private static final int[] GATHER_DY = {0, 1, -1, 2, -2, 3, -3, 4};
 
+    /** Scene sammeln: more participants at the core without a second client (uuid → name). */
+    public final Map<UUID, String> gatherTestGuests = new java.util.LinkedHashMap<>();
+
+    /** Scene sammeln: tonight's horn may come again (several runs on one day). */
+    public void resetRhythmForTests() {
+        warnedDay = -1L;
+        startedDay = -1L;
+    }
+
     /** For the tests and the window: the gathering's logic. */
     public com.mki.nightsiege.core.GatherPhase gatherForTests() {
         return gather;
@@ -2542,6 +2554,10 @@ public final class SiegeManager {
                             gather.readyCount(), gather.memberCount()).withStyle(ChatFormatting.GRAY));
                 }
             }
+            for (Map.Entry<UUID, String> guest : gatherTestGuests.entrySet()) {
+                gather.join(guest.getKey(), guest.getValue());
+                atCore.add(guest.getKey());
+            }
             gather.retain(atCore);
         }
         showGather(server);
@@ -2604,7 +2620,7 @@ public final class SiegeManager {
     }
 
     /** Firm ground below, two free dry blocks for the body; nothing that burns, holds or sends away. */
-    static boolean standable(ServerLevel level, BlockPos feet) {
+    public static boolean standable(ServerLevel level, BlockPos feet) {
         BlockPos below = feet.below();
         net.minecraft.world.level.block.state.BlockState ground = level.getBlockState(below);
         if (!ground.isFaceSturdy(level, below, net.minecraft.core.Direction.UP) || !ground.getFluidState().isEmpty()

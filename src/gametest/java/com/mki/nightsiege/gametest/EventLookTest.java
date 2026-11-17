@@ -264,6 +264,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     KapitelScenes.run(context, game);   // Tor 11: chapters instead of level 21+ (Simon 13.11.)
                 }
+                if (want.contains("sammeln")) {
+                    alive(context);
+                    SammelnScenes.run(context, game);   // Tor 12: to the core at the horn, kit, ready, countdown (Simon 17.11.)
+                }
                 if (want.contains("richtung")) {
                     alive(context);
                     RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east
