@@ -269,6 +269,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east
                 }
+                if (want.contains("rundum")) {
+                    alive(context);
+                    RundumScenes.run(context, game);   // Tor 12 F: spawns all around, the core's life, its bar and its fall
+                }
                 if (want.contains("nemesis")) {
                     alive(context);   // a scene before may have left the player dead (05.11.)
                     NemesisScenes.run(context, game);   // Fehler-Stichprobe 06.11. nachts: warden and boss guard stay on the field
