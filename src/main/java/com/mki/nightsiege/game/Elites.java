@@ -88,14 +88,7 @@ public final class Elites {
 
     /** The chance that a monster of this level is an elite (0 below the start level). */
     public static double chance(SiegeConfig cfg, int level) {
-        if (cfg == null || !cfg.eliteMobs || level < cfg.eliteMobFromLevel) {
-            return 0.0;
-        }
-        if (cfg.eliteMobMaxLevel <= cfg.eliteMobFromLevel || level >= cfg.eliteMobMaxLevel) {
-            return level >= cfg.eliteMobMaxLevel ? cfg.eliteMobChanceMax : cfg.eliteMobChance;
-        }
-        double t = (level - cfg.eliteMobFromLevel) / (double) (cfg.eliteMobMaxLevel - cfg.eliteMobFromLevel);
-        return cfg.eliteMobChance + (cfg.eliteMobChanceMax - cfg.eliteMobChance) * t;
+        return com.mki.nightsiege.core.SiegeMath.eliteChance(cfg, level);
     }
 
     /** A new monster of the night: rolls whether it is an elite, and makes it one. */

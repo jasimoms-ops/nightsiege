@@ -180,7 +180,7 @@ public final class Besiegers {
         // night, it may be bombed properly"): 1 + sappersPerLevel per level each wave (at most
         // sapperMaxPerWave), up to sapperHolesPerSide holes per side and night, each at another spot.
         if (cfg.sapperFromLevel > 0 && level >= cfg.sapperFromLevel && base != null && (base.closed || base.reach() > 6.0)) {
-            double want = 1.0 + Math.max(0.0, cfg.sappersPerLevel) * level;
+            double want = com.mki.nightsiege.core.SiegeMath.sappersWanted(level, cfg);
             int count = (int) Math.floor(want) + (random.nextDouble() < want - Math.floor(want) ? 1 : 0);
             count = Math.min(count, Math.max(1, cfg.sapperMaxPerWave));
             for (int n = 0; n < count; n++) {

@@ -650,7 +650,7 @@ public final class Foes {
         if (melee == 0) {
             return;
         }
-        int want = Math.min(1 + (melee - 1) / 2, cfg.stunnersMax - living(Role.STUNNER));
+        int want = com.mki.nightsiege.core.SiegeMath.stunnersWanted(melee, cfg, living(Role.STUNNER));
         for (int i = 0; i < want; i++) {
             spawnRole(host, Role.STUNNER);
         }

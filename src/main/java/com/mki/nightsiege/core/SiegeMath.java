@@ -220,6 +220,48 @@ public final class SiegeMath {
         return (int) Math.min(quota, Math.ceil(share * possible));
     }
 
+    /**
+     * Waves a night of {@code totalTicks} brings: one at the start, then one per interval (batchIntervalSeconds times
+     * the wave factor of the curses; a wave starts a tick after its cooldown, hence the +1). Tor 12: moved out of the
+     * SiegeManager unchanged so the night atlas can call it.
+     */
+    public static int plannedWaves(int totalTicks, SiegeConfig cfg, double curseWaveFactor) {
+        int interval = Math.max(20, (int) Math.round(((double) cfg.batchIntervalSeconds) * 20.0 * curseWaveFactor)) + 1;
+        return Math.max(1, (totalTicks - 1) / interval + 1);
+    }
+
+    /**
+     * Monsters one wave brings (before the cap on live monsters clips it): the batch times the event's count factor,
+     * the extra siege's factor and the curse "Uebermacht". Tor 12: moved out of the SiegeManager unchanged.
+     */
+    public static int waveSize(int level, int players, SiegeConfig cfg, double perPlayer, int maxLive,
+                               double eventMobFactor, boolean specialNight, double curseMobFactor) {
+        return (int) Math.round(mobsPerBatch(level, players, cfg, perPlayer, maxLive)
+                * eventMobFactor * (specialNight ? cfg.specialNightMobMultiplier : 1.0) * curseMobFactor);
+    }
+
+    /** The chance that a monster of this level is an elite (0 below the start level); moved out of Elites unchanged (Tor 12). */
+    public static double eliteChance(SiegeConfig cfg, int level) {
+        if (cfg == null || !cfg.eliteMobs || level < cfg.eliteMobFromLevel) {
+            return 0.0;
+        }
+        if (cfg.eliteMobMaxLevel <= cfg.eliteMobFromLevel || level >= cfg.eliteMobMaxLevel) {
+            return level >= cfg.eliteMobMaxLevel ? cfg.eliteMobChanceMax : cfg.eliteMobChance;
+        }
+        double t = (level - cfg.eliteMobFromLevel) / (double) (cfg.eliteMobMaxLevel - cfg.eliteMobFromLevel);
+        return cfg.eliteMobChance + (cfg.eliteMobChanceMax - cfg.eliteMobChance) * t;
+    }
+
+    /** Sapper creepers wanted in one wave (whole part sure, the rest as a chance), before sapperMaxPerWave. */
+    public static double sappersWanted(int level, SiegeConfig cfg) {
+        return 1.0 + Math.max(0.0, cfg.sappersPerLevel) * level;
+    }
+
+    /** Stunners one wave adds for {@code melee} melee defenders: 1, 1, 2, 2, 3 ..., at most stunnersMax alive. */
+    public static int stunnersWanted(int melee, SiegeConfig cfg, int alive) {
+        return Math.min(1 + (melee - 1) / 2, cfg.stunnersMax - alive);
+    }
+
     /** The kill goal set at the start of a night. */
     public static int killQuota(double share, int waves, int perWave) {
         return (int) Math.ceil(Math.max(0, share) * Math.max(0, waves) * Math.max(0, perWave));
