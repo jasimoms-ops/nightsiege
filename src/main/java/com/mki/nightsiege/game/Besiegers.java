@@ -189,7 +189,7 @@ public final class Besiegers {
                     break;   // every side has its holes tonight
                 }
                 Vec3 approach = weakSpot(anchor, base, side, sapperSpots.computeIfAbsent(side, k -> new ArrayList<>()), random);
-                BlockPos spot = spawnSpotOnSide(world, anchor, base, side, random);
+                BlockPos spot = spawnSpotOnSide(world, anchor, base, side, random, cfg);
                 Mob creeper = spot == null ? null
                         : MobFactory.spawnAt(world, spot, "minecraft:creeper", level, cfg, random, event, false);
                 if (creeper == null) {
@@ -344,6 +344,9 @@ public final class Besiegers {
         int start = random.nextInt(4);
         for (int i = 0; i < 4; i++) {
             int side = (start + i) % 4;
+            if (!sideInArc(cfg, side)) {
+                continue;   // Tor 12 F: only the sides of tonight's arc (CI 17.11.: sappers came from the other sides)
+            }
             int used = breached.getOrDefault(side, 0) + sapperOnWay.getOrDefault(side, 0);
             if (used < Math.max(1, cfg.sapperHolesPerSide) && used < bestUsed) {
                 best = side;
@@ -351,6 +354,14 @@ public final class Besiegers {
             }
         }
         return best;
+    }
+
+    /** Whether a side (its ±40° where sappers spawn) reaches into the spawn arc. */
+    static boolean sideInArc(SiegeConfig cfg, int side) {
+        double a = side * Math.PI / 2;
+        double spread = Math.PI / 4.4;
+        return com.mki.nightsiege.core.SpawnArc.contains(cfg, a) || com.mki.nightsiege.core.SpawnArc.contains(cfg, a - spread)
+                || com.mki.nightsiege.core.SpawnArc.contains(cfg, a + spread);
     }
 
     /** 0 east, 1 south, 2 west, 3 north of the core. */
@@ -393,15 +404,16 @@ public final class Besiegers {
         return new Vec3(anchor.getX() + 0.5 + Math.cos(a) * (edge + 3.0), anchor.getY(), anchor.getZ() + 0.5 + Math.sin(a) * (edge + 3.0));
     }
 
-    private static BlockPos spawnSpotOnSide(ServerLevel world, BlockPos anchor, BaseScan base, int side, Random random) {
+    private static BlockPos spawnSpotOnSide(ServerLevel world, BlockPos anchor, BaseScan base, int side, Random random, SiegeConfig cfg) {
         for (int attempt = 0; attempt < 24; attempt++) {
             double a = side * Math.PI / 2 + (random.nextDouble() - 0.5) * Math.PI / 2.2;
             double edge = base.edgeTowards(anchor.getX() + 0.5 + Math.cos(a) * 8, anchor.getZ() + 0.5 + Math.sin(a) * 8);
             double d = edge + 8.0 + random.nextDouble() * 8.0;
             int x = anchor.getX() + (int) Math.round(Math.cos(a) * d);
             int z = anchor.getZ() + (int) Math.round(Math.sin(a) * d);
-            if (!world.hasChunk(x >> 4, z >> 4) || base.contains(x, z)) {
-                continue;
+            if (!world.hasChunk(x >> 4, z >> 4) || base.contains(x, z)
+                    || !com.mki.nightsiege.core.SpawnArc.contains(cfg, Math.atan2(z - anchor.getZ(), x - anchor.getX()))) {
+                continue;   // Tor 12 F: sappers too only from tonight's side
             }
             int y = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             BlockPos spot = new BlockPos(x, y, z);
