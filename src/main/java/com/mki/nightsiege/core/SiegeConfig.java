@@ -36,6 +36,13 @@ public class SiegeConfig {
     public int warningDayTime = 12000;
     /** Day time at which the siege starts (15000 = full night). */
     public int startDayTime = 15000;
+    /**
+     * Tor 12 (Simon 17.11.): at the horn everyone who accepted is brought to the core, gets the kit and
+     * presses ready; the clock stands until all are ready (or {@link #gatherReadyMaxSeconds}). false = as before.
+     */
+    public boolean gatherTeleport = true;
+    /** Tor 12: the night starts at the latest this long after the teleport, ready or not. */
+    public int gatherReadyMaxSeconds = 180;
 
     // --- core and participants -------------------------------------------
     /** Players needed around the core before the countdown moves at all. */
@@ -1670,6 +1677,7 @@ public class SiegeConfig {
         maxDaysBetweenSieges = Math.max(minDaysBetweenSieges, maxDaysBetweenSieges);
         warningDayTime = clamp(warningDayTime, 0, 23999);
         startDayTime = clamp(startDayTime, 0, 23999);
+        gatherReadyMaxSeconds = clamp(gatherReadyMaxSeconds, 30, 600);
         requiredPlayers = Math.max(1, requiredPlayers);
         coreRadius = Math.max(16.0, coreRadius);
         participantRadius = Math.max(16.0, participantRadius);

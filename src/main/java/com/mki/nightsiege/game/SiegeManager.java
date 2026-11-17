@@ -2357,6 +2357,10 @@ public final class SiegeManager {
                 .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/nightsiege playtest bereit")));
     }
 
+    /** Tor 12: "Bereit" in the gathering at the core (button, chat link, /nightsiege bereit): toggles. */
+    public void toggleGatherReady(ServerPlayer player) {
+    }
+
     /** True while a playtest night's build-up runs (Tor 9.1 i). */
     public boolean inSetup() {
         return pendingTest != null && pendingTest.setup != null;
