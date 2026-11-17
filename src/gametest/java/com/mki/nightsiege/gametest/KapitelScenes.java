@@ -149,9 +149,12 @@ final class KapitelScenes {
         // Paket 13.11b: "Kapitel 1 · Nacht 20 · Finale" never over "Stufe 20", English and German, GUI 2 and 3.
         shots += LayoutCheck.matrix(context, "kapitel_finale", true, KapitelScenes::check, tag -> {
             com.mki.nightsiege.client.CoreScreen.testChapterGap = -1000;
+            com.mki.nightsiege.client.CoreScreen.testNextSiegeGap = -1000;
             context.waitTicks(3);
             int gap = com.mki.nightsiege.client.CoreScreen.testChapterGap;
             check(gap >= 2, tag + ": the chapter line clear of the level (gap " + gap + " px, 99 = own line)");
+            int foot = com.mki.nightsiege.client.CoreScreen.testNextSiegeGap;
+            check(foot >= 0, tag + ": no line of the next-siege card over the base line (gap " + foot + " px)");
         });
         EventLookTest.closeScreen(context);
 

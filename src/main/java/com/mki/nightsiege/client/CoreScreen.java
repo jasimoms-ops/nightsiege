@@ -1275,6 +1275,9 @@ public class CoreScreen extends Screen {
     /** For the scenes (13.11b): pixels between "Stufe N" and the chapter line in the last frame (99 = own line below). */
     public static volatile int testChapterGap = -1000;
 
+    /** For the scenes (Tor 12): free pixels between the lowest line of the next-siege card and its base line (or foot). */
+    public static volatile int testNextSiegeGap = -1000;
+
     private void invisible(Button button) {
         button.setAlpha(0f);
         addRenderableWidget(button);
@@ -4792,7 +4795,6 @@ public class CoreScreen extends Screen {
 
     private void drawNextSiege(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
         int cy = card(gui, font, x, y, w, h, "nightsiege.ui.card_next", Tab.STATS.color);
-        drawBaseLine(gui, font, x, y, w, h);
         float levelScale = compact ? 1.0f : 1.5f;
         gui.pose().pushMatrix();
         gui.pose().translate(x + 8, cy);
@@ -4821,14 +4823,19 @@ public class CoreScreen extends Screen {
             PurpleUi.fitText(gui, font, chapterLine, x + 8, cy - (compact ? 1 : 2), w - 16, 8, GOLD, true, false);
             cy += compact ? 9 : 10;
         }
+        // Tor 12 (Simon 17.11. 14:48): lines never over each other. Every line below only where it fits; the small
+        // base line at the foot gives way to them and is left out when the card is full.
+        int cardFoot = y + h - 2;
         if (stats.siegeActive) {
-            gui.text(font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, RED, true);
-            gui.text(font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
-                    x + 8, cy + 12, GRAY, true);
+            int bottom = cy;
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_active").getString(), x + 8, cy, w - 16, RED, cardFoot, bottom);
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_time_left", clock(stats.secondsLeft)).getString(),
+                    x + 8, cy + 12, w - 16, GRAY, cardFoot, bottom);
             if (stats.killsRequired > 0) {
-                gui.text(font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills, stats.killsRequired).getString(),
-                        x + 8, cy + 24, stats.nightKills >= stats.killsRequired ? GREEN : GOLD, true);
+                bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.stat_kills", stats.nightKills, stats.killsRequired).getString(),
+                        x + 8, cy + 24, w - 16, stats.nightKills >= stats.killsRequired ? GREEN : GOLD, cardFoot, bottom);
             }
+            nextSiegeFoot(gui, font, x, y, w, h, bottom);
             return;
         }
         // Countdown bar.
@@ -4853,34 +4860,67 @@ public class CoreScreen extends Screen {
         } else {
             when = Component.translatable("nightsiege.ui.rhythm_none").getString();
         }
-        gui.text(font, when, x + 8, cy, stats.voteOpen || stats.nightComing ? GOLD : GRAY, true);
+        int bottom = cardLine(gui, font, when, x + 8, cy, w - 16, stats.voteOpen || stats.nightComing ? GOLD : GRAY, cardFoot, cy);
         cy += compact ? 10 : 12;
-        boolean enough = stats.accepted >= stats.acceptsRequired;
-        int dot = stats.voteOpen || stats.nightComing ? (enough ? 0xFF55FF55 : 0xFFFFAA00) : 0xFF8C8894;
-        gui.fill(x + 8, cy + 2, x + 13, cy + 7, dot);
-        String line = stats.voteOpen || stats.nightComing
+        boolean asked = stats.voteOpen || stats.nightComing;
+        String line = asked
                 ? Component.translatable("nightsiege.ui.rhythm_accepts", stats.accepted, stats.acceptsRequired).getString()
                 : Component.translatable("nightsiege.ui.rhythm_registered", stats.registeredCount).getString();
-        gui.text(font, line, x + 17, cy, WHITE, true);
-        cy += compact ? 10 : 11;
-        if (stats.voteOpen || stats.nightComing) {
-            String mine = stats.myVote.equals("yes") ? "nightsiege.ui.rhythm_me_yes"
-                    : stats.myVote.equals("no") ? "nightsiege.ui.rhythm_me_no" : "nightsiege.ui.rhythm_me_open";
-            gui.text(font, Component.translatable(mine).getString(), x + 17, cy,
-                    stats.myVote.equals("yes") ? GREEN : stats.myVote.equals("no") ? RED : GOLD, true);
+        if (cy + 9 <= cardFoot) {
+            boolean enough = stats.accepted >= stats.acceptsRequired;
+            int dot = asked ? (enough ? 0xFF55FF55 : 0xFFFFAA00) : 0xFF8C8894;
+            gui.fill(x + 8, cy + 2, x + 13, cy + 7, dot);
         }
-        cy += 12;
-        if (cy + 9 > y + h - (stats.baseKnown ? 11 : 0)) {
-            return;   // the base line sits at the foot
+        bottom = cardLine(gui, font, line, x + 17, cy, w - 25, WHITE, cardFoot, bottom);
+        if (asked) {
+            // "You are in" beside the accepts when both fit in the row, else on a line of its own.
+            String mine = Component.translatable(stats.myVote.equals("yes") ? "nightsiege.ui.rhythm_me_yes"
+                    : stats.myVote.equals("no") ? "nightsiege.ui.rhythm_me_no" : "nightsiege.ui.rhythm_me_open").getString();
+            int mineColor = stats.myVote.equals("yes") ? GREEN : stats.myVote.equals("no") ? RED : GOLD;
+            int lineW = font.width(line);
+            if (lineW + 10 + font.width(mine) <= w - 25) {
+                bottom = cardLine(gui, font, "· " + mine, x + 17 + lineW + 4, cy, w - 25 - lineW - 4, mineColor, cardFoot, bottom);
+                cy += compact ? 10 : 12;
+            } else {
+                cy += compact ? 10 : 11;
+                bottom = cardLine(gui, font, mine, x + 17, cy, w - 25, mineColor, cardFoot, bottom);
+                cy += 12;
+            }
+        } else {
+            cy += compact ? 10 : 12;
         }
-        // The extra siege: who called tonight's, or why the button below is greyed out.
-        if (stats.extraSiegeToday && (stats.voteOpen || stats.nightComing)) {
-            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.extra_today",
-                    stats.extraSiegeBy).getString(), w - 16), x + 8, cy, GOLD, true);
+        // The extra siege: who called tonight's, or why the button below is greyed out – only above the base line.
+        int extraFoot = stats.baseKnown ? y + h - 12 : cardFoot;
+        if (stats.extraSiegeToday && asked) {
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.extra_today", stats.extraSiegeBy).getString(),
+                    x + 8, cy, w - 16, GOLD, extraFoot, bottom);
         } else if (stats.extraSiegeOn && !stats.voteOpen && !"NONE".equals(stats.extraSiegeBlock)) {
-            gui.text(font, font.plainSubstrByWidth(Component.translatable("nightsiege.ui.extra_status",
-                    extraBlockText()).getString(), w - 16), x + 8, cy, GRAY, true);
+            bottom = cardLine(gui, font, Component.translatable("nightsiege.ui.extra_status", extraBlockText()).getString(),
+                    x + 8, cy, w - 16, GRAY, extraFoot, bottom);
         }
+        nextSiegeFoot(gui, font, x, y, w, h, bottom);
+    }
+
+    /**
+     * Tor 12: one line of the next-siege card, cut to {@code maxW}, only when it ends above {@code foot}.
+     * Returns the lowest pixel row used so far.
+     */
+    private int cardLine(GuiGraphicsExtractor gui, Font font, String text, int tx, int ty, int maxW, int color, int foot, int bottom) {
+        if (ty + 9 > foot || maxW <= 0) {
+            return bottom;
+        }
+        gui.text(font, font.plainSubstrByWidth(text, maxW), tx, ty, color, true);
+        return Math.max(bottom, ty + 9);
+    }
+
+    /** Tor 12: the base line at the foot of the card, only where no line above reaches down to it. */
+    private void nextSiegeFoot(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h, int bottom) {
+        int baseTop = y + h - 11;
+        boolean base = stats.baseKnown && bottom <= baseTop;
+        if (base) {
+            drawBaseLine(gui, font, x, y, w, h);
+        }
+        testNextSiegeGap = (base ? baseTop : y + h - 1) - bottom;
     }
 
     private void drawWaveStrength(GuiGraphicsExtractor gui, Font font, int x, int y, int w, int h) {
