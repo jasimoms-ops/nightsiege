@@ -163,7 +163,7 @@ jobs:
         run: |
           set +e
           if [ "$LL_MODE" = "1" ]; then
-            LANGLAUF="spieler=$SHARD bis=24 min=285" LANGLAUF_TIMEOUT=18500 tools/sim/langlauf.sh
+            LANGLAUF="spieler=$SHARD bis=24 min=285" LANGLAUF_TIMEOUT=18500 bash tools/sim/langlauf.sh
             mkdir -p out
             python3 tools/sim/langlauf.py server-output.txt > out/langlauf-$SHARD.txt
             cp run/langlauf.txt out/langlauf-log-$SHARD.txt 2>/dev/null || true
