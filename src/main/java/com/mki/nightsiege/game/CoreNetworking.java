@@ -119,6 +119,60 @@ public final class CoreNetworking {
         }
     }
 
+    /**
+     * Tor 12 (Simon 17.11.): server to client, the gathering at the core before a real night. phase:
+     * {@link #NONE}, {@link #READY} (seconds = until the night starts anyway), {@link #COUNTDOWN} (seconds =
+     * until it starts). Sent on every change and once a second to each participant; NONE once at the end.
+     */
+    public record GatherPayload(int phase, int seconds, boolean selfReady, java.util.List<GatherEntry> entries)
+            implements CustomPacketPayload {
+
+        public static final int NONE = 0;
+        public static final int READY = 1;
+        public static final int COUNTDOWN = 2;
+
+        public static final CustomPacketPayload.Type<GatherPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("gather"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, GatherPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, GatherPayload::phase,
+                ByteBufCodecs.VAR_INT, GatherPayload::seconds,
+                ByteBufCodecs.BOOL, GatherPayload::selfReady,
+                GatherEntry.CODEC.apply(ByteBufCodecs.list(64)), GatherPayload::entries,
+                GatherPayload::new);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** Tor 12: one participant of the gathering (name, uuid, pressed ready). */
+    public record GatherEntry(String name, java.util.UUID id, boolean ready) {
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, GatherEntry> CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(64), GatherEntry::name,
+                net.minecraft.core.UUIDUtil.STREAM_CODEC, GatherEntry::id,
+                ByteBufCodecs.BOOL, GatherEntry::ready,
+                GatherEntry::new);
+    }
+
+    /** Tor 12: client to server, "Bereit" pressed (toggles, as /nightsiege bereit). */
+    public record GatherReadyPayload() implements CustomPacketPayload {
+
+        public static final GatherReadyPayload INSTANCE = new GatherReadyPayload();
+
+        public static final CustomPacketPayload.Type<GatherReadyPayload> TYPE =
+                new CustomPacketPayload.Type<>(ModContent.id("gather_ready"));
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, GatherReadyPayload> CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public record CoreActionPayload(String action) implements CustomPacketPayload {
 
         public static final CustomPacketPayload.Type<CoreActionPayload> TYPE =
@@ -155,6 +209,8 @@ public final class CoreNetworking {
         PayloadTypeRegistry.clientboundPlay().register(ScreenPayload.TYPE, ScreenPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(FxPayload.TYPE, FxPayload.CODEC);   // Z4
         PayloadTypeRegistry.serverboundPlay().register(CoreActionPayload.TYPE, CoreActionPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(GatherPayload.TYPE, GatherPayload.CODEC);   // Tor 12
+        PayloadTypeRegistry.serverboundPlay().register(GatherReadyPayload.TYPE, GatherReadyPayload.CODEC);
     }
 
     /**
@@ -207,6 +263,13 @@ public final class CoreNetworking {
                     // Network threads must not touch world state directly.
                     context.server().execute(() ->
                             SiegeManager.get().onCoreAction(context.player(), payload.action()));
+                });
+        ServerPlayNetworking.registerGlobalReceiver(GatherReadyPayload.TYPE,
+                (payload, context) -> {
+                    if (!admit(context.player().getUUID(), context.server().getTickCount())) {
+                        return;
+                    }
+                    context.server().execute(() -> SiegeManager.get().toggleGatherReady(context.player()));
                 });
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
                 (handler, server) -> {

@@ -87,7 +87,12 @@ public class NightSiegeClient implements ClientModInitializer {
                     WarriorHud.clear();
                     RageFx.clear();
                     UltHud.update(null);   // else the swing ring stays on a server without the mod
+                    GatherClientState.reset();   // Tor 12
                 });
+        // Tor 12: the gathering at the core (state only; the window and HUD read GatherClientState)
+        ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.GatherPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> GatherClientState.receive(payload,
+                        context.client().level == null ? 0L : context.client().level.getGameTime())));
         ClientPlayNetworking.registerGlobalReceiver(CoreNetworking.ScreenPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> {
                     Minecraft client = Minecraft.getInstance();

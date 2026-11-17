@@ -106,6 +106,8 @@ public final class SiegeCommands {
                                 p -> SiegeManager.get().playtest().onAction(p, "crates"))))
                         .then(Commands.literal("menue").executes(ctx -> asPlayer(ctx,
                                 p -> SiegeManager.get().playtest().onAction(p, "menu")))))
+                .then(Commands.literal("bereit").executes(ctx -> asPlayer(ctx,
+                        p -> SiegeManager.get().toggleGatherReady(p))))   // Tor 12: ready at the core
                 .then(Commands.literal("cores").executes(SiegeCommands::cores))
                 .then(Commands.literal("skills").executes(SiegeCommands::skills))
                 .then(Commands.literal("skill")
