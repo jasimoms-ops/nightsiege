@@ -81,12 +81,64 @@ final class AngleichScenes {
         });
     }
 
+    /** Trap items (the engineer's free traps) in the inventory. */
+    private static int traps(net.minecraft.server.level.ServerPlayer player) {
+        int n = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack stack = player.getInventory().getItem(i);
+            if (!stack.isEmpty() && com.mki.nightsiege.game.ModContent.TRAP_ITEMS.containsValue(stack.getItem())) {
+                n += stack.getCount();
+            }
+        }
+        return n;
+    }
+
+    /**
+     * The kit comes before the lend (horn and teleport, dungeon and camp door): an engineer on level 3 in a world of
+     * 15 gets the kit, then the lend; the kit must hold the free traps of the lent tree, a second lend (log-in again)
+     * no second kit, and after the return and the restore no kit trap is left and the own things are back.
+     */
+    private static void kitCase(ClientGameTestContext context) {
+        server(context, "kit", (player, m) -> {
+            String id = player.getUUID().toString();
+            PlayerSkills keep = Json.fromJson(Json.toJson(m.save().realSkillsOf(id)), PlayerSkills.class);
+            PlayerSkills low = MeleeSim.buildBudget(m.skillTree(), SkillClass.ENGINEER,
+                    com.mki.nightsiege.core.TrapKind.TURRET.id(), TestKit.pointsBefore(3, m.config()));
+            m.save().skills.put(id, low);
+            player.setGameMode(GameType.SURVIVAL);
+            player.getInventory().clearContent();
+            player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_LOG, 7));
+            m.kits().equip(player, 12);   // the kit before the lend
+            int ownTraps = traps(player);
+            int lent = m.testLevelSync(player, 15);
+            int want = 0;
+            for (int c : m.kits().traps().freeTrapCounts(m.save().skillsOf(id)).values()) {
+                want += c;
+            }
+            int have = traps(player);
+            log("kit: own traps " + ownTraps + ", lent " + lent + ", want " + want + ", have " + have);
+            check(lent > 0 && want > ownTraps, "engineer: the lend brings more free traps (" + ownTraps + " -> " + want + ")");
+            check(have == want, "the kit has the lent tree's traps after the lend (" + have + " of " + want + ")");
+            com.mki.nightsiege.game.LevelSync.end(m.save().realSkillsOf(id));   // logged out and in again
+            m.testLevelSync(player, 15);
+            check(traps(player) == want, "a second lend gives no second kit (" + traps(player) + " of " + want + ")");
+            m.testLevelSyncEnd(player);
+            m.kits().restore(player);
+            int logs = player.getInventory().countItem(net.minecraft.world.item.Items.OAK_LOG);
+            check(traps(player) == 0 && !m.kits().hasStash(player) && logs == 7,
+                    "back: no kit trap left (" + traps(player) + "), own things back (logs " + logs + " of 7)");
+            player.getInventory().clearContent();
+            m.save().skills.put(id, keep);
+        });
+    }
+
     static void run(ClientGameTestContext context) {
         FAILS.clear();
         checks = 0;
         shots = 0;
         final PlayerSkills[] saved = new PlayerSkills[1];
         final Map<String, Integer> ownLevels = new HashMap<>();
+        kitCase(context);
         server(context, "set-up", (player, m) -> {
             if (!m.isRegistered(player)) {
                 m.register(player);
