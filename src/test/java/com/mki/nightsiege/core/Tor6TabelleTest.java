@@ -43,10 +43,6 @@ class Tor6TabelleTest {
     void freshConfigKeepsTodaysWaves() {
         SiegeConfig c = new Gson().fromJson("{}", SiegeConfig.class);
         c.sanitize();
-        assertEquals(List.of(6, 11, 20), c.budgetJumpLevels);
-        assertEquals(List.of(1.0, 1.0, 1.0), c.budgetJumpFactors);
-        assertEquals(List.of(1, 2, 3, 5, 7), c.budgetGroupFrom);
-        assertEquals(List.of(1.0, 1.0, 1.0, 1.0, 1.0), c.budgetGroupFactors);
         sameAsToday(c, "frisch");
     }
 
@@ -55,35 +51,6 @@ class Tor6TabelleTest {
         String json = Files.readString(Path.of("tools/sim/server-config.json"), StandardCharsets.UTF_8);
         SiegeConfig c = new Gson().fromJson(json, SiegeConfig.class);
         c.sanitize();
-        assertEquals(1.0, SiegeMath.budgetFactor(25, 10, c), 0.0);
         sameAsToday(c, "server");
-    }
-
-    @Test
-    void jumpsAndBucketsActWhereTheyShould() {
-        SiegeConfig c = new SiegeConfig();
-        c.budgetJumpFactors = new ArrayList<>(List.of(1.2, 1.0, 0.5));
-        c.budgetGroupFactors = new ArrayList<>(List.of(1.0, 1.0, 1.1, 1.0, 0.8));
-        c.sanitize();
-        assertEquals(1.0, SiegeMath.budgetFactor(5, 1, c), 1e-12);
-        assertEquals(1.2, SiegeMath.budgetFactor(6, 1, c), 1e-12);
-        assertEquals(0.6, SiegeMath.budgetFactor(20, 2, c), 1e-12);
-        assertEquals(1.2 * 1.1, SiegeMath.budgetFactor(10, 4, c), 1e-12);
-        assertEquals(0.8, SiegeMath.budgetFactor(1, 7, c), 1e-12);
-        assertEquals(0.8, SiegeMath.budgetFactor(1, 10, c), 1e-12);
-        assertEquals(oldWanted(6, 1, c, c.playerScaling) * 1.2, SiegeMath.mobsWanted(6, 1, c, c.playerScaling), 1e-9);
-    }
-
-    @Test
-    void brokenListsFallBackToNeutral() {
-        SiegeConfig c = new SiegeConfig();
-        c.budgetJumpLevels = null;
-        c.budgetJumpFactors = new ArrayList<>(List.of(Double.NaN));
-        c.budgetGroupFactors = null;
-        c.sanitize();
-        assertEquals(3, c.budgetJumpFactors.size());
-        assertEquals(5, c.budgetGroupFactors.size());
-        assertTrue(c.budgetJumpFactors.stream().allMatch(v -> v == 1.0));
-        sameAsToday(c, "kaputt");
     }
 }

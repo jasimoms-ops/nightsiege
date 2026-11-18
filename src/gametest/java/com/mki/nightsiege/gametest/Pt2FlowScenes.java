@@ -329,7 +329,7 @@ final class Pt2FlowScenes {
             double field = SiegeMath.fieldStrength(m.presentCount(), m.maxLive(), cfg);
             double realField = SiegeMath.fieldStrength(1, real, cfg);
             log("scaling: live cap " + m.maxLive() + " (real solo " + real + "), field " + field + " (real solo " + realField
-                    + "), defenders " + m.presentCount() + ", monster life x" + m.overflowHealthFactor()
+                    + "), defenders " + m.presentCount() + ", monster life x" + m.groupHealthFactor()
                     + ", event " + m.currentEventKey() + " planned " + m.playtest().eventPlan().get(step(m)));
             check(m.maxLive() == 6 && m.maxLive() == real, "a solo playtest night holds the real solo cap (6), not 40");
             check(Math.abs(field - realField) < 1e-9 && field > 1.0, "its field strength is a real solo night's (9/6)");

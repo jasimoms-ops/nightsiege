@@ -34,10 +34,6 @@ class Tor6SpielerzahlTest {
         assertEquals(0.63, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
         assertEquals(0.85, SiegeMath.healthForGroup(2, fresh), 1e-9);
         assertEquals(1.2, SiegeMath.damageTakenForGroup(10, fresh), 1e-9);
-        assertEquals(0.0, fresh.eliteHealthPerExtraPlayer, 1e-9);
-        for (int n = 1; n <= 10; n++) {
-            assertEquals(1.0, SiegeMath.groupHealth(n, fresh.eliteHealthPerExtraPlayer), 1e-9);   // elites ×1
-        }
         assertEquals(0.5, fresh.bossHealthPerExtraPlayer, 1e-9);
         assertEquals(120, fresh.maxLiveMobsCap);
     }
@@ -52,7 +48,6 @@ class Tor6SpielerzahlTest {
         assertEquals(List.of(0.71, 0.85, 1.0, 1.1), server.mobHealthByPlayers);
         assertEquals(0.63, SiegeMath.damageTakenForGroup(1, server), 1e-9);
         assertEquals(0.85, SiegeMath.healthForGroup(2, server), 1e-9);
-        assertEquals(0.0, server.eliteHealthPerExtraPlayer, 1e-9);
     }
 
     @Test

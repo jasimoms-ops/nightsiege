@@ -4855,18 +4855,13 @@ public final class SiegeManager {
     }
 
     /**
-     * Tor 6.4: someone joined or left: the living elites and bosses take the new group's life (they keep their share
+     * Tor 6.4: someone joined or left: the living bosses take the new group's life (they keep their share
      * of it). Waves, the live cap and the field read presentCount() themselves.
      */
     private void rescaleForGroup(int defenders) {
-        NightSiegeMod.LOGGER.info("[Night Siege] Gruppe jetzt {}: Eliten und Bosse neu skaliert", defenders);
+        NightSiegeMod.LOGGER.info("[Night Siege] Gruppe jetzt {}: Bosse neu skaliert", defenders);
         if (world == null) {
             return;
-        }
-        for (UUID id : liveMobs) {
-            if (world.getEntity(id) instanceof Mob mob && Elites.isElite(mob)) {
-                Elites.regroup(mob, config, defenders);
-            }
         }
         for (BossService b : allBosses()) {
             b.rescale(world, defenders);
@@ -4879,8 +4874,6 @@ public final class SiegeManager {
         double perPlayer = config.playerScaling;   // a playtest night too, like a real one (Playtest 2, 04.11.)
         // Tor 6.4: beyond the live cap the wave's budget comes as elites.
         overflowElites = SiegeMath.overflowEliteChance(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
-        // What the cap leaves out comes as life (per-player scaling, 29 October 2026).
-        overflowHealth = SiegeMath.overflowHealthFactor(SiegeMath.mobsWanted(siegeLevel, players, config, perPlayer), maxLive(), config);
         return SiegeMath.waveSize(siegeLevel, players, config, perPlayer, maxLive(),
                 currentEvent.mobCountMultiplier(config), save.specialNight, Curses.mobFactor());
     }
@@ -5199,19 +5192,16 @@ public final class SiegeManager {
 
     public float damageTakenFactor(ServerPlayer player) {
         PlayerSkills skills = save.skillsOf(player.getUUID().toString());
-        // A lone defender of a night takes soloDamageTaken of it (per-player scaling, 29 October 2026).
+        // The defenders' share of the damage by group size (damageTakenByPlayers, 29.10.; Tor 12 J.2 the one place).
         double solo = active && participants.contains(player.getUUID())
                 ? SiegeMath.damageTakenForGroup(presentCount(), config) : 1.0;   // by group size (29.10.), who is here (31.10.)
         return (float) (config.damageTakenFactor(skills.className(), skillTree.subclassOf(skills))
                 * config.lowLevelTaken(currentLevel()) * solo);   // the low levels are a little kinder (28.10.)
     }
 
-    /** Life factor of tonight's monsters for the ones the cap left out (overflowHealth); 1 outside a night. */
-    private double overflowHealth = 1.0;
-
-    public double overflowHealthFactor() {
-        // and the life by group size (mobHealthByPlayers, 29.10.)
-        return active ? overflowHealth * SiegeMath.healthForGroup(presentCount(), config)
+    /** Life factor of tonight's monsters by group size (mobHealthByPlayers, 29.10.) and field; 1 outside a night. */
+    public double groupHealthFactor() {
+        return active ? SiegeMath.healthForGroup(presentCount(), config)
                 * fieldFactor(config.fieldHealth) : 1.0;   // Feld-Stärke (30.10.)
     }
 
@@ -5238,7 +5228,7 @@ public final class SiegeManager {
     }
 
     /**
-     * Monsters alive at once at most, by the defenders here (livePerPlayer, 29.10.). A playtest night
+     * Monsters alive at once at most, by the defenders here (liveCapByPlayers, 29.10.). A playtest night
      * scales like a real night (Simon 04.11.: "Playtest 2" – alone it held 40 monsters at once instead
      * of 6, at field strength 1; playtestLivePerPlayer is no longer used).
      */

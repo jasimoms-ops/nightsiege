@@ -173,7 +173,7 @@ public final class MobFactory {
         healthMul *= Curses.healthFactor();   // the curse "Zähe Brut" (update 2)
         SiegeManager sm = SiegeManager.get();
         if (sm != null) {
-            healthMul *= sm.overflowHealthFactor();   // monsters the cap left out come as life (29.10.)
+            healthMul *= sm.groupHealthFactor();   // life by group size and field (29.10.)
             if (!elite) {
                 healthMul *= sm.outerLoopFactor();   // the outer loop on the normal monsters, real nights only (Tor 6.6)
             }

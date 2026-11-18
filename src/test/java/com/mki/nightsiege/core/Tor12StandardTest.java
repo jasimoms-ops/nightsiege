@@ -140,6 +140,24 @@ class Tor12StandardTest {
     }
 
     @Test
+    void v32FoldsSoloDamageTakenIntoTheTable() {
+        // J.2: one model; soloDamageTaken counted only without a table, then it becomes the table
+        SiegeConfig empty = new Gson().fromJson("{\"settingsVersion\":31,\"soloDamageTaken\":0.8,"
+                + "\"damageTakenByPlayers\":[]}", SiegeConfig.class);
+        empty.sanitize();
+        assertEquals(List.of(0.8, 1.0), empty.damageTakenByPlayers);
+        assertFalse(new Gson().toJson(empty).contains("soloDamageTaken"));
+        SiegeConfig table = new Gson().fromJson("{\"settingsVersion\":31,\"soloDamageTaken\":0.8,"
+                + "\"damageTakenByPlayers\":[0.5,0.9]}", SiegeConfig.class);
+        table.sanitize();
+        assertEquals(List.of(0.5, 0.9), table.damageTakenByPlayers);
+        for (String gone : List.of("budgetJumpLevels", "budgetGroupFactors", "livePerPlayer", "overflowHealth",
+                "eliteHealthPerExtraPlayer")) {
+            assertFalse(new Gson().toJson(table).contains(gone), gone);
+        }
+    }
+
+    @Test
     void noWardenBeforeLevelThree() {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"wardenFromLevel\":0}", SiegeConfig.class);
         c.sanitize();

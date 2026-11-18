@@ -79,38 +79,20 @@ public class SiegeConfig {
      * (soloScaling + playerScaling × further players). 1 = as before.
      */
     public double soloScaling = 1.0;
-    /**
-     * Tor 6.2 Grundtabelle (Formel A): the monster budget of a wave is today's count (baseMobsPerBatch +
-     * mobsPerLevel x steps) x (soloScaling + playerScaling x further players), times one factor per kit jump
-     * reached (level >= budgetJumpLevels[i] -> x budgetJumpFactors[i], the s6/s11/s20 of Formel A as e^s) and
-     * times the factor of the group's bucket (budgetGroupFrom = lowest group size of each bucket 1 | 2 | 3-4 |
-     * 5-6 | 7+, budgetGroupFactors = c_k). All factors 1 = exactly today's numbers; Tor 8 sets them by sim.
-     */
-    public List<Integer> budgetJumpLevels = new ArrayList<>(List.of(6, 11, 20));
-    public List<Double> budgetJumpFactors = new ArrayList<>(List.of(1.0, 1.0, 1.0));
-    public List<Integer> budgetGroupFrom = new ArrayList<>(List.of(1, 2, 3, 5, 7));
-    public List<Double> budgetGroupFactors = new ArrayList<>(List.of(1.0, 1.0, 1.0, 1.0, 1.0));
-    /** Normal nights: the cap of live monsters grows by this share of itself for every further player (0 = as before). */
-    public double livePerPlayer = 0.0;
     /** The highest cap of live monsters however many play (Simon 29.10.: 120 should run fine). */
     public int maxLiveMobsCap = 120;
-    /**
-     * Monsters a wave wants beyond the cap come as life instead: every monster gets
-     * 1 + overflowHealth × (wanted ÷ cap − 1) times its life. 0 = off (as before).
-     */
-    public double overflowHealth = 0.0;
-    /** Night: a lone defender takes this share of the monsters' damage (1 = as before). */
-    public double soloDamageTaken = 1.0;
+    /** Read only from an old file: v32 (Tor 12 J.2) folds it into damageTakenByPlayers[0]; never written again. */
+    private Double soloDamageTaken;
     /**
      * Normal nights: the cap of live monsters by group size, for 1, 2, 3 … players (team sim 29.10.:
      * small groups need fewer monsters per head, big ones more, so no straight line fits). Past the
-     * end of the list every further player adds liveCapStep. Empty: maxLiveMobs × (1 + livePerPlayer × further).
+     * end of the list every further player adds liveCapStep. Empty: maxLiveMobs for any group.
      */
     public List<Integer> liveCapByPlayers = new ArrayList<>();
     public int liveCapStep = 8;
     /**
      * Night: the share of the monsters' damage a defender takes by group size, for 1, 2, 3 … players;
-     * past the end of the list its last value. Empty: soloDamageTaken alone, 1 from two players.
+     * past the end of the list its last value (Tor 12 J.2: the one place for it). Empty: 1.
      */
     public List<Double> damageTakenByPlayers = new ArrayList<>();
     /**
@@ -146,12 +128,6 @@ public class SiegeConfig {
      * (1 = each as many as alone). Its nights scale like real nights since 04.11. ("Playtest 2").
      */
     public double playtestPlayerScaling = 1.0;
-    /**
-     * Tor 6.4 (Chef 09.11.): extra life of a night's elite for every defender here beyond the first
-     * (1 + share × further, like the bosses' bossHealthPerExtraPlayer). Rescaled when someone joins or leaves.
-     * Chef 09.11. 12:05: off in the package (0 = ×1 for any group); a parameter for Tor 8 (e.g. 0.5).
-     */
-    public double eliteHealthPerExtraPlayer = 0.0;
     /**
      * Tor 6.4: the monsters a wave wants beyond the live cap (maxLiveMobsCap, at most 120) come as elites:
      * this many left-out monsters buy one elite (0 = off; the budget is lost as before). Measured in Tor 7/8.
@@ -1414,6 +1390,15 @@ public class SiegeConfig {
      * lowLevelExtraMobs/minMobsPerWave) are tuned as one group: only the damage taken moves.
      */
     private void migrateV32Balance() {
+        // J.2, one scaling model: a lone defender's share of the damage lives in damageTakenByPlayers[0] only. The
+        // old soloDamageTaken counted only without a table; then it becomes the table (alone, from two 1).
+        if (soloDamageTaken != null) {
+            if ((damageTakenByPlayers == null || damageTakenByPlayers.isEmpty()) && !soloDamageTaken.isNaN()
+                    && Math.abs(soloDamageTaken - 1.0) > 1e-9) {
+                damageTakenByPlayers = new ArrayList<>(List.of(clampDouble(soloDamageTaken, 0.1, 2.0), 1.0));
+            }
+            soloDamageTaken = null;
+        }
         lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.75, 0.6);
         damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.85, 1.0, 1.0), List.of(0.63, 0.77, 1.0, 1.2));
         mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.75, 0.9, 1.0, 1.0), List.of(0.71, 0.85, 1.0, 1.1));
@@ -1720,7 +1705,6 @@ public class SiegeConfig {
         minMobsPerWave = clamp(minMobsPerWave, 0, 200);
         mobsPerLevel = Math.max(0.0, mobsPerLevel);
         playerScaling = Math.max(0.0, playerScaling);
-        eliteHealthPerExtraPlayer = Double.isNaN(eliteHealthPerExtraPlayer) ? 0.0 : clampDouble(eliteHealthPerExtraPlayer, 0.0, 3.0);
         overflowEliteCost = Double.isNaN(overflowEliteCost) ? 3.0 : clampDouble(overflowEliteCost, 0.0, 100.0);
         presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
         presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
@@ -1731,7 +1715,6 @@ public class SiegeConfig {
         rangedPushbackSeconds = Double.isNaN(rangedPushbackSeconds) ? 1.5 : clampDouble(rangedPushbackSeconds, 0.0, 10.0);
         maxLiveMobs = clamp(maxLiveMobs, 1, 500);
         soloScaling = Double.isNaN(soloScaling) ? 1.0 : clampDouble(soloScaling, 0.1, 3.0);
-        livePerPlayer = Double.isNaN(livePerPlayer) ? 0.0 : clampDouble(livePerPlayer, 0.0, 3.0);
         maxLiveMobsCap = clamp(maxLiveMobsCap, Math.max(1, maxLiveMobs), 500);
         refillCap = clamp(refillCap, 1, 500);
         if (fieldRefCaps == null) {
@@ -1741,8 +1724,6 @@ public class SiegeConfig {
         fieldHealth = Double.isNaN(fieldHealth) ? 0.0 : clampDouble(fieldHealth, 0.0, 3.0);
         fieldDamage = Double.isNaN(fieldDamage) ? 0.0 : clampDouble(fieldDamage, 0.0, 3.0);
         refillGapTicks = clamp(refillGapTicks, 1, 400);
-        overflowHealth = Double.isNaN(overflowHealth) ? 0.0 : clampDouble(overflowHealth, 0.0, 3.0);
-        soloDamageTaken = Double.isNaN(soloDamageTaken) ? 1.0 : clampDouble(soloDamageTaken, 0.1, 2.0);
         if (hallBadgeTiers == null) {
             hallBadgeTiers = new java.util.LinkedHashMap<>();
         }
@@ -1751,10 +1732,6 @@ public class SiegeConfig {
         }
         liveCapByPlayers.replaceAll(v -> v == null ? 1 : clamp(v, 1, 500));
         liveCapStep = clamp(liveCapStep, 0, 100);
-        budgetJumpLevels = budgetLevels(budgetJumpLevels, List.of(6, 11, 20));
-        budgetJumpFactors = budgetFactors(budgetJumpFactors, budgetJumpLevels.size());
-        budgetGroupFrom = budgetLevels(budgetGroupFrom, List.of(1, 2, 3, 5, 7));
-        budgetGroupFactors = budgetFactors(budgetGroupFactors, budgetGroupFrom.size());
         bulwarkGuardRadius = Double.isNaN(bulwarkGuardRadius) ? 6.0 : clampDouble(bulwarkGuardRadius, 0.0, 32.0);
         bulwarkGuardDamage = Double.isNaN(bulwarkGuardDamage) ? 0.15 : clampDouble(bulwarkGuardDamage, 0.0, 0.9);
         bulwarkGuardKnockback = Double.isNaN(bulwarkGuardKnockback) ? 0.5 : clampDouble(bulwarkGuardKnockback, 0.0, 1.0);
@@ -2157,7 +2134,6 @@ public class SiegeConfig {
             // the kill goal left out monsters gone without a kill (quotaSkipsVanished, gone since Tor 12 J), and the
             // class balancing (klassen3).
             soloScaling = 0.6;
-            overflowHealth = 0.0;
             liveCapByPlayers = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
             damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
             mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
@@ -2663,28 +2639,6 @@ public class SiegeConfig {
     /** A positive factor (0.05 to 10), or the default when unset or nonsense. */
     private static double positive(double value, double fallback) {
         return Double.isNaN(value) || value <= 0 ? fallback : Math.min(10.0, Math.max(0.05, value));
-    }
-
-    /** Tor 6.2: a level list of the Grundtabelle, null entries out, each 1-1000, sorted; null = the standard. */
-    private static List<Integer> budgetLevels(List<Integer> list, List<Integer> standard) {
-        List<Integer> out = new ArrayList<>();
-        for (Integer v : list == null ? standard : list) {
-            if (v != null) {
-                out.add(clamp(v, 1, 1000));
-            }
-        }
-        out.sort(null);
-        return out;
-    }
-
-    /** Tor 6.2: factors of the Grundtabelle, one per entry (missing or NaN = 1), each 0.25-4. */
-    private static List<Double> budgetFactors(List<Double> list, int size) {
-        List<Double> out = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            Double v = list != null && i < list.size() ? list.get(i) : null;
-            out.add(v == null || v.isNaN() ? 1.0 : clampDouble(v, 0.25, 4.0));
-        }
-        return out;
     }
 
     private static int clamp(int value, int min, int max) {

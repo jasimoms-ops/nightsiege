@@ -55,7 +55,7 @@ public final class SiegeMath {
     public static double mobsWanted(int level, int playerCount, SiegeConfig cfg, double perPlayer) {
         double raw = cfg.baseMobsPerBatch + cfg.mobsPerLevel * growthSteps(level, cfg) + lowLevelExtra(level, cfg);
         double players = Math.max(0.0, cfg.soloScaling) + Math.max(0.0, perPlayer) * Math.max(0, playerCount - 1);
-        return Math.max(cfg.minMobsPerWave, raw * players * budgetFactor(level, playerCount, cfg));
+        return Math.max(cfg.minMobsPerWave, raw * players);
     }
 
     /** Tor 12: the extra base monsters of a low level, lowLevelExtraMobs on level 1 fading evenly to 0 at lowLevelMobsUntil. */
@@ -67,39 +67,7 @@ public final class SiegeMath {
         return cfg.lowLevelExtraMobs * (until - Math.max(1, level)) / (double) (until - 1);
     }
 
-    /**
-     * Tor 6.2 Grundtabelle (Formel A): the product of the kit-jump factors this level has reached and the
-     * factor of this group size's bucket. 1 with the standard values, so the waves stay as before.
-     */
-    public static double budgetFactor(int level, int playerCount, SiegeConfig cfg) {
-        double f = 1.0;
-        java.util.List<Integer> jumps = cfg.budgetJumpLevels;
-        java.util.List<Double> jf = cfg.budgetJumpFactors;
-        if (jumps != null && jf != null) {
-            for (int i = 0; i < jumps.size() && i < jf.size(); i++) {
-                if (jumps.get(i) != null && jf.get(i) != null && level >= jumps.get(i)) {
-                    f *= jf.get(i);
-                }
-            }
-        }
-        java.util.List<Integer> from = cfg.budgetGroupFrom;
-        java.util.List<Double> gf = cfg.budgetGroupFactors;
-        if (from != null && gf != null) {
-            int n = Math.max(1, playerCount);
-            int k = -1;
-            for (int i = 0; i < from.size() && i < gf.size(); i++) {
-                if (from.get(i) != null && gf.get(i) != null && n >= from.get(i)) {
-                    k = i;
-                }
-            }
-            if (k >= 0) {
-                f *= gf.get(k);
-            }
-        }
-        return f;
-    }
-
-    /** The cap of live monsters on a normal night: grows by livePerPlayer for every further player, at most maxLiveMobsCap. */
+    /** The cap of live monsters on a normal night by group size (liveCapByPlayers), at most maxLiveMobsCap; without a table maxLiveMobs. */
     public static int liveCap(int playerCount, SiegeConfig cfg) {
         int highest = Math.max(1, cfg.maxLiveMobsCap);
         if (cfg.liveCapByPlayers != null && !cfg.liveCapByPlayers.isEmpty()) {
@@ -108,8 +76,7 @@ public final class SiegeMath {
             int v = i < table.size() ? table.get(i) : table.get(table.size() - 1) + cfg.liveCapStep * (i - table.size() + 1);
             return Math.max(1, Math.min(highest, v));
         }
-        double grown = cfg.maxLiveMobs * (1.0 + Math.max(0.0, cfg.livePerPlayer) * Math.max(0, playerCount - 1));
-        return (int) Math.max(1, Math.min(Math.max(cfg.maxLiveMobs, cfg.maxLiveMobsCap), Math.round(grown)));
+        return Math.max(1, cfg.maxLiveMobs);
     }
 
     /**
@@ -132,7 +99,7 @@ public final class SiegeMath {
             java.util.List<Double> table = cfg.damageTakenByPlayers;
             return table.get(Math.min(table.size() - 1, Math.max(0, playerCount - 1)));
         }
-        return playerCount <= 1 ? cfg.soloDamageTaken : 1.0;
+        return 1.0;
     }
 
     /** Life of the night's monsters for a group of this size (mobHealthByPlayers; 1 without a table). */
@@ -173,14 +140,6 @@ public final class SiegeMath {
             return offlineTicks < offlineGrace;
         }
         return inRange || awayTicks < awayGrace;
-    }
-
-    /** Life factor for monsters a capped batch could not bring (overflowHealth; 1 = no overflow). */
-    public static double overflowHealthFactor(double wanted, int cap, SiegeConfig cfg) {
-        if (cfg.overflowHealth <= 0 || cap <= 0 || wanted <= cap) {
-            return 1.0;
-        }
-        return 1.0 + cfg.overflowHealth * (wanted / cap - 1.0);
     }
 
     /** Health multiplier applied to every siege mob. */
