@@ -8454,9 +8454,16 @@ public final class SiegeManager {
             return;
         }
         if (!key.equals(own.chosenClass)) {
+            // Tor 12 I: the loan belongs to the profile played (a camp fighter gets the class window at the horn):
+            // it goes back with the old profile, the new one is lifted anew to the same level
+            int relendWorld = own.synced() ? own.syncLevel + Math.max(0, config.levelSyncGap) : 0;
+            LevelSync.end(own);
             own.switchToProfile(key);
             persistShortly();   // survival safety 2: not a full write per click
             SkillService.clear(player);
+            if (relendWorld > 0) {
+                beginSync(player, relendWorld);   // before the kit below: it is built with the new lend
+            }
             if (kits.hasStash(player)) {
                 kits.refit(player, levelForKit());   // the kit of the new class for tonight
             }

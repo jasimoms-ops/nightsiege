@@ -132,6 +132,74 @@ final class AngleichScenes {
         });
     }
 
+    /**
+     * Tor 12 (Prüfer): a profile switch while lent (a camp fighter gets the class window at the horn). The loan goes
+     * back with the warrior, the engineer is lifted to the same level, both own trees stay as they were, nothing lent
+     * is saved, and the kit after it holds the lent engineer tree's traps.
+     */
+    private static void switchCase(ClientGameTestContext context) {
+        server(context, "profile switch", (player, m) -> {
+            String id = player.getUUID().toString();
+            PlayerSkills keep = Json.fromJson(Json.toJson(m.save().realSkillsOf(id)), PlayerSkills.class);
+            int points = TestKit.pointsBefore(3, m.config());
+            PlayerSkills two = MeleeSim.buildBudget(m.skillTree(), SkillClass.WARRIOR, "w_combo", points);
+            PlayerSkills eng = MeleeSim.buildBudget(m.skillTree(), SkillClass.ENGINEER,
+                    com.mki.nightsiege.core.TrapKind.TURRET.id(), points);
+            String warrior = two.chosenClass;
+            String engineer = eng.chosenClass;
+            Map<String, Integer> warriorOwn = new HashMap<>(two.levels);
+            Map<String, Integer> engineerOwn = new HashMap<>(eng.levels);
+            two.unlockedClasses();
+            two.unlocked.add(engineer);
+            two.classLevels.put(engineer, new HashMap<>(eng.levels));
+            m.save().skills.put(id, two);
+            if (m.kits().hasStash(player)) {
+                m.kits().restore(player);
+            }
+            player.setGameMode(GameType.SURVIVAL);
+            player.getInventory().clearContent();
+            int lent = m.testLevelSync(player, 15);
+            m.onPlayClass(player, engineer);   // no kit on: the switch is open
+            PlayerSkills own = m.save().realSkillsOf(id);
+            int more = 0;
+            if (own.borrowed != null) {
+                for (String node : own.borrowed.keySet()) {
+                    more += own.borrowedOf(node);
+                }
+            }
+            log("switch: lent " + lent + " on " + warrior + " -> playing " + own.chosenClass + ", synced=" + own.synced()
+                    + " profile=" + own.borrowedProfile + " level=" + own.syncLevel + " lent levels=" + more);
+            check(lent > 0 && engineer.equals(own.chosenClass), "the switch to the engineer works while lent");
+            check(own.synced() && engineer.equals(own.borrowedProfile) && own.syncLevel == 12,
+                    "the loan moved to the engineer, level 12 (" + own.borrowedProfile + ", " + own.syncLevel + ")");
+            check(more > 0, "lent levels count on the engineer (" + more + ")");
+            check(own.levels.equals(engineerOwn) && warriorOwn.equals(own.classLevels.get(warrior)),
+                    "both own trees untouched");
+            String saved = Json.toJson(own);
+            check(!saved.contains("borrowed") && !saved.contains("syncLevel"), "nothing lent in the save");
+            int ownWant = 0;
+            for (int c : own.withoutBorrowed(() -> m.kits().traps().freeTrapCounts(own)).values()) {
+                ownWant += c;
+            }
+            int want = 0;
+            for (int c : m.kits().traps().freeTrapCounts(own).values()) {
+                want += c;
+            }
+            m.kits().equip(player, 12);
+            int have = traps(player);
+            log("switch kit: own traps " + ownWant + ", want " + want + ", have " + have + ", built lent " + m.kits().builtLent(player));
+            check(want > ownWant && have == want && m.kits().builtLent(player),
+                    "the kit after the switch has the lent engineer tree's traps (" + have + " of " + want + ")");
+            m.testLevelSyncEnd(player);
+            m.kits().restore(player);
+            check(!own.synced() && traps(player) == 0, "back: loan and kit gone");
+            player.getInventory().clearContent();
+            m.save().skills.put(id, keep);
+        });
+        context.waitTicks(20);
+        EventLookTest.closeScreen(context);   // the switch opened the core window
+    }
+
     static void run(ClientGameTestContext context) {
         FAILS.clear();
         checks = 0;
@@ -139,6 +207,7 @@ final class AngleichScenes {
         final PlayerSkills[] saved = new PlayerSkills[1];
         final Map<String, Integer> ownLevels = new HashMap<>();
         kitCase(context);
+        switchCase(context);
         server(context, "set-up", (player, m) -> {
             if (!m.isRegistered(player)) {
                 m.register(player);
