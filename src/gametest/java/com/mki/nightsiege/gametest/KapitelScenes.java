@@ -226,7 +226,7 @@ final class KapitelScenes {
         final boolean[] cfgBefore = new boolean[3];
         // What the world had before, to give it back at the end.
         final Object[] before = new Object[8];
-        final int[] beforeN = new int[3];
+        final int[] beforeN = new int[4];
         server(context, "setup", (player, m) -> {
             String uuid = player.getUUID().toString();
             if (!m.isRegistered(player)) {
@@ -250,7 +250,9 @@ final class KapitelScenes {
             PlayerSkills own = new PlayerSkills();
             String key = own.addProfile(SkillClass.WARRIOR, "");
             own.playOpened(key);
-            own.earned = 500;
+            // Chef 18.11.: a veteran only at its own level 20 (no lift at the finale): the warrior has its points
+            own.earned = Math.max(500, com.mki.nightsiege.game.TestKit.pointsBefore(20, m.config()));
+            beforeN[3] = own.earned;
             save.skills.put(uuid, own);
             check(m.chapter() == 1, "chapter 1 (" + m.chapter() + ")");
             check(m.chapterNight() == 20, "the coming night is night 20 (" + m.chapterNight() + ")");
@@ -307,7 +309,14 @@ final class KapitelScenes {
             var save = m.save();
             save.bossNights = 20;
             save.siegesWon = 20;
-            save.chapters().closing = List.of(uuid);   // Pruefer 13.11.: as saved by the won finale, finished as after a restart
+            // Chef 18.11.: a latecomer (archer, level 14) wins the finale along: stays open, gets star, hall and chest
+            String late = "00000000-0000-0000-0000-00000000f14e";
+            PlayerSkills lateOwn = new PlayerSkills();
+            lateOwn.chosenClass = SkillClass.ARCHER.name();
+            lateOwn.unlocked.add(SkillClass.ARCHER.name());
+            lateOwn.earned = com.mki.nightsiege.game.TestKit.pointsBefore(14, m.config());
+            save.skills.put(late, lateOwn);
+            save.chapters().closing = List.of(uuid, late);   // Pruefer 13.11.: as saved by the won finale, finished as after a restart
             save.chapters().closingLevel = 20;
             m.finishChapterChange(player.level().getServer());
             Chapters.Progress p = save.chapters();
@@ -318,10 +327,24 @@ final class KapitelScenes {
             check(p.firstFinaleWon, "Welt-Merker: first finale won");
             check(Chapters.nightKind(4, m.config()) == BossPlan.NightKind.BOSS
                     && Chapters.bossGroup(2).equals(Chapters.GROUP_TWO), "chapter 2: boss night 4 from the second group");
+            List<Chapters.Veteran> lateOpen = p.openOf(late);
+            log("latecomer: open " + lateOpen.size() + (lateOpen.isEmpty() ? "" : " level " + lateOpen.get(0).level)
+                    + ", veterans " + p.veteransOf(late).size() + ", claims " + p.finaleClaims.get(late));
+            check(p.veteransOf(late).isEmpty() && lateOpen.size() == 1 && lateOpen.get(0).finale && lateOpen.get(0).level >= 14
+                    && lateOpen.get(0).level < Chapters.LENGTH && lateOpen.get(0).skills == lateOwn, "the latecomer of the finale stays open under level 20");
+            check(Chapters.stars(p, late) == 1, "the latecomer has the chapter star");
+            HallOfFame.Hero lateHero = save.hall == null ? null : save.hall.heroes.get(late);
+            check(lateHero != null && lateHero.veterans != null && lateHero.veterans.size() == 1 && lateHero.veterans.get(0).finale,
+                    "the hall of fame has the latecomer's finale");
+            check(p.finaleClaims.get(late) != null && p.finaleClaims.get(late).contains("ARCHER:1"), "the latecomer's finale chest waits");
+            save.skills.remove(late);
+            p.open.remove(late);
+            p.finaleClaims.remove(late);
+            save.hall.heroes.remove(late);
             List<Chapters.Veteran> vets = p.veteransOf(uuid);
             check(vets.size() == 1 && "WARRIOR".equals(vets.get(0).clazz) && vets.get(0).finale && vets.get(0).level == 20,
                     "the warrior is a veteran (level 20, finale)");
-            check(vets.size() == 1 && vets.get(0).skills != null && vets.get(0).skills.earned == 500, "the veteran keeps its character");
+            check(vets.size() == 1 && vets.get(0).skills != null && vets.get(0).skills.earned == beforeN[3], "the veteran keeps its character");
             PlayerSkills fresh = save.skillsOf(uuid);
             check(!fresh.hasClass() && fresh.earned == 0, "a new character at level 1, no class yet");
             check(m.veteranLocked(player, SkillClass.WARRIOR) && !m.veteranLocked(player, SkillClass.ARCHER),
@@ -452,7 +475,7 @@ final class KapitelScenes {
             check(own.earned <= Math.max(earnedBefore, m.poolCap()), "it flows only up to the world level");
             check(own.xpPool > 0, "the rest waits in the pool");
             check(save.skillsOf(player.getUUID().toString()).clazz() == SkillClass.ARCHER, "the veteran went back");
-            check(save.chapters().veteransOf(player.getUUID().toString()).get(0).skills.earned == 500, "the frozen veteran is untouched");
+            check(save.chapters().veteransOf(player.getUUID().toString()).get(0).skills.earned == beforeN[3], "the frozen veteran is untouched");
             check(save.siegesWon == round[0] && m.chapterNight() == round[1], "no effect on the world (level, night)");
             var file = com.mki.nightsiege.game.StatsRecorder.lastFinished;
             check(file != null && "belagerung".equals(file.art), "statistics: art belagerung");
