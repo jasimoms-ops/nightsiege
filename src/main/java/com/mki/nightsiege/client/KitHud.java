@@ -704,10 +704,11 @@ public final class KitHud {
             gui.text(font, message, 0, 0, (alpha << 24) | 0xF4E6C8, true);
             gui.pose().popMatrix();
         }
-        // Tor 12 I: the Teil-Angleich, a small gold-blue note above the status row's left end
-        if (s != null && s.syncLevel > 0) {
+        // Tor 12 I: the Teil-Angleich, a small light-blue note in the message's place while no message is shown
+        // (above the status row the chat would cover it)
+        if (s != null && s.syncLevel > 0 && !(message != null && now <= messageUntil) && m.w() > 10) {
             String sync = Component.translatable("nightsiege.ui.level_sync", s.syncLevel).getString();
-            small(gui, font, sync, l.status().x(), l.status().y() - 6, 0xFF7FD4FF);
+            small(gui, font, sync, m.x() + 3, m.y() + m.h() / 2f - 2f, 0xFF7FD4FF);
         }
         // the class gauge
         if (l.gauge() != null && s != null) {

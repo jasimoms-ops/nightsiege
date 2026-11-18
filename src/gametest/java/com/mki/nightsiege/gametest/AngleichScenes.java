@@ -61,6 +61,26 @@ final class AngleichScenes {
         log("picture " + name);
     }
 
+    /** Sets the core window's tab by its name (the next opening shows it); returns the tab before. */
+    private static Object coreTab(ClientGameTestContext context, String name) {
+        return context.computeOnClient(client -> {
+            try {
+                java.lang.reflect.Field tab = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("activeTab");
+                tab.setAccessible(true);
+                Object before = tab.get(null);
+                for (Object t : tab.getType().getEnumConstants()) {
+                    if (name != null && t.toString().equals(name)) {
+                        tab.set(null, t);
+                    }
+                }
+                return before;
+            } catch (ReflectiveOperationException e) {
+                log("tab not set: " + e);
+                return null;
+            }
+        });
+    }
+
     static void run(ClientGameTestContext context) {
         FAILS.clear();
         checks = 0;
@@ -102,6 +122,7 @@ final class AngleichScenes {
                     .translatable("nightsiege.ui.level_sync", 12).getString());
             check(text.contains("12") && !text.startsWith("nightsiege."), lang + ": the note reads [" + text + "]");
             picture(context, "angleich_leiste_" + lang);
+            Object tabBefore = coreTab(context, "STATS");   // the Lagebericht: its record card has the foot
             server(context, "window " + lang, (player, m) -> m.openCoreWindow(player));
             context.waitTicks(20);
             int windowLevel = context.computeOnClient(client -> {
@@ -120,6 +141,7 @@ final class AngleichScenes {
             check(windowLevel == 12, lang + ": the core window knows the level (" + windowLevel + ")");
             picture(context, "angleich_core_" + lang);
             EventLookTest.closeScreen(context);
+            coreTab(context, tabBefore == null ? null : tabBefore.toString());
         }
         server(context, "end", (player, m) -> {
             String id = player.getUUID().toString();
