@@ -157,13 +157,14 @@ final class EliteScenes {
             log("8 on diamond: erhalten=" + f(taken) + " verloren=" + f(really) + " health lost=" + f(lost));
             check(Math.abs(really - lost) < 0.05, "verloren is the life really lost (" + f(really) + " = " + f(lost) + ")");
             check(really < taken - 1.0, "verloren is below erhalten (the hit before armour): " + f(really) + " < " + f(taken));
-            // A steal over the pool is counted as cut, a refill without heal() as heilungSonst.
+            // A steal heals in full (the pool coupling is gone, Tor 12 J), a refill without heal() is heilungSonst.
             player.setHealth(10f);
             float h = player.getHealth();
             CombatEffects.steal(player, 10f);
             double[] t2 = m.stats().testTotals(player);
             check(Math.abs((t2[4] - t1[4]) - (player.getHealth() - h)) < 0.05, "lebensraub counts what landed (" + f(t2[4] - t1[4]) + ")");
-            check(t2[5] - t1[5] > 0.5, "lebensraubGekappt counts what the pool held back (" + f(t2[5] - t1[5]) + ")");
+            check(Math.abs(t2[5] - t1[5]) < 1e-6 && Math.abs((t2[4] - t1[4]) - 10.0) < 0.05,
+                    "the whole steal lands, lebensraubGekappt stays 0 (" + f(t2[4] - t1[4]) + ", " + f(t2[5] - t1[5]) + ")");
             player.setHealth(10f);
             player.setHealth(15f);
             double[] t3 = m.stats().testTotals(player);
