@@ -1,0 +1,933 @@
+{
+  "art": "nacht",
+  "sim": "b|L3|G2|zufall|23",
+  "version": "1.0.0",
+  "build": "fb50677",
+  "start": "2026-11-18 01:59:38",
+  "ende": "2026-11-18 01:59:51",
+  "abgeschlossen": true,
+  "test": true,
+  "playtest": false,
+  "spieltest": false,
+  "nacht": -1,
+  "stufe": 3,
+  "ereignis": "none",
+  "besondereNacht": false,
+  "fragment": "",
+  "fluchsteine": [],
+  "boss": "",
+  "ergebnis": "test_verloren",
+  "dauerSekunden": 243,
+  "aufbauSekunden": 0,
+  "kills": 31,
+  "gespawnt": 54,
+  "tode": 2,
+  "ersterTodSekunde": 56,
+  "ersterTodWelle": 2,
+  "basis": {
+    "geschlossen": false,
+    "breite": 82,
+    "tiefe": 91,
+    "tore": 0
+  },
+  "spieler": {
+    "Bot01": {
+      "name": "Bot01",
+      "uuid": "59db4448-2e93-31f2-b572-f9f8749b0f17",
+      "klasse": "engineer",
+      "weg": "chem",
+      "unterklasse": "demolition",
+      "profil": "ENGINEER",
+      "punkteImProfil": 6,
+      "ultStufe3": false,
+      "kit": "engineer",
+      "knoten": {
+        "spike_trap": 1,
+        "e_battery": 1,
+        "mortar_tower": 1
+      }
+    },
+    "Bot02": {
+      "name": "Bot02",
+      "uuid": "2169bc70-47b7-396c-b0e6-a3d8306b7dfa",
+      "klasse": "archer",
+      "weg": "bow",
+      "unterklasse": "swift",
+      "profil": "ARCHER",
+      "punkteImProfil": 8,
+      "ultStufe3": false,
+      "kit": "archer",
+      "knoten": {
+        "archer_focus": 1,
+        "a_lightfoot": 1,
+        "a_steady": 1,
+        "swift_draw": 1
+      }
+    }
+  },
+  "heerlager": {
+    "erschienen": false,
+    "zerstoert": false,
+    "lagerSiegte": false,
+    "maschinen": 0
+  },
+  "maschinen": [],
+  "wellen": [
+    {
+      "nummer": 0,
+      "startSekunde": 0,
+      "dauerSekunden": 0,
+      "gespawnt": 0,
+      "typen": {},
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot02": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 4.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        }
+      },
+      "msptSchnitt": 0.0,
+      "msptMax": 0.0,
+      "ticksUeber50": 0,
+      "msptP95": 0.0,
+      "lebendMax": 0,
+      "mobsMax": 0
+    },
+    {
+      "nummer": 1,
+      "startSekunde": 0,
+      "dauerSekunden": 38,
+      "gespawnt": 26,
+      "typen": {
+        "minecraft:spider": 3,
+        "minecraft:skeleton": 8,
+        "minecraft:zombie": 7,
+        "nightsiege:revenant": 3,
+        "minecraft:creeper": 4,
+        "nightsiege:tunneler": 1
+      },
+      "uebrigAmEnde": 15,
+      "bloeckeZerstoert": 42,
+      "spieler": {
+        "Bot01": {
+          "schaden": 282.6904306411743,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 229.3454852104187,
+            "turm:mortar_tower": 53.344945430755615
+          },
+          "erhalten": 59.05291569232941,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 42.81076955795288,
+            "nightsiege:tunneler": 8.250802993774414,
+            "minecraft:zombie": 6.538371562957764,
+            "minecraft:spider": 1.4529715776443481
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 10.531456679105759,
+          "kills": 9,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 126.18144381046295,
+          "treffer": 23,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 14.614649772644043,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "vogelperspektive": 6,
+            "wahl:escape": 3,
+            "wahl:grenade": 3,
+            "wahl:target": 2
+          },
+          "tasten": {
+            "ABILITY_1": 3,
+            "ABILITY_2": 3,
+            "ABILITY_3": 2
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        },
+        "Bot02": {
+          "schaden": 26.130002588033676,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 26.130002588033676
+          },
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 2,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 3
+          },
+          "tasten": {
+            "ABILITY_2": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.5,
+      "msptMax": 38.9,
+      "ticksUeber50": 0,
+      "msptP95": 6.0,
+      "lebendMax": 15,
+      "mobsMax": 110
+    },
+    {
+      "nummer": 2,
+      "startSekunde": 38,
+      "dauerSekunden": 38,
+      "gespawnt": 12,
+      "typen": {
+        "minecraft:phantom": 2,
+        "minecraft:creeper": 2,
+        "minecraft:spider": 1,
+        "minecraft:zombie": 6,
+        "nightsiege:revenant": 1
+      },
+      "uebrigAmEnde": 15,
+      "bloeckeZerstoert": 185,
+      "spieler": {
+        "Bot01": {
+          "schaden": 144.9853414297104,
+          "schadenNachQuelle": {
+            "nah:iron_sword": 95.29096627235413,
+            "turm:mortar_tower": 44.66937506198883,
+            "drohne": 5.025000095367432
+          },
+          "erhalten": 69.42787301540375,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 31.783753156661987,
+            "nightsiege:revenant": 2.179457187652588,
+            "minecraft:creeper": 20.6122407913208,
+            "minecraft:zombie": 13.399450302124023,
+            "minecraft:spider": 1.4529715776443481
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 4.0,
+          "kills": 7,
+          "assists": 1,
+          "tode": 1,
+          "abgefangen": 143.23477387428284,
+          "treffer": 19,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 19.9168062210083,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 19,
+          "drohneSchaden": 5.025000095367432,
+          "faehigkeiten": {
+            "wahl:grenade": 2,
+            "wahl:target": 1,
+            "wahl:escape": 1
+          },
+          "tasten": {
+            "ABILITY_2": 2,
+            "ABILITY_3": 1,
+            "ABILITY_1": 1
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 19
+        },
+        "Bot02": {
+          "schaden": 39.64963141083717,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 39.64963141083717
+          },
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 1,
+          "assists": 7,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 3
+          },
+          "tasten": {
+            "ABILITY_2": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.4,
+      "msptMax": 48.1,
+      "ticksUeber50": 0,
+      "msptP95": 5.5,
+      "lebendMax": 18,
+      "mobsMax": 107
+    },
+    {
+      "nummer": 3,
+      "startSekunde": 76,
+      "dauerSekunden": 38,
+      "gespawnt": 5,
+      "typen": {
+        "minecraft:creeper": 2,
+        "minecraft:skeleton": 2,
+        "minecraft:zombie": 1
+      },
+      "uebrigAmEnde": 14,
+      "bloeckeZerstoert": 56,
+      "spieler": {
+        "Bot01": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 4,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 38,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 60.0954103320837,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 60.0954103320837
+          },
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 4,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 3
+          },
+          "tasten": {
+            "ABILITY_2": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.3,
+      "msptMax": 19.3,
+      "ticksUeber50": 0,
+      "msptP95": 5.5,
+      "lebendMax": 17,
+      "mobsMax": 110
+    },
+    {
+      "nummer": 4,
+      "startSekunde": 114,
+      "dauerSekunden": 38,
+      "gespawnt": 3,
+      "typen": {
+        "minecraft:creeper": 1,
+        "minecraft:spider": 1,
+        "minecraft:zombie": 1
+      },
+      "uebrigAmEnde": 15,
+      "bloeckeZerstoert": 23,
+      "spieler": {
+        "Bot01": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 38,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 81.20368361473083,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 54.67200541496277,
+            "fern:bow": 26.531678199768066
+          },
+          "erhalten": 43.762118101119995,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 38.91887974739075,
+            "minecraft:zombie": 4.843238353729248
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 4.872762709856033,
+          "kills": 1,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 84.15792226791382,
+          "treffer": 15,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 10.443990707397461,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 3
+          },
+          "tasten": {
+            "ABILITY_2": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.5,
+      "msptMax": 14.9,
+      "ticksUeber50": 0,
+      "msptP95": 6.0,
+      "lebendMax": 15,
+      "mobsMax": 112
+    },
+    {
+      "nummer": 5,
+      "startSekunde": 152,
+      "dauerSekunden": 38,
+      "gespawnt": 2,
+      "typen": {
+        "nightsiege:tunneler": 1,
+        "minecraft:zombie": 1
+      },
+      "uebrigAmEnde": 15,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 38,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 60.72509364783764,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 52.487094685435295,
+            "fern:bow": 8.237998962402344
+          },
+          "erhalten": 52.78553235530853,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 51.17111945152283,
+            "minecraft:spider": 1.6144129037857056
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 2,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 101.51064276695251,
+          "treffer": 19,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 11.41622257232666,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 4
+          },
+          "tasten": {
+            "ABILITY_2": 4
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.5,
+      "msptMax": 13.7,
+      "ticksUeber50": 0,
+      "msptP95": 5.0,
+      "lebendMax": 15,
+      "mobsMax": 112
+    },
+    {
+      "nummer": 6,
+      "startSekunde": 190,
+      "dauerSekunden": 38,
+      "gespawnt": 3,
+      "typen": {
+        "minecraft:spider": 1,
+        "minecraft:zombie": 1,
+        "nightsiege:tunneler": 1
+      },
+      "uebrigAmEnde": 14,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 38,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 60.916494101285934,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 48.856493681669235,
+            "fern:bow": 12.0600004196167
+          },
+          "erhalten": 65.38371729850769,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 57.657599687576294,
+            "minecraft:zombie": 7.7261176109313965
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 4,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 125.73792219161987,
+          "treffer": 21,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 15.539488792419434,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 19.84368896484375,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 3
+          },
+          "tasten": {
+            "ABILITY_2": 3
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 38
+        }
+      },
+      "msptSchnitt": 2.8,
+      "msptMax": 15.6,
+      "ticksUeber50": 0,
+      "msptP95": 6.5,
+      "lebendMax": 15,
+      "mobsMax": 116
+    },
+    {
+      "nummer": 7,
+      "startSekunde": 228,
+      "dauerSekunden": 14,
+      "gespawnt": 3,
+      "typen": {
+        "nightsiege:revenant": 1,
+        "minecraft:zombie": 1,
+        "minecraft:skeleton": 1
+      },
+      "uebrigAmEnde": 0,
+      "bloeckeZerstoert": 0,
+      "spieler": {
+        "Bot01": {
+          "schaden": 0.0,
+          "schadenNachQuelle": {},
+          "erhalten": 0.0,
+          "erhaltenNachGegner": {},
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 0,
+          "assists": 0,
+          "tode": 0,
+          "abgefangen": 0.0,
+          "treffer": 0,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 0.0,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 15,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {},
+          "tasten": {},
+          "turmSekunden": 0,
+          "fussSekunden": 0
+        },
+        "Bot02": {
+          "schaden": 54.89315374195576,
+          "schadenNachQuelle": {
+            "faehigkeit:pfeilregen": 9.758280351758003,
+            "fern:bow": 45.134873390197754
+          },
+          "erhalten": 41.19635343551636,
+          "erhaltenNachGegner": {
+            "minecraft:skeleton": 18.01799988746643,
+            "minecraft:zombie": 18.594574213027954,
+            "nightsiege:tunneler": 4.583779335021973
+          },
+          "heilungGegeben": 0.0,
+          "heilungErhalten": 0.0,
+          "kills": 3,
+          "assists": 0,
+          "tode": 1,
+          "abgefangen": 79.22375869750977,
+          "treffer": 12,
+          "geblockt": 0,
+          "lebensraub": 0.0,
+          "verloren": 11.316746711730957,
+          "absorbiert": 0.0,
+          "lebensraubGekappt": 0.0,
+          "heilungSonst": 0.0,
+          "drohneSekunden": 0,
+          "drohneSchaden": 0.0,
+          "faehigkeiten": {
+            "faehigkeit_f": 1
+          },
+          "tasten": {
+            "ABILITY_2": 1
+          },
+          "turmSekunden": 0,
+          "fussSekunden": 15
+        }
+      },
+      "msptSchnitt": 2.7,
+      "msptMax": 14.0,
+      "ticksUeber50": 0,
+      "msptP95": 6.5,
+      "lebendMax": 14,
+      "mobsMax": 117
+    }
+  ],
+  "gegner": {
+    "minecraft:spider": {
+      "gespawnt": 6,
+      "getoetet": 5,
+      "ueberlebtSekundenSumme": 149.64999999999998,
+      "ueberlebtSekundenSchnitt": 29.9,
+      "schadenAnSpielern": 4.520356059074402,
+      "getoetetVon": {
+        "klasse:demolition": 2,
+        "turm:mortar_tower": 1,
+        "klasse:swift": 2
+      }
+    },
+    "minecraft:skeleton": {
+      "gespawnt": 11,
+      "getoetet": 8,
+      "ueberlebtSekundenSumme": 419.85,
+      "ueberlebtSekundenSchnitt": 52.5,
+      "schadenAnSpielern": 240.36012148857117,
+      "getoetetVon": {
+        "klasse:demolition": 4,
+        "turm:mortar_tower": 2,
+        "klasse:swift": 2
+      }
+    },
+    "minecraft:zombie": {
+      "gespawnt": 18,
+      "getoetet": 12,
+      "ueberlebtSekundenSumme": 892.8,
+      "ueberlebtSekundenSchnitt": 74.4,
+      "schadenAnSpielern": 51.101752042770386,
+      "getoetetVon": {
+        "klasse:demolition": 4,
+        "turm:mortar_tower": 1,
+        "klasse:swift": 7
+      }
+    },
+    "nightsiege:revenant": {
+      "gespawnt": 5,
+      "getoetet": 3,
+      "ueberlebtSekundenSumme": 158.55,
+      "ueberlebtSekundenSchnitt": 52.9,
+      "schadenAnSpielern": 2.179457187652588,
+      "getoetetVon": {
+        "klasse:demolition": 1,
+        "klasse:swift": 2
+      }
+    },
+    "minecraft:creeper": {
+      "gespawnt": 9,
+      "getoetet": 1,
+      "ueberlebtSekundenSumme": 140.65,
+      "ueberlebtSekundenSchnitt": 140.7,
+      "schadenAnSpielern": 20.6122407913208,
+      "getoetetVon": {
+        "klasse:swift": 1
+      }
+    },
+    "nightsiege:tunneler": {
+      "gespawnt": 3,
+      "getoetet": 2,
+      "ueberlebtSekundenSumme": 28.75,
+      "ueberlebtSekundenSchnitt": 14.4,
+      "schadenAnSpielern": 12.834582328796387,
+      "getoetetVon": {
+        "klasse:demolition": 1,
+        "klasse:swift": 1
+      }
+    },
+    "minecraft:phantom": {
+      "gespawnt": 2,
+      "getoetet": 0,
+      "ueberlebtSekundenSumme": 0.0,
+      "ueberlebtSekundenSchnitt": 0.0,
+      "schadenAnSpielern": 0.0,
+      "getoetetVon": {}
+    }
+  },
+  "tuerme": {
+    "mortar_tower|Bot01": {
+      "art": "mortar_tower",
+      "besitzer": "Bot01",
+      "schaden": 98.01432049274445,
+      "schadenBemannt": 0.0,
+      "kills": 4,
+      "killsBemannt": 0,
+      "sekundenBemannt": 0
+    }
+  },
+  "msptP95": 6.0,
+  "lebendMax": 18,
+  "bewertung": {},
+  "staerksteKlasse": {},
+  "kuriositaeten": {
+    "Bot02": {
+      "geschosse": 88.0,
+      "blutrausch": 3.0,
+      "mehrfach": 1.0,
+      "letzterMann": 1.0,
+      "ohneTreffer": 122.0,
+      "weitesterTreffer": 3.7,
+      "creeper": 1.0,
+      "halbesHerz": 1.0
+    },
+    "Bot01": {
+      "weitesterTreffer": 4.3,
+      "ohneTreffer": 12.0,
+      "blutrausch": 7.0,
+      "mehrfach": 2.0,
+      "kletterer": 1.0,
+      "halbesHerz": 1.0
+    }
+  },
+  "todDurch": {
+    "Bot01": {
+      "minecraft:spider": 1
+    },
+    "Bot02": {
+      "minecraft:zombie": 1
+    }
+  },
+  "bosseBesiegt": 0,
+  "opfer": {
+    "Bot01": {
+      "minecraft:skeleton": 6,
+      "nightsiege:tunneler": 1,
+      "minecraft:zombie": 5,
+      "minecraft:spider": 3,
+      "nightsiege:revenant": 1
+    },
+    "Bot02": {
+      "nightsiege:revenant": 2,
+      "minecraft:zombie": 7,
+      "minecraft:skeleton": 2,
+      "minecraft:spider": 2,
+      "minecraft:creeper": 1,
+      "nightsiege:tunneler": 1
+    }
+  },
+  "schlaueNacht": {
+    "an": true,
+    "hoechste": 0,
+    "tiefste": -4,
+    "ende": -4,
+    "eliten": 0,
+    "extraSondermonster": 0,
+    "pausen": 5,
+    "schritte": [
+      {
+        "sekunde": 56,
+        "stufe": -1,
+        "grund": "Tod",
+        "druck": 0.9,
+        "leben": 0.75,
+        "minLeben": 0.0,
+        "tode": 1,
+        "kills": 11
+      },
+      {
+        "sekunde": 75,
+        "stufe": -2,
+        "grund": "zu eng",
+        "druck": 0.84,
+        "leben": 0.84,
+        "minLeben": 0.0,
+        "tode": 1,
+        "kills": 2
+      },
+      {
+        "sekunde": 120,
+        "stufe": -1,
+        "grund": "zu leicht",
+        "druck": 0.0,
+        "leben": 1.0,
+        "minLeben": 1.0,
+        "tode": 0,
+        "kills": 3
+      },
+      {
+        "sekunde": 195,
+        "stufe": -2,
+        "grund": "zu eng",
+        "druck": 0.67,
+        "leben": 0.42,
+        "minLeben": 0.21,
+        "tode": 0,
+        "kills": 2
+      },
+      {
+        "sekunde": 210,
+        "stufe": -3,
+        "grund": "zu eng",
+        "druck": 0.57,
+        "leben": 0.59,
+        "minLeben": 0.21,
+        "tode": 0,
+        "kills": 3
+      },
+      {
+        "sekunde": 240,
+        "stufe": -4,
+        "grund": "zu eng",
+        "druck": 0.65,
+        "leben": 0.52,
+        "minLeben": 0.11,
+        "tode": 0,
+        "kills": 4
+      }
+    ],
+    "steuert": true,
+    "fruehEntschieden": false,
+    "zeitAnteil": 0.87,
+    "spitzenDruck": 1.05,
+    "schleifeGezaehlt": false,
+    "schleifeAn": false,
+    "schleifeVorher": 0.0,
+    "schleifeNachher": 0.0
+  },
+  "bossVerlauf": []
+}
