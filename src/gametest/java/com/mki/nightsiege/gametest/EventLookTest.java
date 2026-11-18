@@ -54,10 +54,7 @@ public class EventLookTest implements FabricClientGameTest {
             boolean simRun = System.getenv("NIGHTSIEGE_SIM") != null;
             if (!simRun) {
                 onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
-                // So do the elites and the life steal against the damage taken (Simon 05.11.): the scene "elite" has them.
                 onServer(context, (player, manager) -> {
-                    manager.config().eliteMobs = false;
-                    manager.config().lifestealCoupled = false;
                     manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
                 });
             }
@@ -277,6 +274,10 @@ public class EventLookTest implements FabricClientGameTest {
                 if (want.contains("sammeln")) {
                     alive(context);
                     SammelnScenes.run(context, game);   // Tor 12: to the core at the horn, kit, ready, countdown (Simon 17.11.)
+                }
+                if (want.contains("angleich")) {
+                    alive(context);
+                    AngleichScenes.run(context);   // Tor 12 I: the Teil-Angleich, lent and back, bar and window EN/DE
                 }
                 if (want.contains("richtung")) {
                     alive(context);

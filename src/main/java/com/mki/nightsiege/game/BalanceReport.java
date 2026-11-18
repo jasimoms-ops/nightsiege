@@ -17,8 +17,7 @@ import java.util.TreeMap;
 
 /**
  * Reads the night protocol back and holds it against the balancing targets of
- * the config: how often nights are won, how often the kill goal is met, how
- * many defenders fall, and how far the subclasses' damage lies apart.
+ * the config: how often nights are won, how many defenders fall, and how far the subclasses' damage lies apart.
  */
 public final class BalanceReport {
 
@@ -32,7 +31,6 @@ public final class BalanceReport {
         int count = 0;
         int won = 0;
         int held = 0;
-        int goal = 0;
         int deaths = 0;
         double closest = 0;
         int closestCount = 0;
@@ -49,9 +47,6 @@ public final class BalanceReport {
             }
             if (survived) {
                 held++;
-                if ("ja".equals(n[13])) {
-                    goal++;
-                }
             }
             deaths += parseInt(n[14]);
             if (!n[17].isBlank()) {
@@ -70,12 +65,9 @@ public final class BalanceReport {
             return out;
         }
         double winRate = won / (double) count;
-        double goalRate = held == 0 ? 0 : goal / (double) held;
         double deathRate = deaths / (double) count;
         out.add(line("nightsiege.balance.wins", pct(winRate), pct(cfg.targetWinRate),
                 Math.abs(winRate - cfg.targetWinRate) <= 0.15));
-        out.add(line("nightsiege.balance.goal", pct(goalRate), pct(cfg.targetGoalRate),
-                Math.abs(goalRate - cfg.targetGoalRate) <= 0.2));
         out.add(line("nightsiege.balance.deaths", num(deathRate), num(cfg.targetDeathsPerNight),
                 deathRate <= cfg.targetDeathsPerNight * 1.5));
         if (closestCount > 0) {

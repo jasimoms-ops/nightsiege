@@ -85,17 +85,6 @@ public class CoreStats {
         public java.util.Map<String, String> blocked = new java.util.HashMap<>();
     }
 
-    /** One perk of the main core. */
-    public static class PerkLine {
-        public String id = "";
-        public int fragments;
-        public int stage;
-        /** Fragments in total for the next stage; 0 at the top stage. */
-        public int nextAt;
-        /** Fragments in total for the current stage. */
-        public int stageAt;
-    }
-
     // --- the base around the core, as the scan found it
     public boolean baseKnown;
     public boolean baseClosed;
@@ -180,16 +169,10 @@ public class CoreStats {
     public boolean nemesisEnabled;
     public List<NemesisLine> nemeses = new ArrayList<>();
 
-    // --- perks of the main core
-    public List<PerkLine> perks = new ArrayList<>();
-    public int perkRadius;
-    public boolean perkInRange;
-
     // --- siege state
     public boolean siegeActive;
-    /** Kills of the running night and the kills it asks for (0 = no goal). */
+    /** Kills of the running night. */
     public int nightKills;
-    public int killsRequired;
     public int level;
     public int secondsLeft;
     public String eventKey = "";
@@ -259,8 +242,8 @@ public class CoreStats {
     public String myProfile = "";
     public int points;
     public int earned;
-    /** Latecomer pool still to pay (Tor 6.7), 0 when none. */
-    public int catchUpPool;
+    /** Teil-Angleich (Tor 12 I): the level the player is lifted to now with lent points, 0 when not. */
+    public int syncLevel;
     public int donated;
     public String pathTaken = "";
     /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */
@@ -332,6 +315,12 @@ public class CoreStats {
     public int poolLevel = 1;
     /** This player's veterans, oldest first (the index is what "round:start:<i>" sends). */
     public List<VeteranChoice> veterans = new ArrayList<>();
+    /** Teil H: this player's open characters, oldest first (index i sends "round:start:<-2-i>"). */
+    public List<VeteranChoice> openChars = new ArrayList<>();
+    /** Teil H: why the open characters are grey (empty: open). */
+    public String roundOpenCharBlock = "";
+    /** Teil H: the current character's catch-up factor (1: none; 2: "Aufholbonus ×2"). */
+    public double catchUpFactor = 1.0;
 
     public static class VeteranChoice {
         public String clazz = "";
@@ -339,6 +328,8 @@ public class CoreStats {
         public int chapter;
         public int level;
         public boolean finale;
+        /** Teil H, open characters: the catch-up factor up to level 20 (1: none). */
+        public double catchUp = 1.0;
     }
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();

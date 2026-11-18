@@ -44,6 +44,11 @@ public final class Chapters {
         /** Player uuid → their veterans, oldest first. */
         public Map<String, List<Veteran>> veterans = new LinkedHashMap<>();
         /**
+         * Tor 12 Teil H (Simon 18.11.): player uuid → their open characters, oldest first. A character under level 20
+         * at a chapter change stays open: playable in "Belagerung starten" at its own level, a veteran at level 20.
+         */
+        public Map<String, List<Veteran>> open = new LinkedHashMap<>();
+        /**
          * Teil 2: a "Belagerung starten" round that is running (saved, so a crash finds it and puts everyone back;
          * null when none runs).
          */
@@ -65,6 +70,15 @@ public final class Chapters {
                 veterans = new LinkedHashMap<>();
             }
             List<Veteran> list = veterans.get(uuid);
+            return list == null ? List.of() : list;
+        }
+
+        /** Teil H: this player's open characters (an empty list when none). */
+        public List<Veteran> openOf(String uuid) {
+            if (open == null) {
+                open = new LinkedHashMap<>();
+            }
+            List<Veteran> list = open.get(uuid);
             return list == null ? List.of() : list;
         }
     }
@@ -107,7 +121,91 @@ public final class Chapters {
 
     /** The night of the round follows the starter: the veterans' loop (night 20) when they picked a veteran. */
     public static boolean veteranLoop(Round r) {
-        return r != null && r.picks.getOrDefault(r.starter, CURRENT) != CURRENT;
+        return r != null && r.picks.getOrDefault(r.starter, CURRENT) >= 0;
+    }
+
+    /** Teil H: the pick of open character {@code index} in {@link Round#picks} (-2, -3 …; -1 is the current one). */
+    public static int openPick(int index) {
+        return -2 - Math.max(0, index);
+    }
+
+    /** Teil H: the open character a pick stands for (0 …), or -1 when the pick is the current one or a veteran. */
+    public static int openIndex(int pick) {
+        return pick <= -2 ? -2 - pick : -1;
+    }
+
+    /**
+     * Teil H (Simon 18.11.): the catch-up bonus. A character 3 or more levels under its goal (the world level for the
+     * current character, 20 for an open one) gets catchUpXpFactor times the experience; else 1.
+     */
+    public static double catchUpFactor(int level, int goal, SiegeConfig cfg) {
+        if (cfg == null || cfg.catchUpLevelGap <= 0 || goal - level < cfg.catchUpLevelGap) {
+            return 1.0;
+        }
+        return Math.max(1.0, cfg.catchUpXpFactor);
+    }
+
+    /** "2" for 2.0, "1.5" for 1.5: the factor as shown ("Aufholbonus ×2"). */
+    public static String factorText(double factor) {
+        return factor == Math.rint(factor) ? String.valueOf((long) factor) : String.valueOf(Math.round(factor * 10) / 10.0);
+    }
+
+    /** Teil H: a round's experience for an open character, all of it (times the catch-up factor) straight into it. */
+    public static int creditOpen(Veteran open, double points, double factor) {
+        if (open == null || open.skills == null || points <= 0) {
+            return 0;
+        }
+        int whole = (int) Math.floor(points * Math.max(1.0, factor) + 1e-9);
+        open.skills.award(whole);
+        return whole;
+    }
+
+    /** Teil H: an open character at level 20 becomes a veteran (character list, veterans' loop). True when it moved. */
+    public static boolean promote(Progress p, String uuid, Veteran open) {
+        if (p == null || open == null || open.level < LENGTH) {
+            return false;
+        }
+        List<Veteran> list = p.open == null ? null : p.open.get(uuid);
+        if (list == null || !list.remove(open)) {
+            return false;
+        }
+        if (list.isEmpty()) {
+            p.open.remove(uuid);
+        }
+        if (p.veterans == null) {
+            p.veterans = new LinkedHashMap<>();
+        }
+        p.veterans.computeIfAbsent(uuid, k -> new ArrayList<>()).add(open);
+        return true;
+    }
+
+    /**
+     * Teil H migration (save): veterans under level 20 from before (frozen though unfinished) become open characters.
+     * Runs at every load; finds nothing the second time. Returns how many moved.
+     */
+    public static int reopen(Progress p) {
+        if (p == null || p.veterans == null) {
+            return 0;
+        }
+        if (p.open == null) {
+            p.open = new LinkedHashMap<>();
+        }
+        int moved = 0;
+        for (Map.Entry<String, List<Veteran>> e : p.veterans.entrySet()) {
+            List<Veteran> list = e.getValue();
+            if (list == null) {
+                continue;
+            }
+            for (java.util.Iterator<Veteran> it = list.iterator(); it.hasNext(); ) {
+                Veteran v = it.next();
+                if (v != null && !done(v)) {
+                    it.remove();
+                    p.open.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(v);
+                    moved++;
+                }
+            }
+        }
+        return moved;
     }
 
     /**
@@ -115,10 +213,19 @@ public final class Chapters {
      * (or the playtest/an operator) and must exist.
      */
     public static String join(Round r, String uuid, int pick, boolean veteransOpen, int veteranCount, boolean hasClass) {
+        return join(r, uuid, pick, veteransOpen, veteranCount, 0, hasClass);
+    }
+
+    /** As above, with the player's open characters (Teil H: picks -2, -3 …, no finale needed). */
+    public static String join(Round r, String uuid, int pick, boolean veteransOpen, int veteranCount, int openCount, boolean hasClass) {
         if (r == null || r.night) {
             return "nightsiege.round.block_busy";
         }
-        if (pick != CURRENT) {
+        if (pick <= -2) {
+            if (openIndex(pick) >= openCount) {
+                return "nightsiege.round.no_open";
+            }
+        } else if (pick != CURRENT) {
             if (!veteransOpen) {
                 return "nightsiege.chapter.lock_finale";
             }
@@ -415,7 +522,20 @@ public final class Chapters {
      * picks freely again (Simon 13.11.: "wer alle 5 fertig hat, wählt frei").
      */
     public static Set<SkillClass> lockedClasses(List<Veteran> veterans, Collection<SkillClass> choosable) {
+        return lockedClasses(veterans, List.of(), choosable);
+    }
+
+    /** Teil H: the classes of the open characters are locked too (Simon 18.11.); who has every class picks freely. */
+    public static Set<SkillClass> lockedClasses(List<Veteran> veterans, List<Veteran> open, Collection<SkillClass> choosable) {
         Set<SkillClass> done = doneClasses(veterans);
+        if (open != null) {
+            for (Veteran o : open) {
+                SkillClass c = SkillClass.byName(o == null ? null : o.clazz);
+                if (c != null) {
+                    done.add(c);
+                }
+            }
+        }
         Set<SkillClass> out = EnumSet.noneOf(SkillClass.class);
         boolean all = true;
         for (SkillClass c : choosable) {
@@ -486,7 +606,16 @@ public final class Chapters {
                 boolean there = finaleTeam != null && finaleTeam.contains(uuid);
                 Veteran v = freeze(own, subOf == null ? "" : subOf.apply(own), levelOf == null ? 1 : levelOf.applyAsInt(uuid, own),
                         p.chapter, date, there);
-                p.veterans.computeIfAbsent(uuid, k -> new ArrayList<>()).add(v);
+                // Teil H (Simon 18.11.): only a finished character (level 20 or the finale) becomes a veteran; an
+                // unfinished one stays open with its class, tree, gains and level.
+                if (done(v)) {
+                    p.veterans.computeIfAbsent(uuid, k -> new ArrayList<>()).add(v);
+                } else {
+                    if (p.open == null) {
+                        p.open = new LinkedHashMap<>();
+                    }
+                    p.open.computeIfAbsent(uuid, k -> new ArrayList<>()).add(v);
+                }
                 PlayerSkills fresh = new PlayerSkills();
                 fresh.lastNight = own.lastNight;   // the latecomer count goes on
                 fresh.templateGiven = own.templateGiven;
@@ -495,16 +624,12 @@ public final class Chapters {
                 fresh.xpPoolFraction = Math.max(0.0, own.xpPoolFraction);
                 own.xpPool = 0;
                 own.xpPoolFraction = 0.0;
-                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point, the
-                // latecomer pool (capped again at the next join); the veteran keeps none. Migration marks: as set.
+                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point; the
+                // veteran keeps none. Migration marks: as set.
                 fresh.waveCredit = Math.max(0, own.waveCredit);
                 fresh.pointFraction = Math.max(0.0, own.pointFraction);
-                fresh.catchUpPool = Math.max(0, own.catchUpPool);
-                fresh.catchUpFraction = Math.max(0.0, own.catchUpFraction);
                 own.waveCredit = 0;
                 own.pointFraction = 0.0;
-                own.catchUpPool = 0;
-                own.catchUpFraction = 0.0;
                 fresh.profileVersion = own.profileVersion;
                 fresh.freeSubclassVersion = own.freeSubclassVersion;
                 skills.put(uuid, fresh);

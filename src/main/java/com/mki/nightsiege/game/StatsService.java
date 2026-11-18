@@ -103,6 +103,12 @@ public final class StatsService {
     }
 
     public static CoreStats build(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
+        // Tor 12 I: the window shows and sells the own tree; the lent levels only as "Angeglichen auf Stufe X".
+        PlayerSkills skills = manager.save().skillsOf(viewer.getUUID().toString());
+        return skills.withoutBorrowed(() -> buildOwn(server, manager, viewer));
+    }
+
+    private static CoreStats buildOwn(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
         SiegeConfig cfg = manager.config();
         SiegeSave save = manager.save();
         SkillTree tree = manager.skillTree();
@@ -114,7 +120,6 @@ public final class StatsService {
         stats.siegeActive = manager.isActive();
         if (stats.siegeActive) {
             stats.nightKills = manager.nightKills();
-            stats.killsRequired = 0;   // Tor 12 F: no kill goal any more
         }
         stats.level = level;
         stats.secondsLeft = manager.secondsLeft();
@@ -254,6 +259,19 @@ public final class StatsService {
             c.finale = v.finale;
             stats.veterans.add(c);
         }
+        // Teil H: the open characters to pick, and the catch-up bonus
+        stats.catchUpFactor = manager.catchUpFactor(viewer.getUUID().toString());
+        String openBlock = manager.roundBlock(server, viewer, com.mki.nightsiege.core.Chapters.openPick(0));
+        stats.roundOpenCharBlock = openBlock == null || "nightsiege.round.no_open".equals(openBlock) ? "" : openBlock;
+        for (com.mki.nightsiege.core.Chapters.Veteran v : save.chapters().openOf(viewer.getUUID().toString())) {
+            CoreStats.VeteranChoice c = new CoreStats.VeteranChoice();
+            c.clazz = v.clazz;
+            c.sub = v.subclass;
+            c.chapter = v.chapter;
+            c.level = v.level;
+            c.catchUp = com.mki.nightsiege.core.Chapters.catchUpFactor(v.level, com.mki.nightsiege.core.Chapters.LENGTH, manager.config());
+            stats.openChars.add(c);
+        }
         for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
             if (c.isShared() || !manager.mayChoose(viewer, c)) {
                 continue;
@@ -295,7 +313,7 @@ public final class StatsService {
         }
         stats.points = skills.points();
         stats.earned = skills.earned;
-        stats.catchUpPool = cfg.lateJoiners ? skills.catchUpPool : 0;
+        stats.syncLevel = skills.syncLevel;   // Tor 12 I: "Angeglichen auf Stufe X (geliehen)"
         stats.donated = skills.donated;
         stats.pathTaken = skills.pathTaken(tree);
         stats.subclass = tree.subclassOfProfile(skills, skills.chosenClass);
@@ -307,7 +325,6 @@ public final class StatsService {
         stats.nightFragment = save.nightFragment;
         stats.scout = manager.expeditions().scoutLine(viewer);
         describeCurses(stats, manager, cfg, save);
-        stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.skillsEnabled = cfg.skillsEnabled;
         describeBase(stats, save, cfg, viewer);
         stats.corePoints = save.coreSkills().points();

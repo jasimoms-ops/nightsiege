@@ -135,14 +135,12 @@ final class Pt2FlowScenes {
             saved[0] = new ArrayList<>(cfg.liveCapByPlayers);
             saved[1] = new ArrayList<>(cfg.fieldRefCaps);
             saved[2] = cfg.maxLiveMobs;
-            saved[3] = cfg.playtestLivePerPlayer;
             saved[4] = cfg.refillCap;
             saved[5] = cfg.testPrepSeconds;
             saved[6] = cfg.refillSpawns;
             cfg.liveCapByPlayers = new ArrayList<>(List.of(6, 10, 13, 17, 20, 24, 27, 31, 34, 38));
             cfg.fieldRefCaps = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
             cfg.maxLiveMobs = 40;
-            cfg.playtestLivePerPlayer = 0.5;
             cfg.refillCap = 40;
             cfg.refillSpawns = true;
             cfg.testPrepSeconds = 0;   // the test night starts at once
@@ -449,7 +447,6 @@ final class Pt2FlowScenes {
             cfg.liveCapByPlayers = caps;
             cfg.fieldRefCaps = refs;
             cfg.maxLiveMobs = (Integer) saved[2];
-            cfg.playtestLivePerPlayer = (Double) saved[3];
             cfg.refillCap = (Integer) saved[4];
             cfg.testPrepSeconds = (Integer) saved[5];
             cfg.refillSpawns = (Boolean) saved[6];

@@ -14,7 +14,6 @@ import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
-import com.mki.nightsiege.core.SiegeScheduler;
 import com.mki.nightsiege.core.CrateKind;
 import com.mki.nightsiege.core.SiegeRhythm;
 import com.mki.nightsiege.core.SkillTree;
@@ -136,7 +135,6 @@ public final class SiegeManager {
     /** Trap wear is saved in batches, not on every spike hit. */
     private boolean trapsDirty;
     private int trapSaveCounter;
-    private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final TrapService traps = new TrapService(() -> save, skillTree);
     private final KitService kits = new KitService(() -> save, () -> config, skillTree, traps, this::persist);
@@ -157,6 +155,11 @@ public final class SiegeManager {
     private boolean lateNight;
     /** What tonight is in the boss rhythm (counted at its end). */
     private com.mki.nightsiege.core.BossPlan.NightKind tonightKind = com.mki.nightsiege.core.BossPlan.NightKind.NORMAL;
+
+    /** Tor 12 E (Langlauf): tonight's kind in the boss rhythm (NORMAL, BOSS, GROUP = finale, LATE). */
+    public com.mki.nightsiege.core.BossPlan.NightKind tonightKindForTests() {
+        return tonightKind;
+    }
     /** The bosses of the Vierer-Nacht or the late night that came so far (one service each). */
     private final List<BossService> finaleBosses = new ArrayList<>();
     /** Their bosses still to come, in their order. */
@@ -745,9 +748,6 @@ public final class SiegeManager {
             spawnedTotal++;
         }
         Fx.mobSpawned(world, config, mob, true);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-            SiegeTeams.mark(world.getServer(), mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
         return mob;
     }
 
@@ -813,10 +813,6 @@ public final class SiegeManager {
 
     public SkillTree skillTree() {
         return skillTree;
-    }
-
-    public SiegeScheduler scheduler() {
-        return scheduler;
     }
 
     public boolean isActive() {
@@ -919,7 +915,9 @@ public final class SiegeManager {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> Json.flush());
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             TeamSim.stop(server);
-            SimBots.removeAll(server);
+            if (!Langlauf.running()) {
+                SimBots.removeAll(server);   // Langlauf: the bots stay and are saved like players
+            }
             safe("Dungeons", () -> expeditions.endAll(server, null));   // kits back, the arena's gate open
             safe("Kriegsführer", () -> warLeader.onServerStopping(server));   // the leader back on the ground
             safe("Letzte Bastion", () -> bastion.onServerStopping(server));   // a ready round goes, the time comes back
@@ -932,7 +930,6 @@ public final class SiegeManager {
                 events.end(server, world, currentEvent);
             }
             EventAtmosphere.resetServer();
-            syncSchedulerToSave();
             persist();
         });
         // Survival safety (Simon 31.10., D4): what the dungeons and the camp built or took down counts as done
@@ -1196,6 +1193,9 @@ public final class SiegeManager {
         if (System.getenv("NIGHTSIEGE_TEAMSIM") != null) {
             TeamSim.startFromEnv(server);
         }
+        if (System.getenv("NIGHTSIEGE_LANGLAUF") != null) {
+            Langlauf.startFromEnv(server);
+        }
     }
 
     /** How far the base scan looks for walls; kept in the config file. */
@@ -1211,7 +1211,6 @@ public final class SiegeManager {
      * config is read again from the disk, which is what the command is for.
      */
     public void reloadKeepingState() {
-        syncSchedulerToSave();
         persist();
         reload();
     }
@@ -1228,7 +1227,6 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
         Json.write(configPath, config);
-        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the old dungeons (their maps came from the caravan, gone since 31.10.)
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
@@ -1242,6 +1240,11 @@ public final class SiegeManager {
         List<String> roundLost = com.mki.nightsiege.core.Chapters.recover(save.chapters());   // Tor 11: a crash in "Belagerung starten"
         if (!roundLost.isEmpty()) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Belagerung starten lief beim Absturz ({} Spieler): ohne Wirkung beendet", roundLost.size());
+        }
+        int reopened = com.mki.nightsiege.core.Chapters.reopen(save.chapters());   // Teil H: veterans under 20 become open
+        if (reopened > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Teil H: {} Veteranen unter Stufe 20 sind jetzt offene Charaktere", reopened);
+            persist();
         }
         int respec = save.migrateSkills();
         if (respec > 0) {
@@ -1315,11 +1318,6 @@ public final class SiegeManager {
         }
         // The subclass first, its level 1 free (Simon, 29 October 2026): once per player, see migrateFreeSubclasses.
         migrateFreeSubclasses();
-        scheduler.setReadyTicks(save.readyTicks);
-        scheduler.setRequiredTicks(save.requiredTicks);
-        if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
-            scheduler.rollInterval(random, config);
-        }
 
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
@@ -1358,11 +1356,6 @@ public final class SiegeManager {
                     players, points);
             persist();
         }
-    }
-
-    private void syncSchedulerToSave() {
-        save.readyTicks = scheduler.readyTicks();
-        save.requiredTicks = scheduler.requiredTicks();
     }
 
     public void persist() {
@@ -1460,6 +1453,7 @@ public final class SiegeManager {
                 id -> save.kitStashes != null && save.kitStashes.containsKey(id.toString())));   // survival safety 2 (31.10.)
         MeleeSim.tick(server);
         TeamSim.tick(server);
+        Langlauf.tick(server);   // CI: the survival long run (Tor 12 E)
         TrapService.clearHitting();
         trapsDirty |= traps.tick(server);
         TrapService.clearHitting();
@@ -1513,6 +1507,9 @@ public final class SiegeManager {
         }
         safe("Kriegsführer", () -> warLeader.tick(server));
         safe("Letzte Bastion", () -> bastion.tick(server));
+        if (gameTime % 10 == 0) {
+            safe("Angleich", () -> sweepLevelSync(server));   // Tor 12 I: lend on joining, give back on leaving
+        }
         if (gameTime % 40 == 0 && save.loans != null && !save.loans.isEmpty()) {
             safe("Leihprofile", () -> sweepLoans(server));   // no lent profile outlives its fun round (Update 7)
         }
@@ -2038,7 +2035,7 @@ public final class SiegeManager {
     }
 
     /** The button at the core: invites everyone to an extra siege tonight, as on a regular siege day. */
-    private void onCallExtraSiege(ServerPlayer player) {
+    void onCallExtraSiege(ServerPlayer player) {
         MinecraftServer server = player.level().getServer();
         if (server == null || mainCore() == null) {
             return;
@@ -2276,29 +2273,16 @@ public final class SiegeManager {
 
     /** Waves started in the running siege. */
     private int wavesStarted;
-    /** Siege monsters killed this night, spawned this night, and the kills the night asks for. */
+    /** Siege monsters killed this night and spawned this night. */
     private int nightKills;
     private int spawnedTotal;
-    /** Monsters of the night gone without being slain (quotaSkipsVanished, 29.10.). */
-    private int vanishedTotal;
-    private final Set<UUID> slainNightMobs = new HashSet<>();
-    private int killQuota;
-    /**
-     * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
-     * show why it changes): the goal the bar showed last, the reasons noted since, and the note
-     * the bar carries for five seconds after a change.
-     */
-    private int shownRequired = -1;
-    private Component goalDown;
-    private Component goalUp;
+    /** The note the bar carries for five seconds after a change. */
     private Component goalNote;
     private int goalNoteUntil;
     /** The night fragment this night used up (given back when the night has to be played again). */
     private String usedFragment;
-    /** How often a survived wave counts for each defender this night (catching up on missed nights). */
-    private final Map<UUID, Integer> waveWeight = new HashMap<>();
-    /** Defenders with a latecomer pool this night (Tor 6.7): the others count a mentor night. */
-    private final Set<UUID> poolTonight = new HashSet<>();
+    /** Defenders lifted by the Teil-Angleich this night (Tor 12 I): the others count a mentor night. */
+    private final Set<UUID> syncedTonight = new HashSet<>();
     /** Number of the running siege night, for catching up; -1 in tests. */
     private int nightNumber = -1;
     /** Defenders who died this night with their inventory kept: it comes back when they respawn. */
@@ -3076,12 +3060,8 @@ public final class SiegeManager {
         }
         presentDefenders = participants.size();
         scaledFor = presentDefenders;
-        if (com.mki.nightsiege.core.SoloHelper.wanted(config, presentDefenders)) {
-            NightSiegeMod.LOGGER.info("[Night Siege] Solo-Helfer: gewuenscht (Geruest, noch ohne Wirkung)");
-        }
         wavesStarted = 0;
-        waveWeight.clear();
-        poolTonight.clear();
+        syncedTonight.clear();
         CrateEffects.reset();
         GainGear.reset();
         SecondUlts.reset();
@@ -3199,12 +3179,7 @@ public final class SiegeManager {
         });
         nightKills = 0;
         spawnedTotal = 0;
-        vanishedTotal = 0;
-        slainNightMobs.clear();
         smart.begin(world.getGameTime(), config.smartNight && !warRound && !bastionRound, config);   // every night starts at 0 (05.11.)
-        shownRequired = -1;
-        goalDown = null;
-        goalUp = null;
         goalNote = null;
         nightLog.begin(world.getGameTime());
         safe("Statistik", () -> stats.beginNight(world.getGameTime(), nightNumber, siegeLevel, testRun,
@@ -3217,7 +3192,6 @@ public final class SiegeManager {
                 logPlayer(player);
             }
         }
-        killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
         safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned() || finaleNight || lateNight));
         safe("Nemesis", () -> nemesis.beginNight(nemesisHost));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
@@ -3226,7 +3200,9 @@ public final class SiegeManager {
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
+                safe("Angleich", () -> syncLevel(player));   // Tor 12 I: joinNight came before "active"; lend before kit and skills
                 equipKit(player);
+                fitKit(player);   // the kit of the horn: with the levels of tonight
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                 safe("Startbegleiter", () -> companions.startNight(player));
             }
@@ -3401,11 +3377,6 @@ public final class SiegeManager {
         return bossBar == null ? "" : bossBarTitle().getString();
     }
 
-    /** Experience is worth more in a special night. */
-    private int nightPoints(int amount) {
-        return save.specialNight ? amount * config.specialNightXpMultiplier : amount;
-    }
-
     private void tickSiege(MinecraftServer server) {
         if (world == null || anchor == null) {
             finish(server, false);
@@ -3418,12 +3389,10 @@ public final class SiegeManager {
         for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
-                    // More defenders, bigger waves: the goal can rise (up to where it started).
-                    goalUp = Component.translatable("nightsiege.bar.goal_joined", player.getScoreboardName());
                     logPlayer(player);
+                    joinNight(player);   // Tor 12 I: the lent levels before the kit and the skills
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                    joinNight(player);
                     safe("Startbegleiter", () -> companions.startNight(player));
                 }
             }
@@ -4267,9 +4236,7 @@ public final class SiegeManager {
 
         @Override
         public void forget(UUID id) {
-            if (liveMobs.remove(id)) {
-                noteVanished(id);
-            }
+            liveMobs.remove(id);
             digger.forget(id);
             ladders.forget(id);
         }
@@ -4293,7 +4260,6 @@ public final class SiegeManager {
                 liveMobs.add(rider.getUUID());
                 spawnedTotal++;
             }
-            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             if (raid.active() && RaidPlan.eligible(mob)) {
                 safe("Angriffsplan", () -> raid.enlist(mob, angle));
             }
@@ -4422,10 +4388,6 @@ public final class SiegeManager {
             return;
         }
         nightLog.of(player.getUUID(), player.getScoreboardName()).kills++;
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(
-                    config.skillPointsPerKill * config.championPointMultiplier));
-        }
     }
 
     /** Admin and tests: the boss planned for this night comes now, with his guard; the others withdraw. */
@@ -4509,7 +4471,6 @@ public final class SiegeManager {
             }
             liveMobs.add(mob.getUUID());
             spawnedTotal++;
-            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             aimAtDefender(world.getServer(), mob);
             return mob;
         }
@@ -4619,7 +4580,6 @@ public final class SiegeManager {
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
                 spawnedTotal++;
-                goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 if (RaidPlan.eligible(mob)) {
                     safe("Angriffsplan", () -> raid.enlist(mob, Double.NaN));   // a risen revenant goes on with the others
                 }
@@ -4709,58 +4669,151 @@ public final class SiegeManager {
         }
     }
 
-    /** A defender joins this night: missed nights make every wave count more for them. */
+    /** A defender joins this night (Tor 12 I: the old catch-up is gone, the Teil-Angleich lends the levels). */
     private void joinNight(ServerPlayer player) {
         if (testRun || nightNumber < 0) {
             return;
         }
-        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
-        if (config.lateJoiners) {
-            joinLate(player, skills);
+        save.skillsOf(player.getUUID().toString()).lastNight = nightNumber;
+        safe("Angleich", () -> syncLevel(player));
+    }
+
+    // ------------------------------------------------------------------
+    // Teil-Angleich (Tor 12 I, Simon 18.11.)
+    // ------------------------------------------------------------------
+
+    /**
+     * True when this player is to be lifted now: a real night (normal, boss, finale, extra, event), a dungeon or the
+     * camp; never "Belagerung starten", the war leader's round, the bastion, a test night, the playtest or a lent
+     * fun profile.
+     */
+    private boolean levelSyncWanted(ServerPlayer player) {
+        if (!config.levelSync || player == null || playtest.running() || save.hasLoan(player.getUUID().toString())) {
+            return false;
+        }
+        boolean night = active && !testRun && !siegeRound && !siegeRoundPending && !warRound && !bastionRound
+                && participants.contains(player.getUUID());
+        return night || camp.isFighter(player) || expeditions.isFighter(player);
+    }
+
+    /** Lends the levels if the player is to be lifted and not yet (the skills at once if he fights). */
+    private void syncLevel(ServerPlayer player) {
+        if (levelSyncWanted(player)) {
+            beginSync(player, currentLevel());
+        }
+    }
+
+    /** Lends the levels for a world of this level and tells the player; the skills at once if he fights. */
+    private boolean beginSync(ServerPlayer player, int worldLevel) {
+        PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+        if (own.synced()) {
+            return true;
+        }
+        int lent = LevelSync.begin(skillTree, config, own, worldLevel);
+        if (lent <= 0) {
+            return false;
+        }
+        if (active && participants.contains(player.getUUID())) {
+            syncedTonight.add(player.getUUID());
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Angleich: {} auf Stufe {} (+{} Punkte geliehen)",
+                player.getScoreboardName(), own.syncLevel, lent);
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.level_sync", own.syncLevel, lent)
+                .withStyle(ChatFormatting.AQUA));
+        fitKit(player);   // the kit came first (horn, dungeon or camp door): built anew with the lent levels
+        if (liveSkillsFor(player) != null) {
+            float before = player.getMaxHealth();
+            SkillService.apply(player, own, skillTree);
+            float more = player.getMaxHealth() - before;
+            if (more > 0) {
+                player.heal(more);   // lifted in the fight: the extra health comes full
+            }
+        }
+        return true;
+    }
+
+    /** The lent levels go back (the skills at once if he still fights). */
+    private void endSync(ServerPlayer player, PlayerSkills own) {
+        if (!LevelSync.end(own)) {
             return;
         }
-        int weight = WaveXp.catchUp(nightNumber, skills.lastNight, config.catchUpMax);
-        skills.lastNight = nightNumber;
-        waveWeight.put(player.getUUID(), weight);
-        if (weight > 1) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up", weight - 1, weight)
-                    .withStyle(ChatFormatting.AQUA));
+        if (player != null && liveSkillsFor(player) != null) {
+            fitKit(player);   // still in the fight: no lent kit part stays
+            SkillService.apply(player, own, skillTree);
         }
     }
 
     /**
-     * The latecomer system (Tor 6.7, formula D): the floor lifts the points to a steady player's minus
-     * lateJoinerNights nights, missed nights fill the pool (at most as many nights, never past the gap).
+     * Tor 12 I: a worn kit built with other levels than count now (given before the lend, or lent and no longer) is
+     * built anew, once; a second lend after logging in again finds it fitting (no second kit).
      */
-    private void joinLate(ServerPlayer player, PlayerSkills skills) {
-        if (skills.lastNight == nightNumber) {
-            if (skills.catchUpPool > 0) {
-                poolTonight.add(player.getUUID());
+    private void fitKit(ServerPlayer player) {
+        if (config.nightKits && kits.hasStash(player) && !player.isDeadOrDying() && !kits.waitsForRespawn(player)
+                && kits.builtLent(player) != save.skillsOf(player.getUUID().toString()).synced()) {
+            kits.refit(player, levelForKit());
+        }
+    }
+
+    /**
+     * Lends to whoever is to be lifted and not yet (a join, back after a log-out) and takes back from everyone else
+     * (the night or the fight over, logged out). Lent levels are never saved, so a crash needs nothing here.
+     */
+    private void sweepLevelSync(MinecraftServer server) {
+        Set<UUID> online = new HashSet<>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            online.add(player.getUUID());
+            PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+            if (levelSyncWanted(player)) {
+                if (!own.synced()) {
+                    beginSync(player, currentLevel());
+                }
+            } else if (own.synced() && !levelSyncPinned.contains(player.getUUID())) {
+                endSync(player, own);
             }
-            return;   // back in the same night: floor and pool are done
         }
-        int missed = com.mki.nightsiege.core.CatchUp.missed(nightNumber, skills.lastNight);
-        skills.lastNight = nightNumber;
-        int level = currentLevel();
-        int expected = TestKit.pointsBefore(level, config);
-        int behind = TestKit.pointsBefore(Math.max(1, level - config.lateJoinerNights), config);
-        int perNight = expected - TestKit.pointsBefore(Math.max(1, level - 1), config);
-        int floor = com.mki.nightsiege.core.CatchUp.floorAdd(skills.earned, behind);
-        if (floor > 0) {
-            skills.award(floor);
-            NightSiegeMod.LOGGER.info("[Night Siege] Nachzuegler-Boden: {} +{} (Stufe {}, jetzt {})",
-                    player.getScoreboardName(), floor, level, skills.points());
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_floor", floor, level)
-                    .withStyle(ChatFormatting.AQUA));
+        if (save.skills == null) {
+            return;
         }
-        skills.catchUpPool = com.mki.nightsiege.core.CatchUp.pool(skills.catchUpPool, missed, perNight,
-                expected - behind, expected, skills.earned);
-        if (skills.catchUpPool > 0) {
-            poolTonight.add(player.getUUID());
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_pool", skills.catchUpPool)
-                    .withStyle(ChatFormatting.AQUA));
-        } else {
-            skills.catchUpFraction = 0.0;
+        for (Map.Entry<String, PlayerSkills> e : save.skills.entrySet()) {
+            if (e.getValue() != null && e.getValue().synced()) {
+                UUID id;
+                try {
+                    id = UUID.fromString(e.getKey());
+                } catch (IllegalArgumentException ex) {
+                    id = null;
+                }
+                if (id == null || !online.contains(id)) {
+                    LevelSync.end(e.getValue());   // logged out: the lent levels go back
+                    if (id != null) {
+                        levelSyncPinned.remove(id);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Players lent to by a test (scene, team sim): the sweep leaves them until a test ends it or they log out. */
+    private final Set<UUID> levelSyncPinned = new HashSet<>();
+
+    /** For tests and the team sim: lends as a real night of this world level would (0: nothing lent). */
+    public int testLevelSync(ServerPlayer player, int worldLevel) {
+        if (player == null) {
+            return 0;
+        }
+        PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+        LevelSync.end(own);
+        if (!beginSync(player, worldLevel)) {
+            return 0;
+        }
+        levelSyncPinned.add(player.getUUID());
+        return own.borrowedPoints;
+    }
+
+    /** For tests: the lent levels back. */
+    public void testLevelSyncEnd(ServerPlayer player) {
+        if (player != null) {
+            levelSyncPinned.remove(player.getUUID());
+            endSync(player, save.realSkillsOf(player.getUUID().toString()));
         }
     }
 
@@ -4776,15 +4829,6 @@ public final class SiegeManager {
         double reach = config.participantRadius * 1.5;
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            // The latecomer pool pays the wave once more, also to the fallen (Tor 6.7).
-            int bonus = player == null || !config.lateJoiners ? 0
-                    : com.mki.nightsiege.core.CatchUp.bonus(save.skillsOf(id.toString()),
-                            save.specialNight ? config.specialNightXpMultiplier : 1, config.wavesPerPoint,
-                            config.pointGainMultiplier);
-            if (bonus > 0 && fallen.contains(id)) {
-                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
-                        Component.translatable("nightsiege.msg.wave_point", wavesStarted, bonus).withStyle(ChatFormatting.AQUA)));
-            }
             if (fallen.contains(id)) {
                 continue;
             }
@@ -4792,9 +4836,9 @@ public final class SiegeManager {
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
-            int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
-            int points = bonus + WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
-                    config.pointGainMultiplier * CrateEffects.pointFactor(player));
+            int weight = save.specialNight ? config.specialNightXpMultiplier : 1;
+            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
+                    config.pointGainMultiplier * CrateEffects.pointFactor(player) * catchUpFor(id));   // Teil H: Aufholbonus
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
                     : Component.translatable("nightsiege.msg.wave_held", wavesStarted).withStyle(ChatFormatting.GRAY)));
@@ -4846,17 +4890,6 @@ public final class SiegeManager {
         double extraDelay = 0.0 /* the core tree is gone (27 October 2026) */;
         // A wave starts the tick after its cooldown has run out, so waves lie one tick more apart.
         return SiegeMath.plannedWaves(totalTicks, config, Curses.waveFactor());
-    }
-
-    /**
-     * Kills the night asks for: the share of its monsters set in the config, never
-     * more than that share of what can still come (a full field of monsters keeps
-     * waves small, and then fewer kills are needed).
-     */
-    public int killsRequired() {
-        int counted = config.quotaSkipsVanished ? spawnedTotal - vanishedTotal : spawnedTotal;
-        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, Math.max(0, counted),
-                plannedWaves() - wavesStarted, wantedPerWave());
     }
 
     public int nightKills() {
@@ -4932,7 +4965,6 @@ public final class SiegeManager {
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
                     spawnedTotal++;
-                    goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 }
                 if (plan != null && RaidPlan.eligible(mob)) {
                     raid.enlist(mob, rift != null ? Double.NaN : angle);   // the plan steers it (and picks its fights)
@@ -4940,9 +4972,6 @@ public final class SiegeManager {
                     aimAtDefender(server, mob);
                 }
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
                 wave.add(mob);
                 spawned++;
             }
@@ -4952,11 +4981,6 @@ public final class SiegeManager {
         } else if (!wave.isEmpty()) {
             waveSides = RaidPlan.sides(anchor.getX() + 0.5, anchor.getZ() + 0.5, wave);   // no plan: where they stand
         }   // a wave without monsters (the field full): the sides of the last one, whose monsters are still out there
-        if (count < wanted && !config.refillSpawns) {
-            goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
-        } else if (spawned < count) {
-            goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
-        }
         // Phantoms in every night (Simon, 27 October 2026): a few come with the second wave.
         if (wavesStarted == 2) {
             int phantoms = Math.max(0, config.nightPhantoms) + (int) Math.floor(Math.max(0.0, config.nightPhantomsPerLevel) * siegeLevel);
@@ -4969,9 +4993,6 @@ public final class SiegeManager {
                 liveMobs.add(phantom.getUUID());
                 spawnedTotal++;
                 aimAtDefender(server, phantom);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-                    SiegeTeams.mark(server, phantom, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
             }
         }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
@@ -5029,9 +5050,6 @@ public final class SiegeManager {
             aimAtDefender(server, mob);
         }
         Fx.mobSpawned(world, config, mob, false);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-            SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -5056,16 +5074,6 @@ public final class SiegeManager {
         }
     }
 
-    /** A monster of the night left the field: slain, or gone without a kill (blown up, fled …). */
-    private void noteVanished(UUID id) {
-        if (!slainNightMobs.remove(id)) {
-            vanishedTotal++;
-            if (config.quotaSkipsVanished) {
-                goalDown = Component.translatable("nightsiege.bar.goal_vanished");
-            }
-        }
-    }
-
     private void pruneMobs() {
         Iterator<UUID> it = liveMobs.iterator();
         while (it.hasNext()) {
@@ -5075,7 +5083,6 @@ public final class SiegeManager {
                 digger.forget(id);
                 ladders.forget(id);
                 it.remove();
-                noteVanished(id);
             } else if (!mob.entityTags().contains(NIGHT_MOB_TAG)) {
                 mob.addTag(NIGHT_MOB_TAG);   // a crash leaves no monster behind (ENTITY_LOAD, Simon 31.10.)
             }
@@ -5307,18 +5314,17 @@ public final class SiegeManager {
         safe("Statistik", () -> stats.smartEnd(smart, elites, extras));
     }
 
-    /** A new monster of the night: an elite by the fixed chance (eliteMobs) and the smart night's. */
+    /** A new monster of the night: an elite by the smart night's chance (the fixed eliteMobs are gone, Tor 12 J). */
     private void smartElite(Mob mob) {
         if (bastionRound) {
             // The bastion: fixed elites from wave 5, a little more every wave; no smart night (Update 7).
             Elites.maybe(world, mob, siegeLevel, config, random,
-                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config), false);
+                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config));
             return;
         }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
-                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites,
-                com.mki.nightsiege.core.SmartNight.specials(config, step));
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites);
     }
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
@@ -5405,12 +5411,13 @@ public final class SiegeManager {
     }
 
     /** Writes the night's protocol lines. */
+    /** {@code blasted} and {@code required} stay 0 (no blast, no kill goal since Tor 12 J/F); the columns stay for the tools. */
     private void logNight(String result, int blasted, int required) {
         StatsRecorder.NightFile finished = null;
-        if (!testRun && nightNumber >= 0 && !poolTonight.isEmpty() && world != null) {
-            // Mentor nights (Tor 6.7): everyone else who stood in a night with a latecomer.
+        if (!testRun && nightNumber >= 0 && !syncedTonight.isEmpty() && world != null) {
+            // Mentor nights (Tor 6.7, Tor 12 I): everyone else who stood in a night with a player lifted by the Teil-Angleich.
             for (UUID id : participants) {
-                ServerPlayer mentor = poolTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
+                ServerPlayer mentor = syncedTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
                 if (mentor != null) {
                     safe("Statistik", () -> stats.mentor(mentor));
                 }
@@ -5607,6 +5614,7 @@ public final class SiegeManager {
         }
         active = false;
         clearSkillsFromParticipants(server);
+        safe("Angleich", () -> sweepLevelSync(server));   // Tor 12 I: the lent levels go back before rewards and losses
         SiegeTeams.cleanUp(server);
         if (world != null && anchor != null) {
             Fx.coreFlare(world, config, anchor, won);
@@ -5660,8 +5668,6 @@ public final class SiegeManager {
 
         // Tor 12 F (Simon 17.11.): no kill goal any more – a night held with the core alive is won ("held, but the
         // goal missed" is gone); the core's life ended a lost night already (tickSiege).
-        int required = 0;
-        boolean quotaMet = nightKills >= required;
         if (bastionRound) {
             // The Letzte Bastion (Update 7): no reward, the record board; the lent profiles go back.
             logNight("test_verloren", 0, 0);
@@ -5684,7 +5690,7 @@ public final class SiegeManager {
             return;
         }
         if (testRun) {
-            logNight(won ? "test_gehalten" : "test_verloren", 0, required);
+            logNight(won ? "test_gehalten" : "test_verloren", 0, 0);
             if (siegeRound) {
                 if (won) {
                     waveSurvived(server);   // the last wave, as a won real night counts it
@@ -5694,10 +5700,6 @@ public final class SiegeManager {
             testRun = false;
             broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
                     .withStyle(ChatFormatting.GRAY));
-            if (won && required > 0) {
-                broadcast(server, Component.translatable(quotaMet ? "nightsiege.msg.quota_met" : "nightsiege.msg.quota_missed_test",
-                        nightKills, required).withStyle(ChatFormatting.GRAY));
-            }
             clearSiegeState();
             return;
         }
@@ -5724,26 +5726,15 @@ public final class SiegeManager {
                 save.groupBosses.add(bossKind.id());   // one of the four of the next Vierer-Nacht
             }
         }
-        // The rhythm's count: a lost boss night or Vierer-Nacht comes again.
+        // The rhythm's count: only a won night counts (Simon 18.11.), a lost one of any kind comes again.
         bossNights();
-        save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won && bossDown);
+        save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won, bossDown);
         String result = com.mki.nightsiege.core.NightEnd.result(won);   // Tor 12 F: kills do not count
-        int blasted = 0;
-        if (won && !quotaMet) {
-            // Held, but too few monsters fell: the night comes again at the same level.
-            save.currentStreak = 0;
-            waveSurvived(server);
-            if (save.specialNight && usedFragment != null) {
-                save.nightFragment = usedFragment;   // the special night comes again too
-            }
-            broadcast(server, Component.translatable("nightsiege.msg.quota_missed", nightKills, required, siegeLevel)
-                    .withStyle(ChatFormatting.RED));
-        } else if (won) {
+        if (won) {
             save.siegesWon++;
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             waveSurvived(server);
-            awardSkillPoints(server);
             // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
             // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
             // So is the warden's (Simon, 29 October 2026), with ability points for those still standing.
@@ -5757,35 +5748,24 @@ public final class SiegeManager {
                 awardWardenPoints(server, wardenKind);
             }
             int next = SiegeMath.level(chapterWins(), lastKnownDay, config);
-            if (required > 0) {
-                broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
-                        .withStyle(ChatFormatting.GREEN));
-            }
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
         } else {
             save.siegesLost++;
             save.currentStreak = 0;
-            int destroyed = 0;
-            if (config.failureBlast && world != null && anchor != null) {
-                destroyed = Demolition.blast(world, anchor, config);
-                broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
-                        .withStyle(ChatFormatting.DARK_RED));
-            } else {
-                broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
-                        .withStyle(ChatFormatting.DARK_RED));
-            }
-            blasted = destroyed;
-            if (config.defeatSkillLoss > 0) {
-                loseSkills(server);
-            }
+            broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
+                    .withStyle(ChatFormatting.DARK_RED));
             broadcast(server, Component.translatable("nightsiege.msg.night_again", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
 
+        for (Map.Entry<UUID, Double> paid : catchUpPaid.entrySet()) {   // Teil H: "Aufholbonus ×2" at the night's end
+            tellCatchUp(server.getPlayerList().getPlayer(paid.getKey()), paid.getValue());
+        }
+        catchUpPaid.clear();
         // Tor 6.6, the outer loop: only real nights count (the tests and the playtest returned above).
         if (!inPlaytest()) {
-            boolean held = won && quotaMet;
+            boolean held = won;
             double before = com.mki.nightsiege.core.OuterLoop.clamp(save.outerLoop, config);
             save.outerLoop = com.mki.nightsiege.core.OuterLoop.next(before, held, config);
             if (held) {
@@ -5799,7 +5779,7 @@ public final class SiegeManager {
                     before * 100, after * 100, held ? "Sieg" : "Niederlage", save.outerLoopWon, save.outerLoopLost));
             safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
         }
-        logNight(result, blasted, required);
+        logNight(result, 0, 0);
         safe("Vorrat", this::flowPools);   // Tor 11: a higher world level lets the pools flow on
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
@@ -5862,6 +5842,7 @@ public final class SiegeManager {
         }
         Set<String> everyone = new java.util.LinkedHashSet<>(save.registered);
         everyone.addAll(team);
+        Map<String, PlayerSkills> before = save.skills == null ? Map.of() : new HashMap<>(save.skills);   // Teil H: who went where
         List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
                 everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
                 (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
@@ -5869,12 +5850,20 @@ public final class SiegeManager {
         save.bossBag = new ArrayList<>();   // the next chapter's bosses
         save.nextBoss = null;
         save.groupBosses.clear();
+        Set<String> opened = new HashSet<>();
         for (String uuid : frozen) {
-            List<com.mki.nightsiege.core.Chapters.Veteran> list = progress.veteransOf(uuid);
-            com.mki.nightsiege.core.Chapters.Veteran v = list.isEmpty() ? null : list.get(list.size() - 1);
-            if (v != null) {
-                v.treeVersion = save.skillTreeVersion;
-                HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
+            PlayerSkills was = before.get(uuid);
+            for (com.mki.nightsiege.core.Chapters.Veteran v : progress.veteransOf(uuid)) {
+                if (was != null && v.skills == was) {
+                    v.treeVersion = save.skillTreeVersion;
+                    HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
+                }
+            }
+            for (com.mki.nightsiege.core.Chapters.Veteran o : progress.openOf(uuid)) {
+                if (was != null && o.skills == was) {
+                    o.treeVersion = save.skillTreeVersion;   // Teil H: unfinished, it stays open
+                    opened.add(uuid);
+                }
             }
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Kapitel {} gewonnen: {} Veteranen, Kapitel {} beginnt (Nacht 1, Stufe 1)",
@@ -5888,8 +5877,8 @@ public final class SiegeManager {
             if (frozen.contains(uuid)) {
                 SkillService.clear(player);
                 ClassTags.update(server, player, save.skillsOf(uuid), "");
-                player.sendSystemMessage(Component.translatable("nightsiege.chapter.new_character", closed)
-                        .withStyle(ChatFormatting.AQUA));
+                player.sendSystemMessage(Component.translatable(opened.contains(uuid) ? "nightsiege.chapter.open_character"
+                        : "nightsiege.chapter.new_character", closed).withStyle(ChatFormatting.AQUA));
             }
         }
         persist();
@@ -5996,7 +5985,12 @@ public final class SiegeManager {
                 return "nightsiege.round.block_night";
             }
         }
-        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+        if (pick <= -2) {
+            // Teil H: an open character (no finale needed: it exists only after a chapter change)
+            if (player == null || com.mki.nightsiege.core.Chapters.openIndex(pick) >= save.chapters().openOf(player.getUUID().toString()).size()) {
+                return "nightsiege.round.no_open";
+            }
+        } else if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
             String lock = finaleLock(player);
             if (lock != null) {
                 return lock;
@@ -6076,18 +6070,27 @@ public final class SiegeManager {
         }
         List<com.mki.nightsiege.core.Chapters.Veteran> vets = save.chapters().veteransOf(uuid);
         PlayerSkills real = save.realSkillsOf(uuid);
-        String why = com.mki.nightsiege.core.Chapters.join(round, uuid, pick, finaleLock(player) == null, vets.size(), real.hasClass());
+        List<com.mki.nightsiege.core.Chapters.Veteran> opens = save.chapters().openOf(uuid);
+        String why = com.mki.nightsiege.core.Chapters.join(round, uuid, pick, finaleLock(player) == null, vets.size(), opens.size(), real.hasClass());
         if (why != null) {
             player.sendSystemMessage(Component.translatable(why).withStyle(ChatFormatting.GRAY));
             return false;
         }
-        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+        com.mki.nightsiege.core.Chapters.Veteran open = pick <= -2 ? opens.get(com.mki.nightsiege.core.Chapters.openIndex(pick)) : null;
+        if (open != null) {
+            // Teil H: the open character itself plays (migrated in place), so what it learns in the round stays
+            PlayerSkills playing = veteranCharacter(open);
+            open.skills = playing;
+            open.treeVersion = save.skillTreeVersion;
+            save.lend(uuid, playing);
+        } else if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
             save.lend(uuid, veteranCharacter(vets.get(pick)));   // the veteran plays; the frozen one stays as it is
         } else {
             save.endLoan(uuid);   // changed their mind: the current character again
         }
         if (uuid.equals(round.starter)) {
-            round.level = pick != com.mki.nightsiege.core.Chapters.CURRENT ? Math.max(1, Math.min(config.maxLevel, vets.get(pick).level))
+            round.level = open != null ? Math.max(1, Math.min(config.maxLevel, open.level))   // Teil H: a night of its own level
+                    : pick != com.mki.nightsiege.core.Chapters.CURRENT ? Math.max(1, Math.min(config.maxLevel, vets.get(pick).level))
                     : characterLevel(real, currentLevel());
         }
         if (fresh) {
@@ -6103,7 +6106,8 @@ public final class SiegeManager {
         }
         player.sendSystemMessage(Component.translatable("nightsiege.round.ready_you").withStyle(ChatFormatting.GREEN));
         NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten: {} bereit ({})", player.getScoreboardName(),
-                pick == com.mki.nightsiege.core.Chapters.CURRENT ? "aktueller Charakter" : "Veteran " + pick);
+                pick == com.mki.nightsiege.core.Chapters.CURRENT ? "aktueller Charakter"
+                        : open != null ? "offener Charakter " + com.mki.nightsiege.core.Chapters.openIndex(pick) : "Veteran " + pick);
         persist();
         if (round.picks.keySet().containsAll(nearCore(server))) {
             beginSiegeRound(server);   // everyone near the core is ready (alone: at once)
@@ -6186,7 +6190,7 @@ public final class SiegeManager {
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
-            int weight = waveWeight.getOrDefault(id, 1) * (special ? config.specialNightXpMultiplier : 1);
+            int weight = special ? config.specialNightXpMultiplier : 1;
             int points = roundXp.computeIfAbsent(id, k -> new com.mki.nightsiege.core.Chapters.NightXp()).wave(weight, config.wavesPerPoint,
                     config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
@@ -6216,7 +6220,7 @@ public final class SiegeManager {
             save.nightFragment = back;   // broken off: the fragment comes back, as after a real night
         }
         if (credit && won) {
-            int points = wonNightPoints(round.fragment != null) + (config.skillsEnabled ? Curses.points(config, round.curses) : 0);
+            int points = config.skillsEnabled ? Curses.points(config, round.curses) : 0;
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
                     roundXp.computeIfAbsent(id, k -> new com.mki.nightsiege.core.Chapters.NightXp()).won(points);
@@ -6230,24 +6234,43 @@ public final class SiegeManager {
         int cap = poolCap();
         for (String uuid : everyone) {
             int pick = round.picks.getOrDefault(uuid, com.mki.nightsiege.core.Chapters.CURRENT);
-            boolean veteran = pick != com.mki.nightsiege.core.Chapters.CURRENT;
-            if (veteran) {
+            boolean veteran = pick >= 0;
+            int openIndex = com.mki.nightsiege.core.Chapters.openIndex(pick);
+            if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
                 save.endLoan(uuid);
             }
             ServerPlayer player = server == null ? null : server.getPlayerList().getPlayer(UUID.fromString(uuid));
-            if (player != null && veteran) {
+            if (player != null && pick != com.mki.nightsiege.core.Chapters.CURRENT) {
                 SkillService.clear(player);
             }
             if (!credit) {
                 continue;
             }
-            PlayerSkills own = save.realSkillsOf(uuid);
             com.mki.nightsiege.core.Chapters.NightXp xp = roundXp.get(UUID.fromString(uuid));
-            int added = com.mki.nightsiege.core.Chapters.addToPool(own, xp == null ? 0 : xp.points(), com.mki.nightsiege.core.Chapters.xpShare(veteran, round.extras));
+            List<com.mki.nightsiege.core.Chapters.Veteran> opens = save.chapters().openOf(uuid);
+            if (openIndex >= 0 && openIndex < opens.size()) {
+                // Teil H: all of it straight into the open character (not the pool), with the catch-up bonus up to 20
+                com.mki.nightsiege.core.Chapters.Veteran open = opens.get(openIndex);
+                double factor = com.mki.nightsiege.core.Chapters.catchUpFactor(open.level, com.mki.nightsiege.core.Chapters.LENGTH, config);
+                int gained = com.mki.nightsiege.core.Chapters.creditOpen(open, xp == null ? 0 : xp.points(), factor);
+                open.level = Math.max(open.level, openLevel(open.skills));
+                boolean done = com.mki.nightsiege.core.Chapters.promote(save.chapters(), uuid, open);
+                if (player != null) {
+                    player.sendSystemMessage(Component.translatable(done ? "nightsiege.round.open_done" : "nightsiege.round.open_gain",
+                            gained, open.level).withStyle(done ? ChatFormatting.GOLD : ChatFormatting.AQUA));
+                    tellCatchUp(player, factor);
+                }
+                continue;
+            }
+            PlayerSkills own = save.realSkillsOf(uuid);
+            double factor = catchUpFactor(uuid);   // Teil H: the receiving current character's catch-up bonus
+            int added = com.mki.nightsiege.core.Chapters.addToPool(own, xp == null ? 0 : xp.points(),
+                    com.mki.nightsiege.core.Chapters.xpShare(veteran, round.extras) * factor);
             int flowed = com.mki.nightsiege.core.Chapters.flowPool(own, cap);
             if (player != null) {
                 player.sendSystemMessage(Component.translatable("nightsiege.round.pool_gain", added, flowed, own.xpPool, currentLevel())
                         .withStyle(ChatFormatting.AQUA));
+                tellCatchUp(player, factor);
             }
         }
         roundXp.clear();
@@ -6255,6 +6278,37 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten vorbei ({}): {} Spieler", won ? "gehalten" : "verloren", everyone.size());
         }
         persist();
+    }
+
+    /** Teil H: an open character's level by its points (up to 20). */
+    public int openLevel(PlayerSkills own) {
+        return own == null ? 1 : characterLevel(own, com.mki.nightsiege.core.Chapters.LENGTH);
+    }
+
+    /** Teil H: the catch-up factor of this player's current character (×2 while 3+ levels under the world level). */
+    public double catchUpFactor(String uuid) {
+        int world = currentLevel();
+        return com.mki.nightsiege.core.Chapters.catchUpFactor(characterLevel(save.realSkillsOf(uuid), world), world, config);
+    }
+
+    /** Teil H: the catch-up factor for a real night's experience; notes who got it for the night's end. */
+    private double catchUpFor(UUID id) {
+        double factor = catchUpFactor(id.toString());
+        if (factor > 1.0) {
+            catchUpPaid.put(id, factor);
+        }
+        return factor;
+    }
+
+    /** Teil H: who got the catch-up bonus in this real night (told at its end). */
+    private final Map<UUID, Double> catchUpPaid = new HashMap<>();
+
+    /** Teil H: "Aufholbonus ×2" at the end of the night (or the round). */
+    private static void tellCatchUp(ServerPlayer player, double factor) {
+        if (player != null && factor > 1.0) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up",
+                    com.mki.nightsiege.core.Chapters.factorText(factor)).withStyle(ChatFormatting.LIGHT_PURPLE));
+        }
     }
 
     /** The level a character plays in "Belagerung starten": its own (by its points, at most the world's). */
@@ -6378,6 +6432,7 @@ public final class SiegeManager {
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
         Curses.end();   // broken off: the stones stay on the altar for the next night
         nightCurses = 0;
+        catchUpPaid.clear();   // Teil H: broken off, no "Aufholbonus" line at the next night's end
         clearRemainingMobs();
         digger.reset();
         logLadders();
@@ -6706,30 +6761,6 @@ public final class SiegeManager {
         presentDefenders = 0;
     }
 
-    /** A lost night: every defender loses the newest learned skills, the points spent on them with them. */
-    private void loseSkills(MinecraftServer server) {
-        if (config.defeatSkillLoss <= 0) {
-            return;
-        }
-        for (UUID id : participants) {
-            PlayerSkills skills = save.skillsOf(id.toString());
-            List<String> gone = skillTree.loseLast(skills, config.defeatSkillLoss);
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || gone.isEmpty()) {
-                continue;
-            }
-            net.minecraft.network.chat.MutableComponent names = Component.empty();
-            for (int i = 0; i < gone.size(); i++) {
-                if (i > 0) {
-                    names.append(", ");
-                }
-                names.append(Component.translatable("nightsiege.skill." + gone.get(i)));
-            }
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.skills_lost", names)
-                    .withStyle(ChatFormatting.RED));
-        }
-    }
-
     /** A lost siege sets the core back to the start: progress and skills are gone. */
     private void resetProgress(MinecraftServer server) {
         save.siegesWon = 0;
@@ -6739,32 +6770,6 @@ public final class SiegeManager {
         }
     }
 
-    /** The points of a won night on this level (a special night times its multiplier); 0 when switched off. */
-    private int wonNightPoints(boolean special) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return 0;
-        }
-        int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
-        return special ? amount * config.specialNightXpMultiplier : amount;
-    }
-
-    private void awardSkillPoints(MinecraftServer server) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return;
-        }
-        int amount = wonNightPoints(save.specialNight);
-        // Everyone who was still standing earns it for themselves.
-        for (UUID id : participants) {
-            if (fallen.contains(id)) {
-                continue;
-            }
-            save.skillsOf(id.toString()).award(amount);
-        }
-        Fx.pointsEarned(server, config);
-        broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
-                .withStyle(ChatFormatting.AQUA));
-    }
-
     /** A night won under curse stones: skill points for everyone still standing (update 2). */
     /** The warden fell: ability points for every defender still standing. */
     private void awardWardenPoints(MinecraftServer server, com.mki.nightsiege.core.ExpeditionKind kind) {
@@ -6772,7 +6777,7 @@ public final class SiegeManager {
         if (amount > 0) {
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
-                    save.skillsOf(id.toString()).award(amount);
+                    save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H: Aufholbonus
                 }
             }
         }
@@ -6785,7 +6790,7 @@ public final class SiegeManager {
         if (amount > 0) {
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
-                    save.skillsOf(id.toString()).award(amount);
+                    save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H
                 }
             }
         }
@@ -6885,7 +6890,6 @@ public final class SiegeManager {
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
-            slainNightMobs.add(killed.getUUID());
             smart.kill(world.getGameTime());
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
@@ -7288,6 +7292,7 @@ public final class SiegeManager {
                 state = new com.mki.nightsiege.core.UltState();
                 state.kitsOn = config.nightKits;
             }
+            state.syncLevel = save.realSkillsOf(player.getUUID().toString()).syncLevel;   // Tor 12 I: the bar's note
             final PlayerSkills hudOwn = own;
             final com.mki.nightsiege.core.UltState hudState = state;
             safe("Kit-Leiste", () -> kitHudValues(player, hudOwn, hudState));
@@ -7411,14 +7416,9 @@ public final class SiegeManager {
             return;
         }
         save.cores.add(new CoreRecord(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        if (scheduler.requiredTicks() <= 0L) {
-            scheduler.rollInterval(random, config);
-        }
-        syncSchedulerToSave();
         persist();
         if (placer instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed",
-                    config.requiredPlayers, (int) config.coreRadius).withStyle(ChatFormatting.GOLD));
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed").withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -7456,7 +7456,6 @@ public final class SiegeManager {
             return;
         }
         save.removeCore(dimension, pos.getX(), pos.getY(), pos.getZ());
-        syncSchedulerToSave();
         persist();
 
         MinecraftServer server = brokenWorld.getServer();
@@ -7666,8 +7665,6 @@ public final class SiegeManager {
         }
     }
 
-    /** Damage a guardian caught and healing given, until it adds up to a point. */
-    private final Map<UUID, Double> tankPool = new HashMap<>();
 
     /**
      * A guardian caught damage from an attacker (or healed a teammate, from null):
@@ -7717,19 +7714,6 @@ public final class SiegeManager {
             nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
             stats.healGiven(player, amount);
         }
-        if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
-            return;
-        }
-        if (from != null && !from.entityTags().contains(MobFactory.TAG)) {
-            return;
-        }
-        double pool = tankPool.merge(player.getUUID(), amount, Double::sum);
-        int per = Math.max(1, config.tankDamagePerPoint);
-        if (pool >= per) {
-            int points = (int) (pool / per);
-            tankPool.put(player.getUUID(), pool - points * per);
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(points * config.skillPointsPerKill));
-        }
     }
 
     /** Counts a kill and turns it into skill experience. */
@@ -7769,11 +7753,6 @@ public final class SiegeManager {
         if (champion) {
             stats.championKills++;
             save.totalChampionKills++;
-        }
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(champion
-                    ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill));
         }
     }
 
@@ -8115,9 +8094,22 @@ public final class SiegeManager {
             openCoreWindow(player);
             return false;
         }
-        boolean bought = own.asProfile(key, () -> skillTree.unlock(nodeId, own));
+        // Tor 12 I: a purchase goes into the own tree (cost and level without the lent levels), then lent anew.
+        boolean bought = own.withoutBorrowed(() -> own.asProfile(key, () -> skillTree.unlock(nodeId, own)));
         if (bought) {
-            rewardMaxedUltimate(player, own, node, key);
+            own.withoutBorrowed(() -> {
+                rewardMaxedUltimate(player, own, node, key);
+                return null;
+            });
+            if (own.synced()) {
+                int lent = own.syncLevel;
+                LevelSync.end(own);
+                LevelSync.begin(skillTree, config, own, currentLevel());
+                if (!own.synced()) {
+                    NightSiegeMod.LOGGER.info("[Night Siege] Angleich: {} braucht keine Leihpunkte mehr (Stufe {})",
+                            player.getScoreboardName(), lent);
+                }
+            }
             persistShortly();   // survival safety 2: not a full write per click
             // Skills only hold during a siege, so apply at once only if one runs.
             if (key.equals(own.chosenClass) && active && participants.contains(player.getUUID())
@@ -8190,7 +8182,8 @@ public final class SiegeManager {
                 choosable.add(c);
             }
         }
-        return com.mki.nightsiege.core.Chapters.lockedClasses(save.chapters().veteransOf(player.getUUID().toString()), choosable);
+        String uuid = player.getUUID().toString();   // Teil H: the open characters' classes too
+        return com.mki.nightsiege.core.Chapters.lockedClasses(save.chapters().veteransOf(uuid), save.chapters().openOf(uuid), choosable);
     }
 
     /** True when the class is locked for this player's new character (Tor 11). */

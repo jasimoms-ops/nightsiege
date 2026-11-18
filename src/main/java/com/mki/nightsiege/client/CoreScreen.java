@@ -3566,11 +3566,6 @@ public class CoreScreen extends Screen {
         gui.text(font, second, cx - font.width(second) / 2, y + 40, secondColor, true);
     }
 
-    private static final java.util.Map<String, Integer> PERK_COLORS = java.util.Map.of(
-            "vitality", 0xFFFF5A64, "bulwark", 0xFFC0C8DC, "tides", 0xFF4FD6E6,
-            "flame", 0xFFFF9A3C, "vigilance", 0xFFFFD84A);
-
-    /** The five perks of the main core: stage, fragments to the next one and what they do now. */
     /** The night fragments: which one sits in the core, and what each one does. */
     /** Which class the collection tab shows (kept while the game runs). */
     private static String collectionClass;
@@ -4401,18 +4396,6 @@ public class CoreScreen extends Screen {
         }
     }
 
-    private static String perkEffect(String id, int stage) {
-        return switch (id) {
-            case "vitality" -> Component.translatable("nightsiege.perk.vitality.now", 2 * stage).getString();
-            case "bulwark" -> Component.translatable("nightsiege.perk.bulwark.now", stage, 5 * stage).getString();
-            case "tides" -> Component.translatable(stage >= 3 ? "nightsiege.perk.tides.now2" : "nightsiege.perk.tides.now1").getString();
-            case "flame" -> Component.translatable(stage >= 3 ? "nightsiege.perk.flame.now_fire" : "nightsiege.perk.flame.now",
-                    10 * stage).getString();
-            case "vigilance" -> Component.translatable("nightsiege.perk.vigilance.now", 10 * stage, 10 * stage).getString();
-            default -> "";
-        };
-    }
-
     /** The tally as four cards: next siege, wave strength, record and ranking; with a class the profiles first. */
     private void drawStats(GuiGraphicsExtractor gui, Font font, int mouseX, int mouseY) {
         int gap = 6;
@@ -5081,16 +5064,20 @@ public class CoreScreen extends Screen {
                 {"nightsiege.ui.rec_kills", String.valueOf(stats.totalKills), "FFFFFFFF"},
                 {"nightsiege.ui.rec_champs", String.valueOf(stats.totalChampionKills), "FFFFAA00"}};
         int cellW = (w - 16) / 2;
-        // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale, the latecomer pool.
+        // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale; Tor 12 I: the Teil-Angleich.
         float footScale = 0.75f;
         List<net.minecraft.util.FormattedCharSequence> foot = new ArrayList<>();
+        if (stats.catchUpFactor > 1.0) {   // Teil H: "Aufholbonus ×2"
+            foot.addAll(font.split(Component.translatable("nightsiege.msg.catch_up",
+                    com.mki.nightsiege.core.Chapters.factorText(stats.catchUpFactor)), (int) ((w - 16) / footScale)));
+        }
         if (stats.xpPool > 0 || stats.firstFinaleWon) {
             foot.addAll(font.split(Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel),
                     (int) ((w - 16) / footScale)));
         }
         int poolLines = foot.size();
-        if (stats.catchUpPool > 0) {
-            foot.addAll(font.split(Component.translatable("nightsiege.ui.late_pool", stats.catchUpPool), (int) ((w - 16) / footScale)));
+        if (stats.syncLevel > 0) {
+            foot.addAll(font.split(Component.translatable("nightsiege.ui.level_sync", stats.syncLevel), (int) ((w - 16) / footScale)));
         }
         int footH = foot.isEmpty() ? 0 : foot.size() * 8 + 3;
         boolean tight = y + h - cy - footH < 3 * 21;

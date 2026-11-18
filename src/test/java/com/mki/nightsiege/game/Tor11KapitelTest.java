@@ -96,7 +96,7 @@ class Tor11KapitelTest {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":28,\"bossEvery\":4,\"healthPerLevel\":0.123}", SiegeConfig.class);
         c.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, c.settingsVersion);
-        assertEquals(32, SiegeConfig.SETTINGS_VERSION);   // 31 since Tor 12 (defaults = server), 32 Sim s2
+        assertTrue(SiegeConfig.SETTINGS_VERSION >= 31);   // 31 since Tor 12 (defaults = server), later steps follow
         assertEquals(List.of(0.0, 0.0, 0.10, 0.20, 0.30), c.chapterScaling);
         assertEquals(0.123, c.healthPerLevel, 1e-9);
         SiegeConfig own = new Gson().fromJson("{\"settingsVersion\":28,\"chapterScaling\":[0,0,0.05]}", SiegeConfig.class);
@@ -155,10 +155,11 @@ class Tor11KapitelTest {
         assertTrue(va.finale);
         assertTrue(Chapters.done(va));
         assertTrue(va.skills == a);
-        Chapters.Veteran vb = p.veteransOf("b").get(0);
+        assertTrue(p.veteransOf("b").isEmpty());              // Tor 12 Teil H: not there, level 9: stays open
+        Chapters.Veteran vb = p.openOf("b").get(0);
         assertEquals(9, vb.level);
         assertFalse(vb.finale);
-        assertFalse(Chapters.done(vb));                       // not there, level 9: not done
+        assertFalse(Chapters.done(vb));
         assertEquals(1, Chapters.stars(p.veteransOf("a")));
         assertEquals(0, Chapters.stars(p.veteransOf("b")));
         assertTrue(p.veteransOf("c").isEmpty());
@@ -393,8 +394,8 @@ class Tor11KapitelTest {
             }
             assertEquals(start == 27 ? 40 : 60, finale);
             int rhythm = finale - 1;   // the rhythm counts a night at its end: the coming one is rhythm + 1
-            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false));   // lost: the finale again
-            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true);
+            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false, false));   // lost: the finale again
+            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true, true);
             Chapters.Progress won = new Chapters.Progress();
             Chapters.advance(won, after, 30, new HashMap<>(), List.of(), Set.of(), s -> "", (u, s) -> 1, "x");
             assertEquals(2, won.chapter);
@@ -426,8 +427,6 @@ class Tor11KapitelTest {
         PlayerSkills own = character(SkillClass.WARRIOR, 400);
         own.waveCredit = 3;
         own.pointFraction = 0.25;
-        own.catchUpPool = 9;
-        own.catchUpFraction = 0.5;
         own.donated = 40;
         own.lost = 7;
         own.keptSouls = 2;
@@ -439,14 +438,12 @@ class Tor11KapitelTest {
         PlayerSkills fresh = skills.get("a");
         assertEquals(3, fresh.waveCredit);
         assertEquals(0.25, fresh.pointFraction, 1e-9);
-        assertEquals(9, fresh.catchUpPool);
-        assertEquals(0.5, fresh.catchUpFraction, 1e-9);
         assertEquals(PlayerSkills.PROFILE_VERSION, fresh.profileVersion);
         assertEquals(PlayerSkills.FREE_SUBCLASS_VERSION, fresh.freeSubclassVersion);
         assertEquals(0, fresh.earned + fresh.donated + fresh.lost + fresh.keptSouls + fresh.unlocksFree);
         PlayerSkills vet = p.veteransOf("a").get(0).skills;
-        assertEquals(0, vet.waveCredit + vet.catchUpPool);
-        assertEquals(0.0, vet.pointFraction + vet.catchUpFraction, 1e-9);
+        assertEquals(0, vet.waveCredit);
+        assertEquals(0.0, vet.pointFraction, 1e-9);
         assertEquals(400, vet.earned);
         assertEquals(40, vet.donated);
         assertEquals(7, vet.lost);

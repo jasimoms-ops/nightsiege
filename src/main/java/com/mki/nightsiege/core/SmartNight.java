@@ -308,7 +308,7 @@ public final class SmartNight {
 
     // ------------------------------------------------------------------ what a step does
 
-    /** The share of the night's monsters that the smart night makes elites (on top of eliteMobs). */
+    /** The share of the night's monsters that the smart night makes elites . */
     public static double eliteChance(SiegeConfig cfg, int step, int level) {
         return step > 0 && level >= cfg.smartNightEliteFromLevel ? step * cfg.smartNightElitePerStep : 0.0;
     }

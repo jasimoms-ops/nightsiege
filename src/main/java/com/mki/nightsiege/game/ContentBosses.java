@@ -968,7 +968,7 @@ final class ContentBosses {
             strikeAt = 0;
             strikes++;
             float damage = BossService.abilityDamage(host, kind, 6.0);
-            for (Vec3 m : strikeMarks) {
+            for (Vec3 m : List.copyOf(strikeMarks)) {   // a hit may kill the witch (reflected): died() clears the marks
                 bolt(level, m);
                 for (ServerPlayer p : around(host, m, STRIKE_RADIUS)) {
                     BossService.strike(host, level, boss, p, damage, STRIKE_SHARE);

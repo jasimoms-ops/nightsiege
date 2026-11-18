@@ -42,10 +42,17 @@ public class PlayerSkills {
     public double pointFraction;
     /** Number of the last siege night this player stood in, or -1 for none. */
     public int lastNight = -1;
-    /** Latecomer pool (Tor 6.7): points still to catch up, paid once more per wave held (see {@link CatchUp}). */
-    public int catchUpPool;
-    /** Part of a pool point left over from the waves. */
-    public double catchUpFraction;
+    // Tor 12 I: the latecomer pool (catchUpPool, catchUpFraction) is gone; old saves drop the keys on load.
+    /**
+     * Teil-Angleich (Tor 12 I): levels lent for one night or fight on top of the own tree of {@link #borrowedProfile}
+     * (see game.LevelSync). Never saved (transient): a crash or a restart gives them back by themselves, the own
+     * {@link #levels} stay as they are. {@link #levelOf} counts them, {@link #setLevel} keeps them out of the own levels.
+     */
+    public transient Map<String, Integer> borrowed;
+    public transient String borrowedProfile;
+    /** The level the player is synced to (0 = not synced) and the points lent for it. */
+    public transient int syncLevel;
+    public transient int borrowedPoints;
     /**
      * Learned levels of the player's other profiles, by profile key. The profile
      * being played keeps its levels in {@link #levels}, so every skill effect only
@@ -497,14 +504,56 @@ public class PlayerSkills {
             return 0;
         }
         Integer value = levels.get(nodeId);
-        return value == null ? 0 : Math.max(0, value);
+        return (value == null ? 0 : Math.max(0, value)) + borrowedOf(nodeId);
     }
 
+    /** Sets a level as {@link #levelOf} counts it; lent levels (Teil-Angleich) never go into the own tree. */
     public void setLevel(String nodeId, int level) {
         if (levels == null) {
             levels = new HashMap<>();
         }
-        levels.put(nodeId, Math.max(0, level));
+        levels.put(nodeId, Math.max(0, level - borrowedOf(nodeId)));
+    }
+
+    /** Teil-Angleich: levels lent on this node of the played profile (0 when none). */
+    public int borrowedOf(String nodeId) {
+        if (borrowed == null || nodeId == null || borrowedProfile == null || !borrowedProfile.equals(chosenClass)) {
+            return 0;
+        }
+        Integer value = borrowed.get(nodeId);
+        return value == null ? 0 : Math.max(0, value);
+    }
+
+    /** Teil-Angleich: true while levels are lent. */
+    public boolean synced() {
+        return borrowed != null;
+    }
+
+    /** Teil-Angleich: lends levels on the played profile, synced to {@code level} with {@code points} lent. */
+    public void lend(int level, int points, Map<String, Integer> lent) {
+        borrowed = lent == null ? new HashMap<>() : new HashMap<>(lent);
+        borrowedProfile = chosenClass;
+        syncLevel = Math.max(0, level);
+        borrowedPoints = Math.max(0, points);
+    }
+
+    /** Teil-Angleich: the lent levels go back; the own tree is untouched. */
+    public void endLend() {
+        borrowed = null;
+        borrowedProfile = null;
+        syncLevel = 0;
+        borrowedPoints = 0;
+    }
+
+    /** Runs something on the own tree only (buying, the core window), the lent levels kept aside. */
+    public <T> T withoutBorrowed(java.util.function.Supplier<T> action) {
+        Map<String, Integer> kept = borrowed;
+        borrowed = null;
+        try {
+            return action.get();
+        } finally {
+            borrowed = kept;
+        }
     }
 
     public void award(int amount) {
@@ -550,6 +599,14 @@ public class PlayerSkills {
             SkillNode node = tree.get(entry.getKey());
             if (node != null && !node.onTrunk() && node.clazz() == clazz()) {
                 return node.path();
+            }
+        }
+        if (borrowed != null && borrowedProfile != null && borrowedProfile.equals(chosenClass)) {
+            for (Map.Entry<String, Integer> entry : borrowed.entrySet()) {   // Teil-Angleich: the lent way counts too
+                SkillNode node = entry.getValue() == null || entry.getValue() <= 0 ? null : tree.get(entry.getKey());
+                if (node != null && !node.onTrunk() && node.clazz() == clazz()) {
+                    return node.path();
+                }
             }
         }
         return "";

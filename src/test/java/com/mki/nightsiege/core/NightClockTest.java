@@ -42,6 +42,18 @@ class NightClockTest {
     }
 
     @Test
+    void theServersBossPhaseOfTenMinutesStillEndsAtEight() {
+        SiegeConfig cfg = eight();
+        cfg.bossPhaseMaxSeconds = 600;   // the server's value (Chef 17.11.): the night still ends at 8:00
+        for (int level = 1; level <= cfg.maxLevel; level++) {
+            int night = SiegeMath.durationSeconds(level, cfg) * 20;
+            for (int at = 0; at <= night; at += 100) {
+                assertTrue(at + NightClock.bossPhaseLimit(night, at, cfg) <= 480 * 20, "level " + level + " arrival " + at);
+            }
+        }
+    }
+
+    @Test
     void theBossClockKeepsToALongerCapToo() {
         SiegeConfig cfg = new SiegeConfig();   // whatever the cap, the Bossuhr ends there
         int night = SiegeMath.durationSeconds(cfg.maxLevel, cfg) * 20;
