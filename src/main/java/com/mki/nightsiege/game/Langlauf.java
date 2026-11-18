@@ -602,6 +602,11 @@ public final class Langlauf {
             String cause = b.getCombatTracker().getDeathMessage().getString() + " (quelle=" + (last == null ? "-" : last.getMsgId())
                     + " an " + b.blockPosition().toShortString() + " abstand=" + Math.round(Math.sqrt(b.blockPosition().distSqr(core)))
                     + " sammeln=" + m.gathering() + " uhr=" + m.clockTimeFor(server) + ")";
+            // The dropped markers go: fixMarkers gives new ones, else a defender near the core picks up a second set (ll8: flint 10/5).
+            for (net.minecraft.world.entity.item.ItemEntity drop : b.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    new AABB(b.blockPosition()).inflate(8), e -> e.getItem().is(Items.OAK_LOG) || e.getItem().is(Items.FLINT))) {
+                drop.discard();
+            }
             BlockPos spawn = TeamSim.standable(world, core.offset(2 + i, 0, 2), 3);   // the world spawn is at the castle
             ServerPlayer back = SimBots.spawn(server, world, name(i), spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
             if (back != null) {
@@ -932,7 +937,7 @@ public final class Langlauf {
                     dEarned = Math.min(dEarned, m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0));
                 }
                 dCrates = Math.min(dCrates, crates(m, b) - cratesBefore.getOrDefault(id, 0));
-            } else if (id.equals(decliner) || (i == st.late && lateAwayTonight)) {
+            } else if ((id.equals(decliner) || (i == st.late && lateAwayTonight)) && earnedBefore.containsKey(id) && m.save().chapters().chapter == chapterStart) {   // not after a restart or a chapter change (new character)
                 int d = m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0);
                 if (d != 0) {
                     f.add(name(i) + " abgesagt, bekam trotzdem " + d + " Punkte");
@@ -1167,8 +1172,8 @@ public final class Langlauf {
             ServerPlayer ref = bot(server, 0);
             if (refEarned0 >= 0 && ref != null && refFactor0 <= 1.0 && standingIds.contains(ref.getUUID()) && standingIds.contains(b.getUUID())) {
                 int dS = m.save().realSkillsOf(ref.getUUID().toString()).earned - refEarned0;
-                double lo = Math.min(f0, f1) * dS - 2;
-                double hi = Math.max(f0, f1) * dS + 2;
+                double lo = Math.min(f0, f1) * dS - Math.max(f0, f1) - 1;   // a set of waves more or less (waveCredit) and the fractions
+                double hi = Math.max(f0, f1) * dS + Math.max(f0, f1) + 1;
                 cmp = name(0) + " +" + dS + " (soll " + Math.round(lo) + ".." + Math.round(hi) + ")";
                 if (dS >= 2) {
                     ok &= dN >= lo && dN <= hi;
