@@ -166,7 +166,7 @@ final class SsNachtScenes {
         context.waitTicks(1240);
         EventLookTest.closeScreen(context);
         EventLookTest.onServer(context, (player, m) -> log("after grace: present=" + m.presentCount() + " (expect 1) active=" + m.isActive()
-                + " defending=" + m.isDefending(player) + " killsRequired=" + m.killsRequired()));
+                + " defending=" + m.isDefending(player)));
         context.waitTicks(10);
 
         // --- 5. The server stops in the middle of the night (the SERVER_STOPPING path).

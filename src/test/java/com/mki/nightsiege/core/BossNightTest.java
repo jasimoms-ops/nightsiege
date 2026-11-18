@@ -54,12 +54,6 @@ class BossNightTest {
     }
 
     @Test
-    void theKillGoalDoesNotCountInABossNight() {
-        assertFalse(BossNight.killGoalCounts(true));   // 4: the boss's fall alone wins
-        assertTrue(BossNight.killGoalCounts(false));
-    }
-
-    @Test
     void withdrawingMonstersHarmNobody() {
         assertFalse(BossNight.hitAllowed(true));   // a slime's touch, a ravager's blow, its arrow in flight
         assertTrue(BossNight.hitAllowed(false));

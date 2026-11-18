@@ -162,11 +162,6 @@ public final class BossNight {
         return bossNight ? SiegeEvent.NONE : picked;
     }
 
-    /** The kill goal counts in no boss night: the boss is the goal. */
-    public static boolean killGoalCounts(boolean bossNight) {
-        return !bossNight;
-    }
-
     /** The boss's life left in percent (100 before he comes, 0 once he fell). */
     public static double lifePercent(boolean came, boolean fallen, double health, double maxHealth) {
         if (!came) {

@@ -3566,11 +3566,6 @@ public class CoreScreen extends Screen {
         gui.text(font, second, cx - font.width(second) / 2, y + 40, secondColor, true);
     }
 
-    private static final java.util.Map<String, Integer> PERK_COLORS = java.util.Map.of(
-            "vitality", 0xFFFF5A64, "bulwark", 0xFFC0C8DC, "tides", 0xFF4FD6E6,
-            "flame", 0xFFFF9A3C, "vigilance", 0xFFFFD84A);
-
-    /** The five perks of the main core: stage, fragments to the next one and what they do now. */
     /** The night fragments: which one sits in the core, and what each one does. */
     /** Which class the collection tab shows (kept while the game runs). */
     private static String collectionClass;
@@ -4399,18 +4394,6 @@ public class CoreScreen extends Screen {
                 smallText(gui, font, mark, tx + tabW - mw - 6, my + 2, 0xFFFFD86B, 0.7f);
             }
         }
-    }
-
-    private static String perkEffect(String id, int stage) {
-        return switch (id) {
-            case "vitality" -> Component.translatable("nightsiege.perk.vitality.now", 2 * stage).getString();
-            case "bulwark" -> Component.translatable("nightsiege.perk.bulwark.now", stage, 5 * stage).getString();
-            case "tides" -> Component.translatable(stage >= 3 ? "nightsiege.perk.tides.now2" : "nightsiege.perk.tides.now1").getString();
-            case "flame" -> Component.translatable(stage >= 3 ? "nightsiege.perk.flame.now_fire" : "nightsiege.perk.flame.now",
-                    10 * stage).getString();
-            case "vigilance" -> Component.translatable("nightsiege.perk.vigilance.now", 10 * stage, 10 * stage).getString();
-            default -> "";
-        };
     }
 
     /** The tally as four cards: next siege, wave strength, record and ranking; with a class the profiles first. */

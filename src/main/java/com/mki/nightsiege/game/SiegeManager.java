@@ -14,7 +14,6 @@ import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
-import com.mki.nightsiege.core.SiegeScheduler;
 import com.mki.nightsiege.core.CrateKind;
 import com.mki.nightsiege.core.SiegeRhythm;
 import com.mki.nightsiege.core.SkillTree;
@@ -136,7 +135,6 @@ public final class SiegeManager {
     /** Trap wear is saved in batches, not on every spike hit. */
     private boolean trapsDirty;
     private int trapSaveCounter;
-    private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final TrapService traps = new TrapService(() -> save, skillTree);
     private final KitService kits = new KitService(() -> save, () -> config, skillTree, traps, this::persist);
@@ -750,9 +748,6 @@ public final class SiegeManager {
             spawnedTotal++;
         }
         Fx.mobSpawned(world, config, mob, true);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-            SiegeTeams.mark(world.getServer(), mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
         return mob;
     }
 
@@ -818,10 +813,6 @@ public final class SiegeManager {
 
     public SkillTree skillTree() {
         return skillTree;
-    }
-
-    public SiegeScheduler scheduler() {
-        return scheduler;
     }
 
     public boolean isActive() {
@@ -939,7 +930,6 @@ public final class SiegeManager {
                 events.end(server, world, currentEvent);
             }
             EventAtmosphere.resetServer();
-            syncSchedulerToSave();
             persist();
         });
         // Survival safety (Simon 31.10., D4): what the dungeons and the camp built or took down counts as done
@@ -1221,7 +1211,6 @@ public final class SiegeManager {
      * config is read again from the disk, which is what the command is for.
      */
     public void reloadKeepingState() {
-        syncSchedulerToSave();
         persist();
         reload();
     }
@@ -1238,7 +1227,6 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
         Json.write(configPath, config);
-        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the old dungeons (their maps came from the caravan, gone since 31.10.)
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
@@ -1330,11 +1318,6 @@ public final class SiegeManager {
         }
         // The subclass first, its level 1 free (Simon, 29 October 2026): once per player, see migrateFreeSubclasses.
         migrateFreeSubclasses();
-        scheduler.setReadyTicks(save.readyTicks);
-        scheduler.setRequiredTicks(save.requiredTicks);
-        if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
-            scheduler.rollInterval(random, config);
-        }
 
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
@@ -1373,11 +1356,6 @@ public final class SiegeManager {
                     players, points);
             persist();
         }
-    }
-
-    private void syncSchedulerToSave() {
-        save.readyTicks = scheduler.readyTicks();
-        save.requiredTicks = scheduler.requiredTicks();
     }
 
     public void persist() {
@@ -2292,21 +2270,10 @@ public final class SiegeManager {
 
     /** Waves started in the running siege. */
     private int wavesStarted;
-    /** Siege monsters killed this night, spawned this night, and the kills the night asks for. */
+    /** Siege monsters killed this night and spawned this night. */
     private int nightKills;
     private int spawnedTotal;
-    /** Monsters of the night gone without being slain (quotaSkipsVanished, 29.10.). */
-    private int vanishedTotal;
-    private final Set<UUID> slainNightMobs = new HashSet<>();
-    private int killQuota;
-    /**
-     * The kill goal moves with what can still come (Simon, 26 October 2026: keep the sum, but
-     * show why it changes): the goal the bar showed last, the reasons noted since, and the note
-     * the bar carries for five seconds after a change.
-     */
-    private int shownRequired = -1;
-    private Component goalDown;
-    private Component goalUp;
+    /** The note the bar carries for five seconds after a change. */
     private Component goalNote;
     private int goalNoteUntil;
     /** The night fragment this night used up (given back when the night has to be played again). */
@@ -3215,12 +3182,7 @@ public final class SiegeManager {
         });
         nightKills = 0;
         spawnedTotal = 0;
-        vanishedTotal = 0;
-        slainNightMobs.clear();
         smart.begin(world.getGameTime(), config.smartNight && !warRound && !bastionRound, config);   // every night starts at 0 (05.11.)
-        shownRequired = -1;
-        goalDown = null;
-        goalUp = null;
         goalNote = null;
         nightLog.begin(world.getGameTime());
         safe("Statistik", () -> stats.beginNight(world.getGameTime(), nightNumber, siegeLevel, testRun,
@@ -3233,7 +3195,6 @@ public final class SiegeManager {
                 logPlayer(player);
             }
         }
-        killQuota = SiegeMath.killQuota(config.killQuotaShare, plannedWaves(), wantedPerWave());
         safe("Gegner", () -> foes.startNight(foesHost, plannedWaves(), bosses.planned() || finaleNight || lateNight));
         safe("Nemesis", () -> nemesis.beginNight(nemesisHost));
         traps.refillAll();   // every tower full and whole at nightfall (27 October 2026)
@@ -3417,11 +3378,6 @@ public final class SiegeManager {
         return bossBar == null ? "" : bossBarTitle().getString();
     }
 
-    /** Experience is worth more in a special night. */
-    private int nightPoints(int amount) {
-        return save.specialNight ? amount * config.specialNightXpMultiplier : amount;
-    }
-
     private void tickSiege(MinecraftServer server) {
         if (world == null || anchor == null) {
             finish(server, false);
@@ -3434,8 +3390,6 @@ public final class SiegeManager {
         for (ServerPlayer player : defendersNear(server, world, anchor, testRun)) {
             if (!fallen.contains(player.getUUID())) {
                 if (participants.add(player.getUUID())) {
-                    // More defenders, bigger waves: the goal can rise (up to where it started).
-                    goalUp = Component.translatable("nightsiege.bar.goal_joined", player.getScoreboardName());
                     logPlayer(player);
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
@@ -4283,9 +4237,7 @@ public final class SiegeManager {
 
         @Override
         public void forget(UUID id) {
-            if (liveMobs.remove(id)) {
-                noteVanished(id);
-            }
+            liveMobs.remove(id);
             digger.forget(id);
             ladders.forget(id);
         }
@@ -4309,7 +4261,6 @@ public final class SiegeManager {
                 liveMobs.add(rider.getUUID());
                 spawnedTotal++;
             }
-            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             if (raid.active() && RaidPlan.eligible(mob)) {
                 safe("Angriffsplan", () -> raid.enlist(mob, angle));
             }
@@ -4438,10 +4389,6 @@ public final class SiegeManager {
             return;
         }
         nightLog.of(player.getUUID(), player.getScoreboardName()).kills++;
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(
-                    config.skillPointsPerKill * config.championPointMultiplier));
-        }
     }
 
     /** Admin and tests: the boss planned for this night comes now, with his guard; the others withdraw. */
@@ -4525,7 +4472,6 @@ public final class SiegeManager {
             }
             liveMobs.add(mob.getUUID());
             spawnedTotal++;
-            goalUp = Component.translatable("nightsiege.bar.goal_extra");
             aimAtDefender(world.getServer(), mob);
             return mob;
         }
@@ -4635,7 +4581,6 @@ public final class SiegeManager {
             if (mob != null) {
                 liveMobs.add(mob.getUUID());
                 spawnedTotal++;
-                goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 if (RaidPlan.eligible(mob)) {
                     safe("Angriffsplan", () -> raid.enlist(mob, Double.NaN));   // a risen revenant goes on with the others
                 }
@@ -4864,17 +4809,6 @@ public final class SiegeManager {
         return SiegeMath.plannedWaves(totalTicks, config, Curses.waveFactor());
     }
 
-    /**
-     * Kills the night asks for: the share of its monsters set in the config, never
-     * more than that share of what can still come (a full field of monsters keeps
-     * waves small, and then fewer kills are needed).
-     */
-    public int killsRequired() {
-        int counted = config.quotaSkipsVanished ? spawnedTotal - vanishedTotal : spawnedTotal;
-        return SiegeMath.killsRequired(config.killQuotaShare, killQuota, Math.max(0, counted),
-                plannedWaves() - wavesStarted, wantedPerWave());
-    }
-
     public int nightKills() {
         return nightKills;
     }
@@ -4948,7 +4882,6 @@ public final class SiegeManager {
                 for (Entity rider : mob.getPassengers()) {
                     liveMobs.add(rider.getUUID());
                     spawnedTotal++;
-                    goalUp = Component.translatable("nightsiege.bar.goal_extra");
                 }
                 if (plan != null && RaidPlan.eligible(mob)) {
                     raid.enlist(mob, rift != null ? Double.NaN : angle);   // the plan steers it (and picks its fights)
@@ -4956,9 +4889,6 @@ public final class SiegeManager {
                     aimAtDefender(server, mob);
                 }
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
                 wave.add(mob);
                 spawned++;
             }
@@ -4968,11 +4898,6 @@ public final class SiegeManager {
         } else if (!wave.isEmpty()) {
             waveSides = RaidPlan.sides(anchor.getX() + 0.5, anchor.getZ() + 0.5, wave);   // no plan: where they stand
         }   // a wave without monsters (the field full): the sides of the last one, whose monsters are still out there
-        if (count < wanted && !config.refillSpawns) {
-            goalDown = Component.translatable("nightsiege.bar.goal_full");   // the field is full
-        } else if (spawned < count) {
-            goalDown = Component.translatable("nightsiege.bar.goal_no_room");   // no spot for some of them
-        }
         // Phantoms in every night (Simon, 27 October 2026): a few come with the second wave.
         if (wavesStarted == 2) {
             int phantoms = Math.max(0, config.nightPhantoms) + (int) Math.floor(Math.max(0.0, config.nightPhantomsPerLevel) * siegeLevel);
@@ -4985,9 +4910,6 @@ public final class SiegeManager {
                 liveMobs.add(phantom.getUUID());
                 spawnedTotal++;
                 aimAtDefender(server, phantom);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-                    SiegeTeams.mark(server, phantom, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
             }
         }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
@@ -5045,9 +4967,6 @@ public final class SiegeManager {
             aimAtDefender(server, mob);
         }
         Fx.mobSpawned(world, config, mob, false);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-            SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -5072,16 +4991,6 @@ public final class SiegeManager {
         }
     }
 
-    /** A monster of the night left the field: slain, or gone without a kill (blown up, fled …). */
-    private void noteVanished(UUID id) {
-        if (!slainNightMobs.remove(id)) {
-            vanishedTotal++;
-            if (config.quotaSkipsVanished) {
-                goalDown = Component.translatable("nightsiege.bar.goal_vanished");
-            }
-        }
-    }
-
     private void pruneMobs() {
         Iterator<UUID> it = liveMobs.iterator();
         while (it.hasNext()) {
@@ -5091,7 +5000,6 @@ public final class SiegeManager {
                 digger.forget(id);
                 ladders.forget(id);
                 it.remove();
-                noteVanished(id);
             } else if (!mob.entityTags().contains(NIGHT_MOB_TAG)) {
                 mob.addTag(NIGHT_MOB_TAG);   // a crash leaves no monster behind (ENTITY_LOAD, Simon 31.10.)
             }
@@ -5323,18 +5231,17 @@ public final class SiegeManager {
         safe("Statistik", () -> stats.smartEnd(smart, elites, extras));
     }
 
-    /** A new monster of the night: an elite by the fixed chance (eliteMobs) and the smart night's. */
+    /** A new monster of the night: an elite by the smart night's chance (the fixed eliteMobs are gone, Tor 12 J). */
     private void smartElite(Mob mob) {
         if (bastionRound) {
             // The bastion: fixed elites from wave 5, a little more every wave; no smart night (Update 7).
             Elites.maybe(world, mob, siegeLevel, config, random,
-                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config), false);
+                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config));
             return;
         }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
-                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites,
-                com.mki.nightsiege.core.SmartNight.specials(config, step));
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites);
     }
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
@@ -5421,6 +5328,7 @@ public final class SiegeManager {
     }
 
     /** Writes the night's protocol lines. */
+    /** {@code blasted} and {@code required} stay 0 (no blast, no kill goal since Tor 12 J/F); the columns stay for the tools. */
     private void logNight(String result, int blasted, int required) {
         StatsRecorder.NightFile finished = null;
         if (!testRun && nightNumber >= 0 && !poolTonight.isEmpty() && world != null) {
@@ -5676,8 +5584,6 @@ public final class SiegeManager {
 
         // Tor 12 F (Simon 17.11.): no kill goal any more – a night held with the core alive is won ("held, but the
         // goal missed" is gone); the core's life ended a lost night already (tickSiege).
-        int required = 0;
-        boolean quotaMet = nightKills >= required;
         if (bastionRound) {
             // The Letzte Bastion (Update 7): no reward, the record board; the lent profiles go back.
             logNight("test_verloren", 0, 0);
@@ -5700,7 +5606,7 @@ public final class SiegeManager {
             return;
         }
         if (testRun) {
-            logNight(won ? "test_gehalten" : "test_verloren", 0, required);
+            logNight(won ? "test_gehalten" : "test_verloren", 0, 0);
             if (siegeRound) {
                 if (won) {
                     waveSurvived(server);   // the last wave, as a won real night counts it
@@ -5710,10 +5616,6 @@ public final class SiegeManager {
             testRun = false;
             broadcast(server, Component.translatable(won ? "nightsiege.msg.test_won" : "nightsiege.msg.test_lost")
                     .withStyle(ChatFormatting.GRAY));
-            if (won && required > 0) {
-                broadcast(server, Component.translatable(quotaMet ? "nightsiege.msg.quota_met" : "nightsiege.msg.quota_missed_test",
-                        nightKills, required).withStyle(ChatFormatting.GRAY));
-            }
             clearSiegeState();
             return;
         }
@@ -5744,22 +5646,11 @@ public final class SiegeManager {
         bossNights();
         save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won, bossDown);
         String result = com.mki.nightsiege.core.NightEnd.result(won);   // Tor 12 F: kills do not count
-        int blasted = 0;
-        if (won && !quotaMet) {
-            // Held, but too few monsters fell: the night comes again at the same level.
-            save.currentStreak = 0;
-            waveSurvived(server);
-            if (save.specialNight && usedFragment != null) {
-                save.nightFragment = usedFragment;   // the special night comes again too
-            }
-            broadcast(server, Component.translatable("nightsiege.msg.quota_missed", nightKills, required, siegeLevel)
-                    .withStyle(ChatFormatting.RED));
-        } else if (won) {
+        if (won) {
             save.siegesWon++;
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             waveSurvived(server);
-            awardSkillPoints(server);
             // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
             // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
             // So is the warden's (Simon, 29 October 2026), with ability points for those still standing.
@@ -5773,28 +5664,13 @@ public final class SiegeManager {
                 awardWardenPoints(server, wardenKind);
             }
             int next = SiegeMath.level(chapterWins(), lastKnownDay, config);
-            if (required > 0) {
-                broadcast(server, Component.translatable("nightsiege.msg.quota_met", nightKills, required)
-                        .withStyle(ChatFormatting.GREEN));
-            }
             broadcast(server, Component.translatable("nightsiege.msg.won", next)
                     .withStyle(ChatFormatting.GREEN));
         } else {
             save.siegesLost++;
             save.currentStreak = 0;
-            int destroyed = 0;
-            if (config.failureBlast && world != null && anchor != null) {
-                destroyed = Demolition.blast(world, anchor, config);
-                broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
-                        .withStyle(ChatFormatting.DARK_RED));
-            } else {
-                broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
-                        .withStyle(ChatFormatting.DARK_RED));
-            }
-            blasted = destroyed;
-            if (config.defeatSkillLoss > 0) {
-                loseSkills(server);
-            }
+            broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
+                    .withStyle(ChatFormatting.DARK_RED));
             broadcast(server, Component.translatable("nightsiege.msg.night_again", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
@@ -5805,7 +5681,7 @@ public final class SiegeManager {
         catchUpPaid.clear();
         // Tor 6.6, the outer loop: only real nights count (the tests and the playtest returned above).
         if (!inPlaytest()) {
-            boolean held = won && quotaMet;
+            boolean held = won;
             double before = com.mki.nightsiege.core.OuterLoop.clamp(save.outerLoop, config);
             save.outerLoop = com.mki.nightsiege.core.OuterLoop.next(before, held, config);
             if (held) {
@@ -5819,7 +5695,7 @@ public final class SiegeManager {
                     before * 100, after * 100, held ? "Sieg" : "Niederlage", save.outerLoopWon, save.outerLoopLost));
             safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
         }
-        logNight(result, blasted, required);
+        logNight(result, 0, 0);
         safe("Vorrat", this::flowPools);   // Tor 11: a higher world level lets the pools flow on
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
@@ -6260,7 +6136,7 @@ public final class SiegeManager {
             save.nightFragment = back;   // broken off: the fragment comes back, as after a real night
         }
         if (credit && won) {
-            int points = wonNightPoints(round.fragment != null) + (config.skillsEnabled ? Curses.points(config, round.curses) : 0);
+            int points = config.skillsEnabled ? Curses.points(config, round.curses) : 0;
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
                     roundXp.computeIfAbsent(id, k -> new com.mki.nightsiege.core.Chapters.NightXp()).won(points);
@@ -6801,30 +6677,6 @@ public final class SiegeManager {
         presentDefenders = 0;
     }
 
-    /** A lost night: every defender loses the newest learned skills, the points spent on them with them. */
-    private void loseSkills(MinecraftServer server) {
-        if (config.defeatSkillLoss <= 0) {
-            return;
-        }
-        for (UUID id : participants) {
-            PlayerSkills skills = save.skillsOf(id.toString());
-            List<String> gone = skillTree.loseLast(skills, config.defeatSkillLoss);
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || gone.isEmpty()) {
-                continue;
-            }
-            net.minecraft.network.chat.MutableComponent names = Component.empty();
-            for (int i = 0; i < gone.size(); i++) {
-                if (i > 0) {
-                    names.append(", ");
-                }
-                names.append(Component.translatable("nightsiege.skill." + gone.get(i)));
-            }
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.skills_lost", names)
-                    .withStyle(ChatFormatting.RED));
-        }
-    }
-
     /** A lost siege sets the core back to the start: progress and skills are gone. */
     private void resetProgress(MinecraftServer server) {
         save.siegesWon = 0;
@@ -6832,32 +6684,6 @@ public final class SiegeManager {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SkillService.clear(player);
         }
-    }
-
-    /** The points of a won night on this level (a special night times its multiplier); 0 when switched off. */
-    private int wonNightPoints(boolean special) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return 0;
-        }
-        int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
-        return special ? amount * config.specialNightXpMultiplier : amount;
-    }
-
-    private void awardSkillPoints(MinecraftServer server) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return;
-        }
-        int amount = wonNightPoints(save.specialNight);
-        // Everyone who was still standing earns it for themselves.
-        for (UUID id : participants) {
-            if (fallen.contains(id)) {
-                continue;
-            }
-            save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H: Aufholbonus
-        }
-        Fx.pointsEarned(server, config);
-        broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
-                .withStyle(ChatFormatting.AQUA));
     }
 
     /** A night won under curse stones: skill points for everyone still standing (update 2). */
@@ -6980,7 +6806,6 @@ public final class SiegeManager {
         }
         if (active && entity instanceof Mob killed && liveMobs.contains(killed.getUUID())) {
             nightKills++;
-            slainNightMobs.add(killed.getUUID());
             smart.kill(world.getGameTime());
             safe("Statistik", () -> stats.mobDied(killed, source));
             // A monster of the night can be raised by a summoner of the dead; souls for those near.
@@ -7506,14 +7331,9 @@ public final class SiegeManager {
             return;
         }
         save.cores.add(new CoreRecord(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        if (scheduler.requiredTicks() <= 0L) {
-            scheduler.rollInterval(random, config);
-        }
-        syncSchedulerToSave();
         persist();
         if (placer instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed",
-                    config.requiredPlayers, (int) config.coreRadius).withStyle(ChatFormatting.GOLD));
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed").withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -7551,7 +7371,6 @@ public final class SiegeManager {
             return;
         }
         save.removeCore(dimension, pos.getX(), pos.getY(), pos.getZ());
-        syncSchedulerToSave();
         persist();
 
         MinecraftServer server = brokenWorld.getServer();
@@ -7761,8 +7580,6 @@ public final class SiegeManager {
         }
     }
 
-    /** Damage a guardian caught and healing given, until it adds up to a point. */
-    private final Map<UUID, Double> tankPool = new HashMap<>();
 
     /**
      * A guardian caught damage from an attacker (or healed a teammate, from null):
@@ -7812,19 +7629,6 @@ public final class SiegeManager {
             nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
             stats.healGiven(player, amount);
         }
-        if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
-            return;
-        }
-        if (from != null && !from.entityTags().contains(MobFactory.TAG)) {
-            return;
-        }
-        double pool = tankPool.merge(player.getUUID(), amount, Double::sum);
-        int per = Math.max(1, config.tankDamagePerPoint);
-        if (pool >= per) {
-            int points = (int) (pool / per);
-            tankPool.put(player.getUUID(), pool - points * per);
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(points * config.skillPointsPerKill));
-        }
     }
 
     /** Counts a kill and turns it into skill experience. */
@@ -7864,11 +7668,6 @@ public final class SiegeManager {
         if (champion) {
             stats.championKills++;
             save.totalChampionKills++;
-        }
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(champion
-                    ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill));
         }
     }
 

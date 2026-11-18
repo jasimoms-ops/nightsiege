@@ -97,14 +97,10 @@ final class SmartScenes {
             saved[3] = c.smartNightEverySeconds;
             saved[4] = c.smartNightUpSeconds;
             saved[5] = c.smartNightDownSeconds;
-            saved[6] = c.eliteMobFromLevel;
             savedB[0] = c.refillSpawns;
             savedB[1] = c.smartNight;
-            savedB[2] = c.eliteMobs;
             savedD[0] = c.smartNightUpKillsPerPlayer;
-            savedD[1] = c.eliteMobChance;
             c.smartNight = true;   // off for the other scenes (EventLookTest)
-            c.eliteMobs = false;   // as on the server since 05.11. 19:51
             c.testPrepSeconds = 1;
             c.batchIntervalSeconds = 600;   // waves only by hand
             c.refillSpawns = false;
@@ -184,9 +180,6 @@ final class SmartScenes {
         server(context, "down", (player, m) -> {
             var c = m.config();
             m.setSmartStep(-1);
-            c.eliteMobs = true;   // fixed elites for every monster: far down they must not come
-            c.eliteMobFromLevel = 1;
-            c.eliteMobChance = 1.0;
             log("at -1: field " + m.fieldRoom() + " of " + m.maxLive());
             m.setSmartStep(-3);
             long now = player.level().getGameTime();
@@ -206,23 +199,11 @@ final class SmartScenes {
             m.testWave(player.level().getServer());
             int n = m.lastWaveSize();
             check(n > 0 && n <= m.fieldRoom(), "then the wave comes, at most the smaller field (" + n + " of " + m.fieldRoom() + ")");
-            check(Elites.made() == before[2], "far down no elites, not even the fixed ones (" + (Elites.made() - before[2]) + ")");
+            check(Elites.made() == before[2], "far down no elites (" + (Elites.made() - before[2]) + ")");
             clear(player);
             m.setSmartStep(-1);
         });
         context.waitTicks(6);
-        server(context, "down -1", (player, m) -> {
-            before[2] = Elites.made();
-            m.testWave(player.level().getServer());
-            int elites = Elites.made() - before[2];
-            log("at -1 with fixed elites for all: " + elites + " of " + m.lastWaveSize());
-            check(m.lastWaveSize() == 0 || elites > 0, "at -1 the fixed elites still come (" + elites + ")");
-            clear(player);
-            var c = m.config();
-            c.eliteMobs = false;
-            c.eliteMobFromLevel = saved[6];
-            c.eliteMobChance = savedD[1];
-        });
         context.waitTicks(180);
 
         // ---------------------------------------------------------------- the night steps by itself
@@ -297,12 +278,9 @@ final class SmartScenes {
             c.smartNightEverySeconds = saved[3];
             c.smartNightUpSeconds = saved[4];
             c.smartNightDownSeconds = saved[5];
-            c.eliteMobFromLevel = saved[6];
             c.refillSpawns = savedB[0];
             c.smartNight = false;
-            c.eliteMobs = false;
             c.smartNightUpKillsPerPlayer = savedD[0];
-            c.eliteMobChance = savedD[1];
             player.setHealth(player.getMaxHealth());
         });
         context.waitTicks(20);
