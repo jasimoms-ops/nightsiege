@@ -100,6 +100,8 @@ public final class TeamSim {
     private static boolean serverMode;
     private static long phaseTick;
     private static long fightStart;
+    /** The side of the running night, read when the fight starts (after it the test night has ended). */
+    private static int runArc = -1;
     private static int index;
     private static int maxTicks;
     private static final List<Run> queue = new ArrayList<>();
@@ -478,6 +480,7 @@ public final class TeamSim {
                     if (m.isActive() && (!warMode || now - phaseTick > 20)) {
                         phase = Phase.FIGHT;
                         fightStart = now;
+                        runArc = m.nightArcForTest();
                         for (Map.Entry<UUID, TeamBrain> e : brains.entrySet()) {
                             ServerPlayer bot = server.getPlayerList().getPlayer(e.getKey());
                             if (bot != null) {
@@ -722,7 +725,8 @@ public final class TeamSim {
         NightSiegeMod.LOGGER.info(line);
         // The side of the night (0 north … 7 north-west, -1 fixed arc), to tell its spread from the seed's.
         System.out.println(String.format(Locale.ROOT, "[Night Siege sim] RICHTUNG;%s;%d;%d;%s;%d;%d;%d",
-                run.variant(), run.level(), run.group(), run.mix(), run.index(), m.nightArcForTest(), won ? 1 : 0));
+                run.variant(), run.level(), run.group(), run.mix(), run.index(), runArc, won ? 1 : 0));
+        runArc = -1;
         for (Map.Entry<String, double[]> e : bySub.entrySet()) {
             double[] v = e.getValue();
             String sub = e.getKey().substring(e.getKey().indexOf(':') + 1);
