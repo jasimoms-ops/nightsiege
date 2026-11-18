@@ -567,13 +567,12 @@ public final class Langlauf {
             String cause = b.getCombatTracker().getDeathMessage().getString() + " (quelle=" + (last == null ? "-" : last.getMsgId())
                     + " an " + b.blockPosition().toShortString() + " abstand=" + Math.round(Math.sqrt(b.blockPosition().distSqr(core)))
                     + " sammeln=" + m.gathering() + " uhr=" + m.clockTimeFor(server) + ")";
-            int cratesLost = crates(m, b);
             BlockPos spawn = TeamSim.standable(world, core.offset(2 + i, 0, 2), 3);   // the world spawn is at the castle
             ServerPlayer back = SimBots.spawn(server, world, name(i), spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
             if (back != null) {
                 fixMarkers(back, 0, 0);
-                int dropped = cratesLost - crates(m, back);   // crates in the inventory dropped with the death (vanilla)
-                cratesBefore.computeIfPresent(back.getUUID(), (k, v) -> v - dropped);
+                // The crates in the inventory dropped with the death (vanilla): tonight's count starts anew.
+                cratesBefore.computeIfPresent(back.getUUID(), (k, v) -> crates(m, back));
             }
             line("Tod außerhalb der Belagerung k=" + st.cycle + ": " + cause + " -> wiederbelebt=" + (back != null)
                     + (m.isActive() ? " (Nacht läuft, nicht dabei)" : ""));
