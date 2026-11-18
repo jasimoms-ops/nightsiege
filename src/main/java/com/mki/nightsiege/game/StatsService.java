@@ -238,7 +238,7 @@ public final class StatsService {
         stats.chapter = manager.chapter();
         stats.chapterNight = manager.chapterNight();
         stats.firstFinaleWon = save.chapters().firstFinaleWon;
-        stats.chapterStars = com.mki.nightsiege.core.Chapters.stars(save.chapters().veteransOf(viewer.getUUID().toString()));
+        stats.chapterStars = com.mki.nightsiege.core.Chapters.stars(save.chapters(), viewer.getUUID().toString());
         // Teil 2: "Belagerung starten", the pool, the veterans to pick
         String roundBlock = manager.roundBlock(server, viewer, com.mki.nightsiege.core.Chapters.CURRENT);
         stats.roundBlock = roundBlock == null ? "" : roundBlock;

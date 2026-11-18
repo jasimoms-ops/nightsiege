@@ -96,6 +96,37 @@ class Tor12NachzueglerTest {
     }
 
     @Test
+    void finaleLatecomerStaysOpenWithItsStar() {
+        // Chef 18.11.: who wins the finale under level 20 stays open (star kept), at 20 a veteran as before.
+        Chapters.Progress p = new Chapters.Progress();
+        Map<String, PlayerSkills> skills = new HashMap<>();
+        PlayerSkills late = character(SkillClass.ARCHER, 120);
+        PlayerSkills full = character(SkillClass.WARRIOR, 500);
+        skills.put("late", late);
+        skills.put("full", full);
+        List<String> frozen = Chapters.advance(p, 20, 19, skills, List.of("late", "full"), Set.of("late", "full"),
+                s -> "", (uuid, s) -> uuid.equals("late") ? 14 : 20, "18.11.2026");
+        assertEquals(List.of("late", "full"), frozen);
+        assertTrue(p.veteransOf("late").isEmpty());
+        Chapters.Veteran open = p.openOf("late").get(0);
+        assertEquals(14, open.level);
+        assertTrue(open.finale);
+        assertTrue(open.skills == late && late.earned == 120 && late.gains.get("ARCHER").get("gain_a") == 2);
+        assertEquals(1, Chapters.stars(p, "late"));
+        Chapters.Veteran vet = p.veteransOf("full").get(0);
+        assertTrue(vet.finale && vet.level == 20 && p.openOf("full").isEmpty());
+        assertEquals(1, Chapters.stars(p, "full"));
+        // later at level 20: a veteran, the same star once
+        assertFalse(Chapters.promote(p, "late", open));
+        open.level = 20;
+        assertTrue(Chapters.promote(p, "late", open));
+        assertTrue(p.openOf("late").isEmpty());
+        assertEquals(1, p.veteransOf("late").size());
+        assertEquals(1, Chapters.stars(p, "late"));
+        assertEquals(120, p.veteransOf("late").get(0).skills.earned);
+    }
+
+    @Test
     void roundPicksForOpenCharacters() {
         Chapters.Round r = new Chapters.Round();
         r.starter = "a";

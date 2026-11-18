@@ -606,9 +606,9 @@ public final class Chapters {
                 boolean there = finaleTeam != null && finaleTeam.contains(uuid);
                 Veteran v = freeze(own, subOf == null ? "" : subOf.apply(own), levelOf == null ? 1 : levelOf.applyAsInt(uuid, own),
                         p.chapter, date, there);
-                // Teil H (Simon 18.11.): only a finished character (level 20 or the finale) becomes a veteran; an
-                // unfinished one stays open with its class, tree, gains and level.
-                if (done(v)) {
+                // Teil H (Simon 18.11.): only a character at level 20 becomes a veteran; an unfinished one stays open
+                // with its class, tree, gains and level (Chef 18.11.: also one who won the finale, it keeps its star).
+                if (v.level >= LENGTH) {
                     p.veterans.computeIfAbsent(uuid, k -> new ArrayList<>()).add(v);
                 } else {
                     if (p.open == null) {
@@ -644,6 +644,11 @@ public final class Chapters {
         p.nightBase = Math.max(0, rhythmNights);
         p.wonBase = Math.max(0, siegesWon);
         return frozen;
+    }
+
+    /** Chef 18.11.: a player's chapter stars, veterans and open characters (a finale won under level 20). */
+    public static int stars(Progress p, String uuid) {
+        return p == null ? 0 : stars(p.veteransOf(uuid)) + stars(p.openOf(uuid));
     }
 
     /** Chapter stars of a player: one for every won finale stood in. */

@@ -127,7 +127,7 @@ public final class SiegeManager {
     static {
         // Tor 11: the chapter stars on the name tags come from the save's veterans
         ClassTags.stars = uuid -> INSTANCE == null ? 0
-                : com.mki.nightsiege.core.Chapters.stars(INSTANCE.save.chapters().veteransOf(uuid));
+                : com.mki.nightsiege.core.Chapters.stars(INSTANCE.save.chapters(), uuid);
     }
 
     private SiegeConfig config = new SiegeConfig();
@@ -5815,8 +5815,8 @@ public final class SiegeManager {
     }
 
     /**
-     * Tor 11: the finale is won. Every registered character becomes a veteran (with its level; those of the finale
-     * at its level), the finale's defenders get the chest with infernite and the banner of their class, the world
+     * Tor 11: the finale is won. Every registered character at level 20 becomes a veteran, the others stay open with
+     * their own level (Chef 18.11.: also the finale's latecomers; they keep star, hall entry and chest), the finale's defenders get the chest with infernite and the banner of their class, the world
      * level goes back to 1 and the next chapter starts at night 1 with a new character for everyone.
      */
     public void closeChapter(MinecraftServer server, Set<UUID> finaleTeam, int finaleLevel) {
@@ -5845,7 +5845,7 @@ public final class SiegeManager {
         Map<String, PlayerSkills> before = save.skills == null ? Map.of() : new HashMap<>(save.skills);   // Teil H: who went where
         List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
                 everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
-                (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
+                (uuid, own) -> characterLevel(own, worldLevel), date);   // Chef 18.11.: the own level, not lifted
         progress.closing = null;   // the chapter changed: saved together with it below
         save.bossBag = new ArrayList<>();   // the next chapter's bosses
         save.nextBoss = null;
@@ -5863,6 +5863,9 @@ public final class SiegeManager {
                 if (was != null && o.skills == was) {
                     o.treeVersion = save.skillTreeVersion;   // Teil H: unfinished, it stays open
                     opened.add(uuid);
+                    if (o.finale) {
+                        HallService.veteran(this, uuid, o);   // Chef 18.11.: won the finale, the hall keeps it now (promote adds none)
+                    }
                 }
             }
         }
