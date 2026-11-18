@@ -5084,6 +5084,10 @@ public class CoreScreen extends Screen {
         // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale, the latecomer pool.
         float footScale = 0.75f;
         List<net.minecraft.util.FormattedCharSequence> foot = new ArrayList<>();
+        if (stats.catchUpFactor > 1.0) {   // Teil H: "Aufholbonus ×2"
+            foot.addAll(font.split(Component.translatable("nightsiege.msg.catch_up",
+                    com.mki.nightsiege.core.Chapters.factorText(stats.catchUpFactor)), (int) ((w - 16) / footScale)));
+        }
         if (stats.xpPool > 0 || stats.firstFinaleWon) {
             foot.addAll(font.split(Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel),
                     (int) ((w - 16) / footScale)));
