@@ -307,6 +307,14 @@ public final class KitService {
         player.sendSystemMessage(Component.translatable("nightsiege.kit.equipped").withStyle(net.minecraft.ChatFormatting.AQUA));
     }
 
+    /** Tor 12 I: players whose kit was last built with lent levels (Teil-Angleich); in memory only. */
+    private final java.util.Set<java.util.UUID> lentKits = new java.util.HashSet<>();
+
+    /** Tor 12 I: true when the kit worn was built with lent levels. */
+    public boolean builtLent(ServerPlayer player) {
+        return lentKits.contains(player.getUUID());
+    }
+
     /** Swaps the kit for that of another class (the class window before the night). */
     public void refit(ServerPlayer player, int level) {
         if (!hasStash(player)) {
@@ -627,6 +635,11 @@ public final class KitService {
         SkillClass clazz = skills.clazz();
         Inventory inv = player.getInventory();
         Kit kit = build(player, skills, level);
+        if (skills.synced()) {
+            lentKits.add(player.getUUID());   // Tor 12 I: built with lent levels
+        } else {
+            lentKits.remove(player.getUUID());
+        }
         EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
         for (int i = 0; i < 4; i++) {
             player.setItemSlot(slots[i], mark(kit.armor()[i]));
