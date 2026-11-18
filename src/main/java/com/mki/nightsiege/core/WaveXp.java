@@ -2,18 +2,12 @@ package com.mki.nightsiege.core;
 
 /**
  * Experience from sieges: every wave a defender survives counts, and a number
- * of survived waves makes one point. Players who missed nights catch up: in the
- * next night they stand in, every wave counts once more for each night missed.
+ * of survived waves makes one point (Tor 12 I: the old catch-up of missed nights is gone,
+ * the Teil-Angleich lifts players who fell behind, see game.LevelSync).
  */
 public final class WaveXp {
 
     private WaveXp() {
-    }
-
-    /** How many times a wave counts for a player: missed nights plus one, at most {@code max}. */
-    public static int catchUp(int nightsHeld, int lastNight, int max) {
-        int missed = Math.max(0, nightsHeld - Math.max(-1, lastNight) - 1);
-        return Math.max(1, Math.min(Math.max(1, max), missed + 1));
     }
 
     /**

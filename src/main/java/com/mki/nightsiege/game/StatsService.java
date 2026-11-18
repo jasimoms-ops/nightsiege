@@ -103,6 +103,12 @@ public final class StatsService {
     }
 
     public static CoreStats build(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
+        // Tor 12 I: the window shows and sells the own tree; the lent levels only as "Angeglichen auf Stufe X".
+        PlayerSkills skills = manager.save().skillsOf(viewer.getUUID().toString());
+        return skills.withoutBorrowed(() -> buildOwn(server, manager, viewer));
+    }
+
+    private static CoreStats buildOwn(MinecraftServer server, SiegeManager manager, ServerPlayer viewer) {
         SiegeConfig cfg = manager.config();
         SiegeSave save = manager.save();
         SkillTree tree = manager.skillTree();
@@ -295,7 +301,7 @@ public final class StatsService {
         }
         stats.points = skills.points();
         stats.earned = skills.earned;
-        stats.catchUpPool = cfg.lateJoiners ? skills.catchUpPool : 0;
+        stats.syncLevel = skills.syncLevel;   // Tor 12 I: "Angeglichen auf Stufe X (geliehen)"
         stats.donated = skills.donated;
         stats.pathTaken = skills.pathTaken(tree);
         stats.subclass = tree.subclassOfProfile(skills, skills.chosenClass);

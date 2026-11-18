@@ -259,8 +259,8 @@ public class CoreStats {
     public String myProfile = "";
     public int points;
     public int earned;
-    /** Latecomer pool still to pay (Tor 6.7), 0 when none. */
-    public int catchUpPool;
+    /** Teil-Angleich (Tor 12 I): the level the player is lifted to now with lent points, 0 when not. */
+    public int syncLevel;
     public int donated;
     public String pathTaken = "";
     /** Warrior subclass (blademaster, berserker, axe, paladin), or empty. */

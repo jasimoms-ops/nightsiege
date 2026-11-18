@@ -32,6 +32,8 @@ public class UltState {
      * abilities only show inside the kit HUD; without kits the old bar stays.
      */
     public boolean kitsOn;
+    /** Teil-Angleich (Tor 12 I): the level lifted to with lent points, 0 when not ("Angeglichen auf Stufe X"). */
+    public int syncLevel;
     /** The class in lower case ("warrior", "archer" ...) for the crest of the kit HUD; empty without one. */
     public String clazz = "";
     /** The subclass ("blademaster" ...) for its own crest; empty before one is chosen. */

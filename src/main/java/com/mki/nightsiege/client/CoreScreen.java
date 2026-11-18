@@ -5081,7 +5081,7 @@ public class CoreScreen extends Screen {
                 {"nightsiege.ui.rec_kills", String.valueOf(stats.totalKills), "FFFFFFFF"},
                 {"nightsiege.ui.rec_champs", String.valueOf(stats.totalChampionKills), "FFFFAA00"}};
         int cellW = (w - 16) / 2;
-        // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale, the latecomer pool.
+        // The foot (fix 13.11., plan rule 7): the pool when there is one or after the first finale; Tor 12 I: the Teil-Angleich.
         float footScale = 0.75f;
         List<net.minecraft.util.FormattedCharSequence> foot = new ArrayList<>();
         if (stats.xpPool > 0 || stats.firstFinaleWon) {
@@ -5089,8 +5089,8 @@ public class CoreScreen extends Screen {
                     (int) ((w - 16) / footScale)));
         }
         int poolLines = foot.size();
-        if (stats.catchUpPool > 0) {
-            foot.addAll(font.split(Component.translatable("nightsiege.ui.late_pool", stats.catchUpPool), (int) ((w - 16) / footScale)));
+        if (stats.syncLevel > 0) {
+            foot.addAll(font.split(Component.translatable("nightsiege.ui.level_sync", stats.syncLevel), (int) ((w - 16) / footScale)));
         }
         int footH = foot.isEmpty() ? 0 : foot.size() * 8 + 3;
         boolean tight = y + h - cy - footH < 3 * 21;

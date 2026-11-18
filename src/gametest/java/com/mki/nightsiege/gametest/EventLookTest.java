@@ -278,6 +278,10 @@ public class EventLookTest implements FabricClientGameTest {
                     alive(context);
                     SammelnScenes.run(context, game);   // Tor 12: to the core at the horn, kit, ready, countdown (Simon 17.11.)
                 }
+                if (want.contains("angleich")) {
+                    alive(context);
+                    AngleichScenes.run(context);   // Tor 12 I: the Teil-Angleich, lent and back, bar and window EN/DE
+                }
                 if (want.contains("richtung")) {
                     alive(context);
                     RichtungScenes.run(context, game);   // Simon 08.11.: monsters only from north-east to south-east

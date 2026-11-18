@@ -704,6 +704,11 @@ public final class KitHud {
             gui.text(font, message, 0, 0, (alpha << 24) | 0xF4E6C8, true);
             gui.pose().popMatrix();
         }
+        // Tor 12 I: the Teil-Angleich, a small gold-blue note above the status row's left end
+        if (s != null && s.syncLevel > 0) {
+            String sync = Component.translatable("nightsiege.ui.level_sync", s.syncLevel).getString();
+            small(gui, font, sync, l.status().x(), l.status().y() - 6, 0xFF7FD4FF);
+        }
         // the class gauge
         if (l.gauge() != null && s != null) {
             ActionBarLayout.Rect g = l.gauge();

@@ -85,6 +85,12 @@ public final class TeamSim {
     private static boolean bossMode;
     /** "bastion": a round of the Letzte Bastion from wave 1 with the whole tree (Update 7), at most 40 minutes. */
     private static boolean bastionMode;
+    /**
+     * Tor 12 I, mixed groups: how many levels the first bots of a group stand below the night ("rueck=10,10": bots 1
+     * and 2 on level L − 10, the rest on L). A bot below L − levelSyncGap is lifted by the Teil-Angleich as in a real
+     * night (SiegeManager.testLevelSync); log line "ANGLEICH;...".
+     */
+    private static final List<Integer> behind = new ArrayList<>();
     private static int shard;
     private static int shards = 1;
     private static Path copyFile;
@@ -219,6 +225,7 @@ public final class TeamSim {
         warMode = false;
         bossMode = false;
         bastionMode = false;
+        behind.clear();
         shard = 0;
         shards = 1;
         copyFile = null;
@@ -243,6 +250,8 @@ public final class TeamSim {
             } else if (token.equals("bastion")) {
                 bastionMode = true;
                 fullTree = true;   // the fun mode: every subclass full
+            } else if (token.startsWith("rueck=")) {
+                addInts(behind, token.substring(6));
             } else if (token.startsWith("shard=")) {
                 String[] p = token.substring(6).split("/");
                 shard = Integer.parseInt(p[0]);
@@ -573,14 +582,21 @@ public final class TeamSim {
             }
             // Tor 10 (K3): in a war leader's round the defenders play the free pick, level 20 with the recommended
             // build and its crates; the round itself fights at L (warLevel 25).
+            int back = fullTree || warMode || i >= behind.size() ? 0 : Math.max(0, behind.get(i));   // Tor 12 I
             PlayerSkills skills = fullTree
                     ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1])
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
-                    warMode ? FreeClassPick.budget(m.config()) : TestKit.pointsBefore(run.level(), m.config()));
+                    warMode ? FreeClassPick.budget(m.config()) : TestKit.pointsBefore(Math.max(1, run.level() - back), m.config()));
             if (warMode && !fullTree) {
                 m.freeClassPick().openForSim(skills);
             }
             m.save().skills.put(id, skills);
+            if (back > 0) {
+                int lent = m.testLevelSync(bot, run.level());   // the Teil-Angleich as in a real night of level L
+                System.out.println("[Night Siege sim] ANGLEICH;" + run.variant() + ";" + run.level() + ";" + run.group() + ";"
+                        + run.mix() + ";" + run.index() + ";" + i + ";" + Math.max(1, run.level() - back) + ";"
+                        + skills.syncLevel + ";" + lent);
+            }
             if (bot.isSpectator() || !bot.isAlive()) {
                 bot.setGameMode(GameType.SURVIVAL);
             }

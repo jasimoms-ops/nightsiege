@@ -1524,6 +1524,9 @@ public final class SiegeManager {
         }
         safe("Kriegsführer", () -> warLeader.tick(server));
         safe("Letzte Bastion", () -> bastion.tick(server));
+        if (gameTime % 10 == 0) {
+            safe("Angleich", () -> sweepLevelSync(server));   // Tor 12 I: lend on joining, give back on leaving
+        }
         if (gameTime % 40 == 0 && save.loans != null && !save.loans.isEmpty()) {
             safe("Leihprofile", () -> sweepLoans(server));   // no lent profile outlives its fun round (Update 7)
         }
@@ -2306,10 +2309,8 @@ public final class SiegeManager {
     private int goalNoteUntil;
     /** The night fragment this night used up (given back when the night has to be played again). */
     private String usedFragment;
-    /** How often a survived wave counts for each defender this night (catching up on missed nights). */
-    private final Map<UUID, Integer> waveWeight = new HashMap<>();
-    /** Defenders with a latecomer pool this night (Tor 6.7): the others count a mentor night. */
-    private final Set<UUID> poolTonight = new HashSet<>();
+    /** Defenders lifted by the Teil-Angleich this night (Tor 12 I): the others count a mentor night. */
+    private final Set<UUID> syncedTonight = new HashSet<>();
     /** Number of the running siege night, for catching up; -1 in tests. */
     private int nightNumber = -1;
     /** Defenders who died this night with their inventory kept: it comes back when they respawn. */
@@ -3087,12 +3088,8 @@ public final class SiegeManager {
         }
         presentDefenders = participants.size();
         scaledFor = presentDefenders;
-        if (com.mki.nightsiege.core.SoloHelper.wanted(config, presentDefenders)) {
-            NightSiegeMod.LOGGER.info("[Night Siege] Solo-Helfer: gewuenscht (Geruest, noch ohne Wirkung)");
-        }
         wavesStarted = 0;
-        waveWeight.clear();
-        poolTonight.clear();
+        syncedTonight.clear();
         CrateEffects.reset();
         GainGear.reset();
         SecondUlts.reset();
@@ -3432,9 +3429,9 @@ public final class SiegeManager {
                     // More defenders, bigger waves: the goal can rise (up to where it started).
                     goalUp = Component.translatable("nightsiege.bar.goal_joined", player.getScoreboardName());
                     logPlayer(player);
+                    joinNight(player);   // Tor 12 I: the lent levels before the kit and the skills
                     equipKit(player);
                     SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
-                    joinNight(player);
                     safe("Startbegleiter", () -> companions.startNight(player));
                 }
             }
@@ -4720,58 +4717,138 @@ public final class SiegeManager {
         }
     }
 
-    /** A defender joins this night: missed nights make every wave count more for them. */
+    /** A defender joins this night (Tor 12 I: the old catch-up is gone, the Teil-Angleich lends the levels). */
     private void joinNight(ServerPlayer player) {
         if (testRun || nightNumber < 0) {
             return;
         }
-        PlayerSkills skills = save.skillsOf(player.getUUID().toString());
-        if (config.lateJoiners) {
-            joinLate(player, skills);
+        save.skillsOf(player.getUUID().toString()).lastNight = nightNumber;
+        safe("Angleich", () -> syncLevel(player));
+    }
+
+    // ------------------------------------------------------------------
+    // Teil-Angleich (Tor 12 I, Simon 18.11.)
+    // ------------------------------------------------------------------
+
+    /**
+     * True when this player is to be lifted now: a real night (normal, boss, finale, extra, event), a dungeon or the
+     * camp; never "Belagerung starten", the war leader's round, the bastion, a test night, the playtest or a lent
+     * fun profile.
+     */
+    private boolean levelSyncWanted(ServerPlayer player) {
+        if (!config.levelSync || player == null || playtest.running() || save.hasLoan(player.getUUID().toString())) {
+            return false;
+        }
+        boolean night = active && !testRun && !siegeRound && !siegeRoundPending && !warRound && !bastionRound
+                && participants.contains(player.getUUID());
+        return night || camp.isFighter(player) || expeditions.isFighter(player);
+    }
+
+    /** Lends the levels if the player is to be lifted and not yet (the skills at once if he fights). */
+    private void syncLevel(ServerPlayer player) {
+        if (levelSyncWanted(player)) {
+            beginSync(player, currentLevel());
+        }
+    }
+
+    /** Lends the levels for a world of this level and tells the player; the skills at once if he fights. */
+    private boolean beginSync(ServerPlayer player, int worldLevel) {
+        PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+        if (own.synced()) {
+            return true;
+        }
+        int lent = LevelSync.begin(skillTree, config, own, worldLevel);
+        if (lent <= 0) {
+            return false;
+        }
+        if (active && participants.contains(player.getUUID())) {
+            syncedTonight.add(player.getUUID());
+        }
+        NightSiegeMod.LOGGER.info("[Night Siege] Angleich: {} auf Stufe {} (+{} Punkte geliehen)",
+                player.getScoreboardName(), own.syncLevel, lent);
+        player.sendSystemMessage(Component.translatable("nightsiege.msg.level_sync", own.syncLevel, lent)
+                .withStyle(ChatFormatting.AQUA));
+        if (liveSkillsFor(player) != null) {
+            float before = player.getMaxHealth();
+            SkillService.apply(player, own, skillTree);
+            float more = player.getMaxHealth() - before;
+            if (more > 0) {
+                player.heal(more);   // lifted in the fight: the extra health comes full
+            }
+        }
+        return true;
+    }
+
+    /** The lent levels go back (the skills at once if he still fights). */
+    private void endSync(ServerPlayer player, PlayerSkills own) {
+        if (!LevelSync.end(own)) {
             return;
         }
-        int weight = WaveXp.catchUp(nightNumber, skills.lastNight, config.catchUpMax);
-        skills.lastNight = nightNumber;
-        waveWeight.put(player.getUUID(), weight);
-        if (weight > 1) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up", weight - 1, weight)
-                    .withStyle(ChatFormatting.AQUA));
+        if (player != null && liveSkillsFor(player) != null) {
+            SkillService.apply(player, own, skillTree);
         }
     }
 
     /**
-     * The latecomer system (Tor 6.7, formula D): the floor lifts the points to a steady player's minus
-     * lateJoinerNights nights, missed nights fill the pool (at most as many nights, never past the gap).
+     * Lends to whoever is to be lifted and not yet (a join, back after a log-out) and takes back from everyone else
+     * (the night or the fight over, logged out). Lent levels are never saved, so a crash needs nothing here.
      */
-    private void joinLate(ServerPlayer player, PlayerSkills skills) {
-        if (skills.lastNight == nightNumber) {
-            if (skills.catchUpPool > 0) {
-                poolTonight.add(player.getUUID());
+    private void sweepLevelSync(MinecraftServer server) {
+        Set<UUID> online = new HashSet<>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            online.add(player.getUUID());
+            PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+            if (levelSyncWanted(player)) {
+                if (!own.synced()) {
+                    beginSync(player, currentLevel());
+                }
+            } else if (own.synced() && !levelSyncPinned.contains(player.getUUID())) {
+                endSync(player, own);
             }
-            return;   // back in the same night: floor and pool are done
         }
-        int missed = com.mki.nightsiege.core.CatchUp.missed(nightNumber, skills.lastNight);
-        skills.lastNight = nightNumber;
-        int level = currentLevel();
-        int expected = TestKit.pointsBefore(level, config);
-        int behind = TestKit.pointsBefore(Math.max(1, level - config.lateJoinerNights), config);
-        int perNight = expected - TestKit.pointsBefore(Math.max(1, level - 1), config);
-        int floor = com.mki.nightsiege.core.CatchUp.floorAdd(skills.earned, behind);
-        if (floor > 0) {
-            skills.award(floor);
-            NightSiegeMod.LOGGER.info("[Night Siege] Nachzuegler-Boden: {} +{} (Stufe {}, jetzt {})",
-                    player.getScoreboardName(), floor, level, skills.points());
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_floor", floor, level)
-                    .withStyle(ChatFormatting.AQUA));
+        if (save.skills == null) {
+            return;
         }
-        skills.catchUpPool = com.mki.nightsiege.core.CatchUp.pool(skills.catchUpPool, missed, perNight,
-                expected - behind, expected, skills.earned);
-        if (skills.catchUpPool > 0) {
-            poolTonight.add(player.getUUID());
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.late_pool", skills.catchUpPool)
-                    .withStyle(ChatFormatting.AQUA));
-        } else {
-            skills.catchUpFraction = 0.0;
+        for (Map.Entry<String, PlayerSkills> e : save.skills.entrySet()) {
+            if (e.getValue() != null && e.getValue().synced()) {
+                UUID id;
+                try {
+                    id = UUID.fromString(e.getKey());
+                } catch (IllegalArgumentException ex) {
+                    id = null;
+                }
+                if (id == null || !online.contains(id)) {
+                    LevelSync.end(e.getValue());   // logged out: the lent levels go back
+                    if (id != null) {
+                        levelSyncPinned.remove(id);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Players lent to by a test (scene, team sim): the sweep leaves them until a test ends it or they log out. */
+    private final Set<UUID> levelSyncPinned = new HashSet<>();
+
+    /** For tests and the team sim: lends as a real night of this world level would (0: nothing lent). */
+    public int testLevelSync(ServerPlayer player, int worldLevel) {
+        if (player == null) {
+            return 0;
+        }
+        PlayerSkills own = save.realSkillsOf(player.getUUID().toString());
+        LevelSync.end(own);
+        if (!beginSync(player, worldLevel)) {
+            return 0;
+        }
+        levelSyncPinned.add(player.getUUID());
+        return own.borrowedPoints;
+    }
+
+    /** For tests: the lent levels back. */
+    public void testLevelSyncEnd(ServerPlayer player) {
+        if (player != null) {
+            levelSyncPinned.remove(player.getUUID());
+            endSync(player, save.realSkillsOf(player.getUUID().toString()));
         }
     }
 
@@ -4787,15 +4864,6 @@ public final class SiegeManager {
         double reach = config.participantRadius * 1.5;
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
-            // The latecomer pool pays the wave once more, also to the fallen (Tor 6.7).
-            int bonus = player == null || !config.lateJoiners ? 0
-                    : com.mki.nightsiege.core.CatchUp.bonus(save.skillsOf(id.toString()),
-                            save.specialNight ? config.specialNightXpMultiplier : 1, config.wavesPerPoint,
-                            config.pointGainMultiplier);
-            if (bonus > 0 && fallen.contains(id)) {
-                player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(
-                        Component.translatable("nightsiege.msg.wave_point", wavesStarted, bonus).withStyle(ChatFormatting.AQUA)));
-            }
             if (fallen.contains(id)) {
                 continue;
             }
@@ -4803,8 +4871,8 @@ public final class SiegeManager {
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
-            int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
-            int points = bonus + WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
+            int weight = save.specialNight ? config.specialNightXpMultiplier : 1;
+            int points = WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
                     config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
@@ -5418,10 +5486,10 @@ public final class SiegeManager {
     /** Writes the night's protocol lines. */
     private void logNight(String result, int blasted, int required) {
         StatsRecorder.NightFile finished = null;
-        if (!testRun && nightNumber >= 0 && !poolTonight.isEmpty() && world != null) {
-            // Mentor nights (Tor 6.7): everyone else who stood in a night with a latecomer.
+        if (!testRun && nightNumber >= 0 && !syncedTonight.isEmpty() && world != null) {
+            // Mentor nights (Tor 6.7, Tor 12 I): everyone else who stood in a night with a player lifted by the Teil-Angleich.
             for (UUID id : participants) {
-                ServerPlayer mentor = poolTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
+                ServerPlayer mentor = syncedTonight.contains(id) ? null : world.getServer().getPlayerList().getPlayer(id);
                 if (mentor != null) {
                     safe("Statistik", () -> stats.mentor(mentor));
                 }
@@ -5618,6 +5686,7 @@ public final class SiegeManager {
         }
         active = false;
         clearSkillsFromParticipants(server);
+        safe("Angleich", () -> sweepLevelSync(server));   // Tor 12 I: the lent levels go back before rewards and losses
         SiegeTeams.cleanUp(server);
         if (world != null && anchor != null) {
             Fx.coreFlare(world, config, anchor, won);
@@ -6197,7 +6266,7 @@ public final class SiegeManager {
                     || player.distanceToSqr(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5) > reach * reach) {
                 continue;
             }
-            int weight = waveWeight.getOrDefault(id, 1) * (special ? config.specialNightXpMultiplier : 1);
+            int weight = special ? config.specialNightXpMultiplier : 1;
             int points = roundXp.computeIfAbsent(id, k -> new com.mki.nightsiege.core.Chapters.NightXp()).wave(weight, config.wavesPerPoint,
                     config.pointGainMultiplier * CrateEffects.pointFactor(player));
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
@@ -7299,6 +7368,7 @@ public final class SiegeManager {
                 state = new com.mki.nightsiege.core.UltState();
                 state.kitsOn = config.nightKits;
             }
+            state.syncLevel = save.realSkillsOf(player.getUUID().toString()).syncLevel;   // Tor 12 I: the bar's note
             final PlayerSkills hudOwn = own;
             final com.mki.nightsiege.core.UltState hudState = state;
             safe("Kit-Leiste", () -> kitHudValues(player, hudOwn, hudState));
@@ -8126,9 +8196,22 @@ public final class SiegeManager {
             openCoreWindow(player);
             return false;
         }
-        boolean bought = own.asProfile(key, () -> skillTree.unlock(nodeId, own));
+        // Tor 12 I: a purchase goes into the own tree (cost and level without the lent levels), then lent anew.
+        boolean bought = own.withoutBorrowed(() -> own.asProfile(key, () -> skillTree.unlock(nodeId, own)));
         if (bought) {
-            rewardMaxedUltimate(player, own, node, key);
+            own.withoutBorrowed(() -> {
+                rewardMaxedUltimate(player, own, node, key);
+                return null;
+            });
+            if (own.synced()) {
+                int lent = own.syncLevel;
+                LevelSync.end(own);
+                LevelSync.begin(skillTree, config, own, currentLevel());
+                if (!own.synced()) {
+                    NightSiegeMod.LOGGER.info("[Night Siege] Angleich: {} braucht keine Leihpunkte mehr (Stufe {})",
+                            player.getScoreboardName(), lent);
+                }
+            }
             persistShortly();   // survival safety 2: not a full write per click
             // Skills only hold during a siege, so apply at once only if one runs.
             if (key.equals(own.chosenClass) && active && participants.contains(player.getUUID())

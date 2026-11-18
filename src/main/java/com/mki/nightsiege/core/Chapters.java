@@ -495,16 +495,12 @@ public final class Chapters {
                 fresh.xpPoolFraction = Math.max(0.0, own.xpPoolFraction);
                 own.xpPool = 0;
                 own.xpPoolFraction = 0.0;
-                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point, the
-                // latecomer pool (capped again at the next join); the veteran keeps none. Migration marks: as set.
+                // The player's counters go along too (Pruefer 13.11.): waves and fractions toward the next point; the
+                // veteran keeps none. Migration marks: as set.
                 fresh.waveCredit = Math.max(0, own.waveCredit);
                 fresh.pointFraction = Math.max(0.0, own.pointFraction);
-                fresh.catchUpPool = Math.max(0, own.catchUpPool);
-                fresh.catchUpFraction = Math.max(0.0, own.catchUpFraction);
                 own.waveCredit = 0;
                 own.pointFraction = 0.0;
-                own.catchUpPool = 0;
-                own.catchUpFraction = 0.0;
                 fresh.profileVersion = own.profileVersion;
                 fresh.freeSubclassVersion = own.freeSubclassVersion;
                 skills.put(uuid, fresh);

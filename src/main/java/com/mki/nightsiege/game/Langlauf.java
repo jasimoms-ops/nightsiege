@@ -1096,7 +1096,6 @@ public final class Langlauf {
         now.xpPool = old.xpPool;
         now.waveCredit = old.waveCredit;
         now.lastNight = old.lastNight;
-        now.catchUpPool = old.catchUpPool;
         now.donated = old.donated;
         now.lost = old.lost;
         now.profileVersion = Math.max(old.profileVersion, PlayerSkills.PROFILE_VERSION);

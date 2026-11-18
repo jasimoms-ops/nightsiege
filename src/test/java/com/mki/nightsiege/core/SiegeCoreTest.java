@@ -2176,15 +2176,6 @@ class SiegeCoreTest {
     }
 
     @Test
-    void missedNightsAreMadeUp() {
-        assertEquals(1, WaveXp.catchUp(5, 4, 4));    // was there last night
-        assertEquals(3, WaveXp.catchUp(5, 2, 4));    // missed two
-        assertEquals(4, WaveXp.catchUp(20, 2, 4));   // capped
-        assertEquals(1, WaveXp.catchUp(0, -1, 4));   // the very first night
-        assertEquals(4, WaveXp.catchUp(9, -1, 4));   // new on the server
-    }
-
-    @Test
     void aLostNightTakesTheNewestSkills() {
         SkillTree tree = new SkillTree();
         PlayerSkills p = new PlayerSkills();

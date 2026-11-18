@@ -176,12 +176,6 @@ public class SiegeConfig {
      */
     public double presentRadius = 180.0;
     public int presentGraceSeconds = 30;
-    /**
-     * Tor 6.4, only the frame (decided after Tor 8): a lone defender gets a helper instead of fewer monsters
-     * (Deep Rock Galactic's Bosco) when solo nights win under soloHelperBelow (0.65). Off: nothing happens.
-     */
-    public boolean soloHelper = false;
-    public double soloHelperBelow = 0.65;
 
     public double healthPerLevel = 0.06;
     public double maxHealthMultiplier = 2.5;
@@ -419,17 +413,11 @@ public class SiegeConfig {
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
     public double pointGainMultiplier = 1.5;
     /**
-     * The old catch-up (only with {@link #lateJoiners} off): waves count (missed + 1) times in the next
-     * night, at most this often. Shut down by Tor 6.7, kept so it can be switched back.
+     * Teil-Angleich (Tor 12 I, Simon 18.11.): in real nights, dungeons and the camp whoever stands below world
+     * level − levelSyncGap is lifted to that level, the missing points lent along the recommended build (game.LevelSync).
      */
-    public int catchUpMax = 4;
-    /**
-     * The latecomer system (Tor 6.7, formula D) instead of the multiple waves: a points floor at the
-     * night's start and a pool that pays every held wave twice until caught up. Off = the old catchUpMax.
-     */
-    public boolean lateJoiners = true;
-    /** Floor and pool of the latecomer system: the points of a steady player minus this many nights. */
-    public int lateJoinerNights = 2;
+    public boolean levelSync = true;
+    public int levelSyncGap = 3;
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
     /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
@@ -1480,6 +1468,16 @@ public class SiegeConfig {
     }
 
     /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
+    /**
+     * v32, Tor 12 I (Simon 18.11.): the Teil-Angleich replaces the old catch-up systems. Their keys (catchUpMax,
+     * lateJoiners, lateJoinerNights, soloHelper, soloHelperBelow) are no fields any more, so the file written after
+     * the load has them no more; levelSync (true) and levelSyncGap (3) come as new fields with their defaults.
+     * No value moves; points already given stay (they are in the save, not here).
+     */
+    private void migrateV32Angleich() {
+        levelSyncGap = Math.max(0, levelSyncGap);
+    }
+
     private static double onOld(double now, double old, double target) {
         return Math.abs(now - old) < 1e-6 ? target : now;
     }
@@ -1611,7 +1609,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 31;
+    public static final int SETTINGS_VERSION = 32;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1759,7 +1757,6 @@ public class SiegeConfig {
         overflowEliteCost = Double.isNaN(overflowEliteCost) ? 3.0 : clampDouble(overflowEliteCost, 0.0, 100.0);
         presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
         presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
-        soloHelperBelow = Double.isNaN(soloHelperBelow) ? 0.65 : clampDouble(soloHelperBelow, 0.0, 1.0);
         playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
         playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
         lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
@@ -2456,6 +2453,10 @@ public class SiegeConfig {
             }
             settingsVersion = 31;
         }
+        if (settingsVersion < 32) {
+            migrateV32Angleich();
+            settingsVersion = 32;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -2677,8 +2678,7 @@ public class SiegeConfig {
         if (effectMobReplacements == null) {
             effectMobReplacements = defaultEffectMobReplacements();
         }
-        catchUpMax = clamp(catchUpMax, 1, 10);
-        lateJoinerNights = clamp(lateJoinerNights, 0, 10);
+        levelSyncGap = clamp(levelSyncGap, 0, 20);
         defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);

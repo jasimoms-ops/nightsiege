@@ -40,7 +40,6 @@ class Tor6SpielerzahlTest {
         }
         assertEquals(0.5, fresh.bossHealthPerExtraPlayer, 1e-9);
         assertEquals(120, fresh.maxLiveMobsCap);
-        assertFalse(fresh.soloHelper);
     }
 
     @Test
@@ -130,14 +129,5 @@ class Tor6SpielerzahlTest {
         assertEquals(250.5, t.percentile(1.0), 1e-9);
         t.clear();
         assertEquals(0, t.count());
-    }
-
-    @Test
-    void soloHelperOnlyWhenSwitchedOnAndAlone() {
-        SiegeConfig c = new SiegeConfig();
-        assertFalse(SoloHelper.wanted(c, 1));
-        c.soloHelper = true;
-        assertTrue(SoloHelper.wanted(c, 1));
-        assertFalse(SoloHelper.wanted(c, 2));
     }
 }
