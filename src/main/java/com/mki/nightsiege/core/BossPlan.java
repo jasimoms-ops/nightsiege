@@ -79,10 +79,14 @@ public final class BossPlan {
         return NightKind.NORMAL;
     }
 
-    /** The rhythm's count after a real night: a lost boss night or Vierer-Nacht comes again. */
-    public static int countNight(int nights, NightKind kind, boolean bossesDown) {
+    /**
+     * The rhythm's count after a real night. Only a won night counts (Simon 18.11.: "Nur Siege zählen"): a lost
+     * night of any kind comes again, so the bosses come at levels 4/8/12/16 and the finale at 20. A boss night
+     * or Vierer-Nacht counts only with its bosses down.
+     */
+    public static int countNight(int nights, NightKind kind, boolean won, boolean bossesDown) {
         int n = Math.max(0, nights);
-        if ((kind == NightKind.BOSS || kind == NightKind.GROUP) && !bossesDown) {
+        if (!won || ((kind == NightKind.BOSS || kind == NightKind.GROUP) && !bossesDown)) {
             return n;
         }
         return n + 1;

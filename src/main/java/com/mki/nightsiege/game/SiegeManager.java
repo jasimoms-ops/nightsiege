@@ -5735,9 +5735,9 @@ public final class SiegeManager {
                 save.groupBosses.add(bossKind.id());   // one of the four of the next Vierer-Nacht
             }
         }
-        // The rhythm's count: a lost boss night or Vierer-Nacht comes again.
+        // The rhythm's count: only a won night counts (Simon 18.11.), a lost one of any kind comes again.
         bossNights();
-        save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won && bossDown);
+        save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won, bossDown);
         String result = com.mki.nightsiege.core.NightEnd.result(won);   // Tor 12 F: kills do not count
         int blasted = 0;
         if (won && !quotaMet) {

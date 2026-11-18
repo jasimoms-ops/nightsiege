@@ -2827,12 +2827,30 @@ class SiegeCoreTest {
         }
         assertEquals(8, boss, "every one of the eight bosses has its own boss night before night 40");
         assertEquals(8, BossKind.values().length);
-        // A lost boss night or Vierer-Nacht comes again; a late night goes on.
-        assertEquals(3, BossPlan.countNight(3, BossPlan.NightKind.BOSS, false));
-        assertEquals(4, BossPlan.countNight(3, BossPlan.NightKind.BOSS, true));
-        assertEquals(19, BossPlan.countNight(19, BossPlan.NightKind.GROUP, false));
-        assertEquals(42, BossPlan.countNight(41, BossPlan.NightKind.LATE, false));
-        assertEquals(6, BossPlan.countNight(5, BossPlan.NightKind.NORMAL, false));
+        // Simon 18.11. ("Nur Siege zählen"): only a won night counts; a lost night of any kind comes again.
+        assertEquals(3, BossPlan.countNight(3, BossPlan.NightKind.BOSS, false, false));
+        assertEquals(3, BossPlan.countNight(3, BossPlan.NightKind.BOSS, true, false));
+        assertEquals(4, BossPlan.countNight(3, BossPlan.NightKind.BOSS, true, true));
+        assertEquals(19, BossPlan.countNight(19, BossPlan.NightKind.GROUP, false, false));
+        assertEquals(20, BossPlan.countNight(19, BossPlan.NightKind.GROUP, true, true));
+        assertEquals(41, BossPlan.countNight(41, BossPlan.NightKind.LATE, false, false));
+        assertEquals(42, BossPlan.countNight(41, BossPlan.NightKind.LATE, true, false));
+        assertEquals(5, BossPlan.countNight(5, BossPlan.NightKind.NORMAL, false, false));
+        assertEquals(6, BossPlan.countNight(5, BossPlan.NightKind.NORMAL, true, false));
+        // So the bosses come at levels 4/8/12/16 and the finale at 20, however many nights were lost between.
+        int rhythm = 0;
+        int level = 1;
+        java.util.Random rnd = new java.util.Random(7);
+        for (int night = 0; night < 200 && rhythm < 20; night++) {
+            BossPlan.NightKind kind = BossPlan.nightKind(rhythm + 1, c);
+            if (kind != BossPlan.NightKind.NORMAL) {
+                assertEquals(rhythm + 1, level, kind + " at level " + level);
+            }
+            boolean won = rnd.nextInt(3) > 0;
+            rhythm = BossPlan.countNight(rhythm, kind, won, won);
+            level += won ? 1 : 0;
+        }
+        assertEquals(20, rhythm);
         c.bossesEnabled = false;
         assertEquals(BossPlan.NightKind.NORMAL, BossPlan.nightKind(4, c));
         c.bossesEnabled = true;

@@ -393,8 +393,8 @@ class Tor11KapitelTest {
             }
             assertEquals(start == 27 ? 40 : 60, finale);
             int rhythm = finale - 1;   // the rhythm counts a night at its end: the coming one is rhythm + 1
-            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false));   // lost: the finale again
-            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true);
+            assertEquals(rhythm, BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, false, false));   // lost: the finale again
+            int after = BossPlan.countNight(rhythm, BossPlan.NightKind.GROUP, true, true);
             Chapters.Progress won = new Chapters.Progress();
             Chapters.advance(won, after, 30, new HashMap<>(), List.of(), Set.of(), s -> "", (u, s) -> 1, "x");
             assertEquals(2, won.chapter);
