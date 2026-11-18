@@ -3390,11 +3390,6 @@ public final class SiegeManager {
         return bossBar == null ? "" : bossBarTitle().getString();
     }
 
-    /** Experience is worth more in a special night. */
-    private int nightPoints(int amount) {
-        return save.specialNight ? amount * config.specialNightXpMultiplier : amount;
-    }
-
     private void tickSiege(MinecraftServer server) {
         if (world == null || anchor == null) {
             finish(server, false);
@@ -4411,10 +4406,6 @@ public final class SiegeManager {
             return;
         }
         nightLog.of(player.getUUID(), player.getScoreboardName()).kills++;
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(
-                    config.skillPointsPerKill * config.championPointMultiplier));
-        }
     }
 
     /** Admin and tests: the boss planned for this night comes now, with his guard; the others withdraw. */
@@ -5708,7 +5699,6 @@ public final class SiegeManager {
         bossNights();
         save.bossNights = com.mki.nightsiege.core.BossPlan.countNight(save.bossNights, kindTonight, won, bossDown);
         String result = com.mki.nightsiege.core.NightEnd.result(won);   // Tor 12 F: kills do not count
-        int blasted = 0;
         if (won && !quotaMet) {
             // Held, but too few monsters fell: the night comes again at the same level.
             save.currentStreak = 0;
@@ -5723,7 +5713,6 @@ public final class SiegeManager {
             save.currentStreak++;
             save.bestStreak = Math.max(save.bestStreak, save.currentStreak);
             waveSurvived(server);
-            awardSkillPoints(server);
             // The reward of a won night: a crate for every defender (better odds in event and fragment nights).
             // The boss's crate is as good as a fragment night's (Simon, 25 October 2026).
             // So is the warden's (Simon, 29 October 2026), with ability points for those still standing.
@@ -5746,19 +5735,8 @@ public final class SiegeManager {
         } else {
             save.siegesLost++;
             save.currentStreak = 0;
-            int destroyed = 0;
-            if (config.failureBlast && world != null && anchor != null) {
-                destroyed = Demolition.blast(world, anchor, config);
-                broadcast(server, Component.translatable("nightsiege.msg.lost", destroyed)
-                        .withStyle(ChatFormatting.DARK_RED));
-            } else {
-                broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
-                        .withStyle(ChatFormatting.DARK_RED));
-            }
-            blasted = destroyed;
-            if (config.defeatSkillLoss > 0) {
-                loseSkills(server);
-            }
+            broadcast(server, Component.translatable("nightsiege.msg.lost_no_penalty")
+                    .withStyle(ChatFormatting.DARK_RED));
             broadcast(server, Component.translatable("nightsiege.msg.night_again", siegeLevel)
                     .withStyle(ChatFormatting.RED));
         }
@@ -5779,7 +5757,7 @@ public final class SiegeManager {
                     before * 100, after * 100, held ? "Sieg" : "Niederlage", save.outerLoopWon, save.outerLoopLost));
             safe("Statistik", () -> stats.outerLoop(before, after, config.smartNightOuterLoop));
         }
-        logNight(result, blasted, required);
+        logNight(result, 0, required);
         safe("Vorrat", this::flowPools);   // Tor 11: a higher world level lets the pools flow on
         save.specialNight = false;
         if (curses > 0 && save.curses != null) {
@@ -6196,7 +6174,7 @@ public final class SiegeManager {
             save.nightFragment = back;   // broken off: the fragment comes back, as after a real night
         }
         if (credit && won) {
-            int points = wonNightPoints(round.fragment != null) + (config.skillsEnabled ? Curses.points(config, round.curses) : 0);
+            int points = config.skillsEnabled ? Curses.points(config, round.curses) : 0;
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
                     roundXp.computeIfAbsent(id, k -> new com.mki.nightsiege.core.Chapters.NightXp()).won(points);
@@ -6686,30 +6664,6 @@ public final class SiegeManager {
         presentDefenders = 0;
     }
 
-    /** A lost night: every defender loses the newest learned skills, the points spent on them with them. */
-    private void loseSkills(MinecraftServer server) {
-        if (config.defeatSkillLoss <= 0) {
-            return;
-        }
-        for (UUID id : participants) {
-            PlayerSkills skills = save.skillsOf(id.toString());
-            List<String> gone = skillTree.loseLast(skills, config.defeatSkillLoss);
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null || gone.isEmpty()) {
-                continue;
-            }
-            net.minecraft.network.chat.MutableComponent names = Component.empty();
-            for (int i = 0; i < gone.size(); i++) {
-                if (i > 0) {
-                    names.append(", ");
-                }
-                names.append(Component.translatable("nightsiege.skill." + gone.get(i)));
-            }
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.skills_lost", names)
-                    .withStyle(ChatFormatting.RED));
-        }
-    }
-
     /** A lost siege sets the core back to the start: progress and skills are gone. */
     private void resetProgress(MinecraftServer server) {
         save.siegesWon = 0;
@@ -6717,32 +6671,6 @@ public final class SiegeManager {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SkillService.clear(player);
         }
-    }
-
-    /** The points of a won night on this level (a special night times its multiplier); 0 when switched off. */
-    private int wonNightPoints(boolean special) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return 0;
-        }
-        int amount = config.skillPointsPerSiege + siegeLevel / Math.max(1, config.skillPointsLevelStep);
-        return special ? amount * config.specialNightXpMultiplier : amount;
-    }
-
-    private void awardSkillPoints(MinecraftServer server) {
-        if (!config.skillsEnabled || config.skillPointsPerSiege <= 0) {
-            return;
-        }
-        int amount = wonNightPoints(save.specialNight);
-        // Everyone who was still standing earns it for themselves.
-        for (UUID id : participants) {
-            if (fallen.contains(id)) {
-                continue;
-            }
-            save.skillsOf(id.toString()).award(amount);
-        }
-        Fx.pointsEarned(server, config);
-        broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
-                .withStyle(ChatFormatting.AQUA));
     }
 
     /** A night won under curse stones: skill points for everyone still standing (update 2). */
@@ -7640,8 +7568,6 @@ public final class SiegeManager {
         }
     }
 
-    /** Damage a guardian caught and healing given, until it adds up to a point. */
-    private final Map<UUID, Double> tankPool = new HashMap<>();
 
     /**
      * A guardian caught damage from an attacker (or healed a teammate, from null):
@@ -7691,19 +7617,6 @@ public final class SiegeManager {
             nightLog.of(player.getUUID(), player.getScoreboardName()).healed += amount;
             stats.healGiven(player, amount);
         }
-        if (!active || testRun || !config.skillsEnabled || config.skillPointsPerKill <= 0 || amount <= 0) {
-            return;
-        }
-        if (from != null && !from.entityTags().contains(MobFactory.TAG)) {
-            return;
-        }
-        double pool = tankPool.merge(player.getUUID(), amount, Double::sum);
-        int per = Math.max(1, config.tankDamagePerPoint);
-        if (pool >= per) {
-            int points = (int) (pool / per);
-            tankPool.put(player.getUUID(), pool - points * per);
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(points * config.skillPointsPerKill));
-        }
     }
 
     /** Counts a kill and turns it into skill experience. */
@@ -7743,11 +7656,6 @@ public final class SiegeManager {
         if (champion) {
             stats.championKills++;
             save.totalChampionKills++;
-        }
-        if (config.skillsEnabled && config.skillPointsPerKill > 0) {
-            save.skillsOf(player.getUUID().toString()).award(nightPoints(champion
-                    ? config.skillPointsPerKill * config.championPointMultiplier
-                    : config.skillPointsPerKill));
         }
     }
 

@@ -203,14 +203,6 @@ public class SiegeConfig {
     /** How far from the core the base scan looks for walls (set with /nightsiege base radius). */
     public int baseRadius = 64;
 
-    // --- punishment -------------------------------------------------------
-    /** A lost night blows up the area around the core (off: a defeat has no punishment). */
-    public boolean failureBlast = false;
-    /** Radius of the destruction when a siege is lost. */
-    public int failureBlastRadius = 12;
-    /** Keep chests and other containers intact in the blast, so no items are lost. */
-    public boolean failureBlastProtectsContainers = true;
-
     // --- events -----------------------------------------------------------
     public boolean eventsEnabled = true;
     /** Chance that a siege night carries a special event. */
@@ -395,10 +387,6 @@ public class SiegeConfig {
     public boolean skillsEnabled = true;
     /** Hand every player the written guide the first time they join. */
     public boolean giveGuideBook = true;
-    /** Points every surviving defender gets for a cleared siege. */
-    public int skillPointsPerSiege = 0;
-    /** Experience for every attacker a player kills. */
-    public int skillPointsPerKill = 0;
     /** Survived waves that make one experience point (sieges give experience only this way). */
     public int wavesPerPoint = 2;
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
@@ -417,14 +405,6 @@ public class SiegeConfig {
     public int lateJoinerNights = 2;
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
-    /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
-    public int defeatSkillLoss = 0;
-    /** The killing blow on a boss is worth this many times a normal kill. */
-    public int championPointMultiplier = 10;
-    /** One extra point for every this many siege levels. */
-    public int skillPointsLevelStep = 5;
-    /** A guardian earns one kill's worth for every this much damage caught or healing given. */
-    public int tankDamagePerPoint = 20;
 
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
@@ -1779,8 +1759,6 @@ public class SiegeConfig {
         spawnMinDistance = Math.max(8.0, spawnMinDistance);
         spawnMaxDistance = Math.max(spawnMinDistance + 4.0, spawnMaxDistance);
 
-        failureBlastRadius = clamp(failureBlastRadius, 0, 64);
-
         digTicksPerBlock = clamp(digTicksPerBlock, 1, 2000);
         baseRadius = clamp(baseRadius <= 0 ? 64 : baseRadius, 16, 192);
 
@@ -1959,12 +1937,7 @@ public class SiegeConfig {
         wardenFinaleSeconds = clamp(wardenFinaleSeconds <= 0 ? 150 : wardenFinaleSeconds, 30, 1200);
         wardenPoints = clamp(wardenPoints, 0, 20);
 
-        skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
-        skillPointsPerKill = Math.max(0, skillPointsPerKill);
-        championPointMultiplier = Math.max(1, championPointMultiplier);
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
-        skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
-        tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
         killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
         classDamage = filled(classDamage, CLASS_KEYS);
@@ -2011,15 +1984,11 @@ public class SiegeConfig {
             healthPerLevel = fresh.healthPerLevel;
             damagePerLevel = fresh.damagePerLevel;
             auroraPointSeconds = fresh.auroraPointSeconds;
-            skillPointsPerSiege = fresh.skillPointsPerSiege;
-            skillPointsPerKill = fresh.skillPointsPerKill;
             settingsVersion = 4;
         }
         if (settingsVersion < 5) {
             // Version A (October 2026): no cap at level 20, a defeat has no punishment.
-            maxLevel = 1000;
-            failureBlast = false;
-            defeatSkillLoss = 0;
+            maxLevel = 1000;   // (failureBlast and defeatSkillLoss were set off here; gone since Tor 12 J)
             settingsVersion = 5;
         }
         if (settingsVersion < 6) {
@@ -2633,7 +2602,6 @@ public class SiegeConfig {
         }
         catchUpMax = clamp(catchUpMax, 1, 10);
         lateJoinerNights = clamp(lateJoinerNights, 0, 10);
-        defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
         if (!allowShovelDigging) {

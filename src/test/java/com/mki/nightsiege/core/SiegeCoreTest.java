@@ -835,8 +835,6 @@ class SiegeCoreTest {
     @Test
     void defeatHasNoPenaltyByDefault() {
         SiegeConfig c = cfg();
-        assertFalse(c.failureBlast);
-        assertEquals(0, c.defeatSkillLoss);
         assertTrue(c.maxLevel > 20);
     }
 
