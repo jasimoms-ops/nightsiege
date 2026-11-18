@@ -128,6 +128,18 @@ class Tor12StandardTest {
     }
 
     @Test
+    void v32MovesOnlyTheOldDefaults() {
+        // Tor 12 D (Sim s2): an own value stays, a table still on the v31 default moves
+        SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"lowLevelDamageTaken\":0.8,"
+                + "\"damageTakenByPlayers\":[0.5,0.9],\"mobHealthByPlayers\":[0.75,0.9,1.0,1.0]}", SiegeConfig.class);
+        c.sanitize();
+        assertEquals(32, c.settingsVersion);
+        assertEquals(0.8, c.lowLevelDamageTaken, 1e-9);
+        assertEquals(List.of(0.5, 0.9), c.damageTakenByPlayers);
+        assertEquals(List.of(0.71, 0.85, 1.0, 1.1), c.mobHealthByPlayers);
+    }
+
+    @Test
     void noWardenBeforeLevelThree() {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"wardenFromLevel\":0}", SiegeConfig.class);
         c.sanitize();

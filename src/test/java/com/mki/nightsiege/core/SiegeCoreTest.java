@@ -127,9 +127,9 @@ class SiegeCoreTest {
         assertEquals(26, SiegeMath.liveCap(4, server));    // Tor 12 (v31): the old table moves to the server's
         assertEquals(40, SiegeMath.liveCap(10, server));
         assertEquals(56, SiegeMath.liveCap(12, server));   // past the table +8 per player, at most 120
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v31: alone a little easier (Sim k2)
+        assertEquals(0.63, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v32: alone a little easier (Sim s2)
         assertEquals(1.0, SiegeMath.healthForGroup(3, server), 1e-9);
-        assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
+        assertEquals(1.1, SiegeMath.healthForGroup(8, server), 1e-9);
         assertEquals(0.8, server.subclassDamage.get("alchemist"), 1e-9);   // 0.9 until v30, the server's 0.8 since Tor 12
         assertEquals(0.85, server.subclassDamageTaken.get("soulcatcher"), 1e-9);
         assertEquals(80.0, server.skillTweaks.get("d_soulcatcher").values.get("swarmcd"), 1e-9);
