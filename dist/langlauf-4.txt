@@ -1,0 +1,295 @@
+== vor Nacht 1
+   START spieler=4 bis=Nacht 24 karte=burg.json.gz nachzuegler=Bot04 (Absage)
+   BURG kopie core=0, 67, 0 bots: Bot01=bulwark Bot02=medic Bot03=electrician Bot04=blademaster
+   OK Log: kein ERROR, keine Exception
+== k=1 tag=3 stufe=1 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=1 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=1 4/4
+   NACHT START k=1 K1N1S1 tag=3 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=1 K1N1S1 spieler=4/4 art=normal ergebnis=gewonnen dauer=240s stehend=4 horn=4/4 startton=4 punkte=+4 kisten=+1 stufe=1->2 maxtick=217ms
+   OK 8:00-Grenze k=1 240 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=1 K1N1S1 Bot04: angeglichen=false geliehen=0, Spielstand Baum 0 Punkte (vor der Nacht 0), verdient 4/4
+   OK Aufholbonus k=1 K1N1S1 Bot04: stufe 1->1 welt 1 abstand 0 faktor server=1.0 regel=1.0 punkte +4, Bot01 +4 (soll 2..6)
+   OK Log: kein ERROR, keine Exception
+== k=2 tag=6 stufe=2 kapitel=1 szenario=absage ereignis=NONE fragment=null
+   HORN k=2 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=2 4/4
+   NACHT START k=2 K1N2S2 tag=6 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=2 K1N2S2 spieler=3/4 art=normal szenario=absage ergebnis=gewonnen dauer=260s stehend=3 horn=4/4 startton=4 punkte=+6 kisten=+1 stufe=2->3 maxtick=292ms
+   OK 8:00-Grenze k=2 260 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=2 K1N2S2 Bot04: angeglichen=false geliehen=0, Spielstand Baum 2 Punkte (vor der Nacht 2), verdient 10/10
+   OK Aufholbonus k=2 K1N2S2 Bot04: stufe 2->2 welt 2 abstand 0 faktor server=1.0 regel=1.0 punkte +6, Bot01 +6 (soll 4..8)
+   OK Log: kein ERROR, keine Exception
+== k=3 tag=9 stufe=3 kapitel=1 szenario=zuwenig ereignis=NONE fragment=null
+   OK zu wenige Zusagen: keine Nacht an Tag 9, nächste Einladung Tag 12
+   OK Log: kein ERROR, keine Exception
+== k=4 tag=12 stufe=3 kapitel=1 szenario=logout_bereit ereignis=NONE fragment=null
+   HORN k=4 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=4 4/4
+   Abmelden: Bot01 (Bereit-Phase)
+   NACHT START k=4 K1N3S3 tag=12 uhr=15001 sammeln=11s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   Wieder da: Bot01 an 3, 68, 0 verteidigt=false zuschauer=false
+   OK nacht k=4 K1N3S3 spieler=3/4 art=normal szenario=logout_bereit ergebnis=gewonnen dauer=280s stehend=3 horn=4/4 startton=3 punkte=+6 kisten=+1 stufe=3->4 maxtick=81ms
+   OK 8:00-Grenze k=4 280 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=4 K1N3S3 Bot04: angeglichen=false geliehen=0, Spielstand Baum 8 Punkte (vor der Nacht 8), verdient 16/16
+   OK Aufholbonus k=4 K1N3S3 Bot04: stufe 3->3 welt 3 abstand 0 faktor server=1.0 regel=1.0 punkte +6, kein Vergleich
+   OK Log: kein ERROR, keine Exception
+== k=5 tag=15 stufe=4 kapitel=1 szenario=logout_nacht ereignis=NONE fragment=null
+   HORN k=5 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=5 4/4
+   NACHT START k=5 K1N4S4 tag=15 uhr=15001 sammeln=10s verteidiger=4 boss=true sonder=false ereignis=NONE flüche=0
+   Abmelden: Bot01 (Nacht)
+   Wieder da: Bot01 an 2, 68, 0 verteidigt=true zuschauer=false
+   OK nacht k=5 K1N4S4 spieler=4/4 art=boss szenario=logout_nacht ergebnis=gewonnen dauer=325s stehend=4 horn=4/4 startton=4 punkte=+1 kisten=+1 stufe=4->5 maxtick=108ms
+   OK 8:00-Grenze k=5 325 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=5 K1N4S4 Bot04: angeglichen=false geliehen=0, Spielstand Baum 14 Punkte (vor der Nacht 14), verdient 19/19
+   OK Aufholbonus k=5 K1N4S4 Bot04: stufe 4->4 welt 4 abstand 0 faktor server=1.0 regel=1.0 punkte +3, Bot01 +1 (soll -1..3)
+   OK Log: kein ERROR, keine Exception
+== k=6 tag=18 stufe=5 kapitel=1 szenario=neustart_bereit ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 5)
+   HORN k=6 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=6 4/4
+   NEUSTART (bereit) k=6
+   [langlauf-skript] exit=0 start=1
+   [langlauf-skript] Neustart 1
+   WEITER nach Neustart (bereit), Zyklus 6
+   OK Neustart in der Bereit-Phase: Sammeln läuft wieder (sammeln=true nacht=false)
+   HORN k=6 uhr=12001 gehört: Bot01=nein Bot02=nein Bot03=nein Bot04=nein
+   NACHT START k=6 K1N5S5 tag=18 uhr=15001 sammeln=5s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   FAIL nacht k=6 K1N5S5 spieler=3/4 art=normal szenario=neustart_bereit ergebnis=gewonnen dauer=320s stehend=2 horn=0/4 startton=4 punkte=+24 kisten=+4 stufe=5->6 maxtick=628ms | Bot04 abgesagt, bekam trotzdem 19 Punkte
+   OK 8:00-Grenze k=6 320 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Neustart in der Bereit-Phase: Nacht danach gestartet
+   OK Log: kein ERROR, keine Exception
+== k=7 tag=21 stufe=6 kapitel=1 szenario=neustart_nacht ereignis=FOG fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 6)
+   HORN k=7 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=7 4/4
+   NACHT START k=7 K1N6S6 tag=21 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=FOG flüche=0
+   NEUSTART (nacht) k=7
+   [langlauf-skript] exit=0 start=2
+   [langlauf-skript] Neustart 2
+   WEITER nach Neustart (nacht), Zyklus 7
+   OK Neustart in der Nacht: Inventar zurück, Kit weg, Uhr läuft
+   nach Neustart: nächste Belagerung Tag 24 (heute 21)
+   OK Log: kein ERROR, keine Exception
+== k=8 tag=24 stufe=6 kapitel=1 szenario=fragment ereignis=BLOOD_MOON fragment=BLOOD
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 6)
+   HORN k=8 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=8 4/4
+   NACHT START k=8 K1N6S6 tag=24 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=true ereignis=BLOOD_MOON flüche=0
+   OK nacht k=8 K1N6S6 spieler=3/4 art=fragment szenario=fragment ergebnis=verloren dauer=114s stehend=0 horn=4/4 startton=8 punkte=+0 kisten=+0 stufe=6->6 maxtick=222ms
+   OK 8:00-Grenze k=8 114 s art=fragment (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=9 tag=27 stufe=6 kapitel=1 szenario=fluch ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 6)
+   HORN k=9 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=9 4/4
+   NACHT START k=9 K1N6S6 tag=27 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=1
+   FAIL nacht k=9 K1N6S6 spieler=3/4 art=normal szenario=fluch ergebnis=gewonnen dauer=340s stehend=3 horn=4/4 startton=4 punkte=+7 kisten=+1 stufe=6->7 maxtick=600ms | Bot01 eigene Sachen nicht zurück (Holz 13/13, Feuerstein 10/5)
+   OK 8:00-Grenze k=9 340 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=10 tag=30 stufe=7 kapitel=1 szenario=heerlager ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 7)
+   HORN k=10 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=10 4/4
+   NACHT START k=10 K1N7S7 tag=30 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=10 K1N7S7 spieler=3/4 art=normal szenario=heerlager ergebnis=gewonnen dauer=360s stehend=3 horn=4/4 startton=4 punkte=+7 kisten=+1 stufe=7->8 maxtick=147ms
+   OK 8:00-Grenze k=10 360 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=11 tag=33 stufe=8 kapitel=1 szenario=dungeon ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 8)
+   HORN k=11 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=11 4/4
+   NACHT START k=11 K1N8S8 tag=33 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=11 K1N8S8 spieler=3/4 art=boss szenario=dungeon ergebnis=gewonnen dauer=263s stehend=3 horn=4/4 startton=4 punkte=+3 kisten=+1 stufe=8->9 maxtick=174ms
+   OK 8:00-Grenze k=11 263 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=12 tag=36 stufe=9 kapitel=1 szenario=frist ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 9)
+   HORN k=12 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=12 4/4
+   NACHT START k=12 K1N9S9 tag=36 uhr=15001 sammeln=185s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=12 K1N9S9 spieler=3/4 art=normal szenario=frist ergebnis=gewonnen dauer=400s stehend=3 horn=4/4 startton=4 punkte=+7 kisten=+1 stufe=9->10 maxtick=106ms
+   OK 8:00-Grenze k=12 400 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=13 tag=39 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 10)
+   HORN k=13 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=13 4/4
+   NACHT START k=13 K1N10S10 tag=39 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=13 K1N10S10 spieler=3/4 art=waechter ergebnis=verloren dauer=420s stehend=3 horn=4/4 startton=4 punkte=+6 kisten=+0 stufe=10->10 maxtick=68ms
+   OK 8:00-Grenze k=13 420 s art=waechter (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=14 tag=42 stufe=10 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 10)
+   HORN k=14 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=14 4/4
+   NACHT START k=14 K1N10S10 tag=42 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=14 K1N10S10 spieler=3/4 art=normal ergebnis=gewonnen dauer=420s stehend=3 horn=4/4 startton=4 punkte=+9 kisten=+1 stufe=10->11 maxtick=89ms
+   OK 8:00-Grenze k=14 420 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=15 tag=45 stufe=11 kapitel=1 szenario=- ereignis=ECLIPSE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 11)
+   HORN k=15 uhr=5400 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=15 4/4
+   NACHT START k=15 K1N11S11 tag=45 uhr=6001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=ECLIPSE flüche=0
+   OK nacht k=15 K1N11S11 spieler=3/4 art=ereignis_eclipse ergebnis=gewonnen dauer=440s stehend=3 horn=4/4 startton=4 punkte=+9 kisten=+1 stufe=11->12 maxtick=62ms
+   OK 8:00-Grenze k=15 440 s art=ereignis_eclipse (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=16 tag=48 stufe=12 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 12)
+   HORN k=16 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=16 4/4
+   NACHT START k=16 K1N12S12 tag=48 uhr=15001 sammeln=10s verteidiger=3 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=16 K1N12S12 spieler=3/4 art=boss ergebnis=gewonnen dauer=468s stehend=3 horn=4/4 startton=4 punkte=+3 kisten=+1 stufe=12->13 maxtick=68ms
+   OK 8:00-Grenze k=16 468 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=17 tag=51 stufe=13 kapitel=1 szenario=- ereignis=BLOOD_MOON fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 13)
+   HORN k=17 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=17 4/4
+   NACHT START k=17 K1N13S13 tag=51 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=BLOOD_MOON flüche=0
+   OK nacht k=17 K1N13S13 spieler=3/4 art=ereignis_blood_moon ergebnis=gewonnen dauer=480s stehend=3 horn=4/4 startton=11 punkte=+9 kisten=+1 stufe=13->14 maxtick=65ms
+   OK 8:00-Grenze k=17 480 s art=ereignis_blood_moon (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=18 tag=54 stufe=14 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 14)
+   HORN k=18 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=18 4/4
+   NACHT START k=18 K1N14S14 tag=54 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=18 K1N14S14 spieler=3/4 art=normal ergebnis=gewonnen dauer=480s stehend=3 horn=4/4 startton=4 punkte=+9 kisten=+1 stufe=14->15 maxtick=59ms
+   OK 8:00-Grenze k=18 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=19 tag=57 stufe=15 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=19 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=19 4/4
+   NACHT START k=19 K1N15S15 tag=57 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK Angleich k=19 K1N15S15 Bot04 (Nachzügler) stufe=4 welt=15 -> angeglichen=true auf 12 (soll 12) geliehen=57
+   OK nacht k=19 K1N15S15 spieler=4/4 art=normal ergebnis=gewonnen dauer=480s stehend=4 horn=4/4 startton=20 punkte=+9 kisten=+1 stufe=15->16 maxtick=79ms
+   OK 8:00-Grenze k=19 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=19 K1N15S15 Bot04: angeglichen=false geliehen=0, Spielstand Baum 17 Punkte (vor der Nacht 17), verdient 37/37
+   OK Aufholbonus k=19 K1N15S15 Bot04: stufe 4->7 welt 15 abstand 11 faktor server=2.0 regel=2.0 punkte +18, Bot01 +9 (soll 16..20)
+   OK Log: kein ERROR, keine Exception
+== k=20 tag=60 stufe=16 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=20 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=20 4/4
+   NACHT START k=20 K1N16S16 tag=60 uhr=15001 sammeln=10s verteidiger=4 boss=true sonder=false ereignis=NONE flüche=0
+   OK Angleich k=20 K1N16S16 Bot04 (Nachzügler) stufe=7 welt=16 -> angeglichen=true auf 13 (soll 13) geliehen=50
+   OK nacht k=20 K1N16S16 spieler=4/4 art=boss ergebnis=verloren dauer=480s stehend=4 horn=4/4 startton=20 punkte=+3 kisten=+0 stufe=16->16 maxtick=66ms
+   OK 8:00-Grenze k=20 480 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=20 K1N16S16 Bot04: angeglichen=false geliehen=0, Spielstand Baum 35 Punkte (vor der Nacht 35), verdient 43/43
+   OK Aufholbonus k=20 K1N16S16 Bot04: stufe 7->8 welt 16 abstand 9 faktor server=2.0 regel=2.0 punkte +6, Bot01 +3 (soll 4..8)
+   OK Log: kein ERROR, keine Exception
+== k=21 tag=63 stufe=16 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=21 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=21 4/4
+   NACHT START k=21 K1N16S16 tag=63 uhr=15001 sammeln=10s verteidiger=4 boss=true sonder=false ereignis=NONE flüche=0
+   OK Angleich k=21 K1N16S16 Bot04 (Nachzügler) stufe=8 welt=16 -> angeglichen=true auf 13 (soll 13) geliehen=44
+   OK nacht k=21 K1N16S16 spieler=4/4 art=boss ergebnis=gewonnen dauer=246s stehend=4 horn=4/4 startton=20 punkte=+3 kisten=+1 stufe=16->17 maxtick=92ms
+   OK 8:00-Grenze k=21 246 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=21 K1N16S16 Bot04: angeglichen=false geliehen=0, Spielstand Baum 42 Punkte (vor der Nacht 42), verdient 52/52
+   OK Aufholbonus k=21 K1N16S16 Bot04: stufe 8->9 welt 16 abstand 8 faktor server=2.0 regel=2.0 punkte +9, Bot01 +4 (soll 6..10)
+   OK Log: kein ERROR, keine Exception
+== k=22 tag=66 stufe=17 kapitel=1 szenario=- ereignis=FOG fragment=null
+   HORN k=22 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=22 4/4
+   NACHT START k=22 K1N17S17 tag=66 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=FOG flüche=0
+   OK Angleich k=22 K1N17S17 Bot04 (Nachzügler) stufe=9 welt=17 -> angeglichen=true auf 14 (soll 14) geliehen=44
+   OK nacht k=22 K1N17S17 spieler=4/4 art=ereignis_fog ergebnis=gewonnen dauer=480s stehend=4 horn=4/4 startton=20 punkte=+9 kisten=+1 stufe=17->18 maxtick=79ms
+   OK 8:00-Grenze k=22 480 s art=ereignis_fog (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=22 K1N17S17 Bot04: angeglichen=false geliehen=0, Spielstand Baum 52 Punkte (vor der Nacht 52), verdient 70/70
+   OK Aufholbonus k=22 K1N17S17 Bot04: stufe 9->11 welt 17 abstand 8 faktor server=2.0 regel=2.0 punkte +18, Bot01 +9 (soll 16..20)
+   OK Log: kein ERROR, keine Exception
+== k=23 tag=69 stufe=18 kapitel=1 szenario=- ereignis=BLOOD_MOON fragment=null
+   HORN k=23 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=23 4/4
+   NACHT START k=23 K1N18S18 tag=69 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=BLOOD_MOON flüche=0
+   OK Angleich k=23 K1N18S18 Bot04 (Nachzügler) stufe=11 welt=18 -> angeglichen=true auf 15 (soll 15) geliehen=36
+   OK nacht k=23 K1N18S18 spieler=4/4 art=ereignis_blood_moon ergebnis=gewonnen dauer=480s stehend=4 horn=4/4 startton=24 punkte=+9 kisten=+1 stufe=18->19 maxtick=201ms
+   OK 8:00-Grenze k=23 480 s art=ereignis_blood_moon (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=23 K1N18S18 Bot04: angeglichen=false geliehen=0, Spielstand Baum 67 Punkte (vor der Nacht 67), verdient 91/91
+   OK Aufholbonus k=23 K1N18S18 Bot04: stufe 11->13 welt 18 abstand 7 faktor server=2.0 regel=2.0 punkte +21, Bot01 +10 (soll 18..22)
+   OK Log: kein ERROR, keine Exception
+== k=24 tag=72 stufe=19 kapitel=1 szenario=- ereignis=NONE fragment=null
+   HORN k=24 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=24 4/4
+   NACHT START k=24 K1N19S19 tag=72 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK Angleich k=24 K1N19S19 Bot04 (Nachzügler) stufe=13 welt=19 -> angeglichen=true auf 16 (soll 16) geliehen=24
+   OK nacht k=24 K1N19S19 spieler=4/4 art=normal ergebnis=gewonnen dauer=480s stehend=3 horn=4/4 startton=20 punkte=+9 kisten=+1 stufe=19->20 maxtick=178ms
+   OK 8:00-Grenze k=24 480 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=24 K1N19S19 Bot04: angeglichen=false geliehen=0, Spielstand Baum 90 Punkte (vor der Nacht 90), verdient 106/106
+   OK Aufholbonus k=24 K1N19S19 Bot04: stufe 13->15 welt 19 abstand 6 faktor server=2.0 regel=2.0 punkte +15, kein Vergleich
+   EXTRA: Bot01 ruft eine Extra-Belagerung aus (Tag 73, regulär Tag 75)
+   OK Log: kein ERROR, keine Exception
+== k=25 tag=73 stufe=20 kapitel=1 szenario=extra ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 20)
+   HORN k=25 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=25 4/4
+   NACHT START k=25 K1N20S20 tag=73 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=25 K1N20S20 spieler=3/4 art=finale szenario=extra ergebnis=verloren dauer=480s stehend=3 horn=4/4 startton=4 punkte=+0 kisten=+0 stufe=20->20 maxtick=52ms
+   OK 8:00-Grenze k=25 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=26 tag=75 stufe=20 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 20)
+   HORN k=26 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=26 4/4
+   NACHT START k=26 K1N20S20 tag=75 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=26 K1N20S20 spieler=3/4 art=finale ergebnis=verloren dauer=480s stehend=3 horn=4/4 startton=4 punkte=+0 kisten=+0 stufe=20->20 maxtick=100ms
+   OK 8:00-Grenze k=26 480 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Log: kein ERROR, keine Exception
+== k=27 tag=78 stufe=20 kapitel=1 szenario=- ereignis=NONE fragment=null
+   NACHZUEGLER Bot04 sagt ab (K1 Nacht 20)
+   HORN k=27 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=27 4/4
+   NACHT START k=27 K1N20S20 tag=78 uhr=15001 sammeln=10s verteidiger=3 boss=false sonder=false ereignis=NONE flüche=0 HILFE=1
+   FAIL nacht k=27 K1N20S20 spieler=3/4 art=finale ergebnis=gewonnen dauer=271s stehend=3 horn=4/4 startton=4 punkte=+-146 kisten=+1 stufe=20->1 kapitel=2 maxtick=137ms hilfe=1 | Bot04 abgesagt, bekam trotzdem -106 Punkte
+   OK 8:00-Grenze k=27 271 s art=finale (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Kapitelwechsel Bot04 (Nachzügler, nicht im Finale): offen=1 [WARRIOR/blademaster Stufe 15 Kapitel 1 verdient 106] veteran=false neuer Charakter verdient=0
+   OK Belagerung starten mit dem offenen Charakter: Bot04 WARRIOR Stufe 15 (welt K2 Stufe 1, sperre=null)
+   RUNDE START (Belagerung starten) Bot04 offener Charakter Stufe 15 verteidiger=1 welt K2 Stufe 15
+   OK Runde läuft: Bot04 verteidigt=true offener Charakter geliehen=true kit=10 angeglichen=false (soll nein) andere=0
+   OK Runde vorbei Bot04 dauer=480s stehend=1 offener Charakter +18 (faktor 2.0, stufe 15->16), aktueller Charakter verdient 0->0 vorrat 0->0, leihe weg=true, Holz 13 Feuerstein 5 Kit 0 Zuschauer false
+   OK Log: kein ERROR, keine Exception
+== k=28 tag=81 stufe=1 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=28 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=28 4/4
+   NACHT START k=28 K2N1S1 tag=81 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=28 K2N1S1 spieler=4/4 art=normal ergebnis=gewonnen dauer=240s stehend=3 horn=4/4 startton=4 punkte=+4 kisten=+1 stufe=1->2 maxtick=84ms
+   OK 8:00-Grenze k=28 240 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=28 K2N1S1 Bot04: angeglichen=false geliehen=0, Spielstand Baum 0 Punkte (vor der Nacht 0), verdient 4/4
+   OK Aufholbonus k=28 K2N1S1 Bot04: stufe 1->1 welt 1 abstand 0 faktor server=1.0 regel=1.0 punkte +4, kein Vergleich
+   OK Log: kein ERROR, keine Exception
+== k=29 tag=84 stufe=2 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=29 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=29 4/4
+   NACHT START k=29 K2N2S2 tag=84 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=29 K2N2S2 spieler=4/4 art=normal ergebnis=gewonnen dauer=260s stehend=4 horn=4/4 startton=4 punkte=+4 kisten=+1 stufe=2->3 maxtick=83ms
+   OK 8:00-Grenze k=29 260 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=29 K2N2S2 Bot04: angeglichen=false geliehen=0, Spielstand Baum 2 Punkte (vor der Nacht 2), verdient 10/10
+   OK Aufholbonus k=29 K2N2S2 Bot04: stufe 2->2 welt 2 abstand 0 faktor server=1.0 regel=1.0 punkte +6, Bot01 +4 (soll 2..6)
+   OK Log: kein ERROR, keine Exception
+== k=30 tag=87 stufe=3 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=30 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=30 4/4
+   NACHT START k=30 K2N3S3 tag=87 uhr=15001 sammeln=10s verteidiger=4 boss=false sonder=false ereignis=NONE flüche=0
+   OK nacht k=30 K2N3S3 spieler=4/4 art=normal ergebnis=gewonnen dauer=280s stehend=3 horn=4/4 startton=4 punkte=+6 kisten=+1 stufe=3->4 maxtick=117ms
+   OK 8:00-Grenze k=30 280 s art=normal (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=30 K2N3S3 Bot04: angeglichen=false geliehen=0, Spielstand Baum 8 Punkte (vor der Nacht 8), verdient 16/16
+   OK Aufholbonus k=30 K2N3S3 Bot04: stufe 3->3 welt 3 abstand 0 faktor server=1.0 regel=1.0 punkte +6, kein Vergleich
+   OK Log: kein ERROR, keine Exception
+== k=31 tag=90 stufe=4 kapitel=2 szenario=- ereignis=NONE fragment=null
+   HORN k=31 uhr=12000 gehört: Bot01=ja Bot02=ja Bot03=ja Bot04=ja
+   OK Horn gehört k=31 4/4
+   NACHT START k=31 K2N4S4 tag=90 uhr=15001 sammeln=10s verteidiger=4 boss=true sonder=false ereignis=NONE flüche=0
+   OK nacht k=31 K2N4S4 spieler=4/4 art=boss ergebnis=gewonnen dauer=197s stehend=4 horn=4/4 startton=4 punkte=+3 kisten=+1 stufe=4->5 maxtick=37ms
+   OK 8:00-Grenze k=31 197 s art=boss (maxDurationSeconds=480 bossPhaseMaxSeconds=600)
+   OK Angleich zurück k=31 K2N4S4 Bot04: angeglichen=false geliehen=0, Spielstand Baum 14 Punkte (vor der Nacht 14), verdient 19/19
+   OK Aufholbonus k=31 K2N4S4 Bot04: stufe 4->4 welt 4 abstand 0 faktor server=1.0 regel=1.0 punkte +3, Bot01 +3 (soll 1..5)
+   ARTEN {boss=6, normal=14, nz_bonus_x1=8, fragment=1, fluch=1, waechter=1, ereignis=4, nz_angleich=6, nz_bonus_x2=6, finale=3, kapitelwechsel=1, nz_offen=1, runde_offen=1}
+   FEHLERLISTE k=6 K1N5S5: Bot04 abgesagt, bekam trotzdem 19 Punkte
+   FEHLERLISTE k=9 K1N6S6: Bot01 eigene Sachen nicht zurück (Holz 13/13, Feuerstein 10/5)
+   FEHLERLISTE k=27 K1N20S20: Bot04 abgesagt, bekam trotzdem -106 Punkte
+   SUMME spieler=4 bis=K2N4S4 naechte=30 gewonnen=24 verloren=5 abgebrochen=1 ok=127 fail=3 zyklen=31 ende=Ziel Nacht 24 erreicht minuten=20
+   [langlauf-skript] exit=0 start=3
+   OK Log: kein ERROR, keine Exception
+LOG-ABSCHNITTE MIT FEHLERN: 0 von 32
