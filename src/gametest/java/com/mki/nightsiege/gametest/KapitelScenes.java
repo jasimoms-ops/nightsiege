@@ -164,6 +164,9 @@ final class KapitelScenes {
             var save = m.save();
             String uuid = player.getUUID().toString();
             m.roundWavesForTests(player.getUUID(), 20);
+            // The level counts with the real wave interval (pointsBefore uses it), not the scene's 600 s.
+            m.config().testPrepSeconds = keep[0];
+            m.config().batchIntervalSeconds = keep[1];
             m.finish(player.level().getServer(), true);
             Chapters.Veteran o = open[0];
             int base = (int) Math.floor(20 * m.config().pointGainMultiplier / Math.max(1, m.config().wavesPerPoint) + 1e-9);
@@ -174,9 +177,7 @@ final class KapitelScenes {
             PlayerSkills own = save.realSkillsOf(uuid);
             check(own.xpPool == keep[2] && own.earned == keep[3], "nothing into the pool or the current character");
             check(save.skillsOf(uuid).clazz() == SkillClass.ARCHER, "the archer is back");
-            check(save.chapters().openOf(uuid).contains(o) || save.chapters().veteransOf(uuid).contains(o), "the open character is kept");
-            m.config().testPrepSeconds = keep[0];
-            m.config().batchIntervalSeconds = keep[1];
+            check(save.chapters().openOf(uuid).contains(o) && o.level < 20, "it stays open under level 20 (" + o.level + ")");
             keep[5] = save.siegesWon;
             save.siegesWon += 8;   // the world ahead: the archer is 3+ levels behind
             log("world level " + m.currentLevel() + ", archer earned " + own.earned);
