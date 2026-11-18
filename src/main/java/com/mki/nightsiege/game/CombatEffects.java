@@ -1541,18 +1541,15 @@ public final class CombatEffects {
     }
 
     /**
-     * A life-steal heal: counted apart in the statistics (Simon 30.10.). Since 05.11. it heals no
-     * more than the player lost in the last seconds (see {@link StealPool}); the rest is counted as cut.
+     * A life-steal heal: counted apart in the statistics (Simon 30.10.). (Its cap by the life lost lately,
+     * lifestealCoupled, is gone since Tor 12 J: the whole heal lands.)
      */
     public static void steal(ServerPlayer player, float amount) {
         if (amount <= 0f) {
             return;
         }
-        float allowed = StealPool.take(player, amount, player.level().getGameTime());
+        float allowed = amount;
         StatsRecorder.onStealCut(player, amount, allowed);
-        if (allowed <= 0f) {
-            return;
-        }
         StatsRecorder.stealing = true;
         try {
             player.heal(allowed);

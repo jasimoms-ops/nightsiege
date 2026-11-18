@@ -248,8 +248,6 @@ class SmartNightTest {
     void defaults() {
         SiegeConfig c = cfg();
         assertTrue(c.smartNight);
-        assertFalse(c.eliteMobs);   // Simon 05.11. 19:51
-        assertFalse(c.lifestealCoupled);   // Simon 05.11. 19:48
         assertEquals(5, c.smartNightUpSteps);
         assertEquals(5, c.smartNightDownSteps);
         assertEquals(5, c.smartNightEliteFromLevel);

@@ -248,18 +248,6 @@ public final class SiegeMath {
                 * eventMobFactor * (specialNight ? cfg.specialNightMobMultiplier : 1.0) * curseMobFactor);
     }
 
-    /** The chance that a monster of this level is an elite (0 below the start level); moved out of Elites unchanged (Tor 12). */
-    public static double eliteChance(SiegeConfig cfg, int level) {
-        if (cfg == null || !cfg.eliteMobs || level < cfg.eliteMobFromLevel) {
-            return 0.0;
-        }
-        if (cfg.eliteMobMaxLevel <= cfg.eliteMobFromLevel || level >= cfg.eliteMobMaxLevel) {
-            return level >= cfg.eliteMobMaxLevel ? cfg.eliteMobChanceMax : cfg.eliteMobChance;
-        }
-        double t = (level - cfg.eliteMobFromLevel) / (double) (cfg.eliteMobMaxLevel - cfg.eliteMobFromLevel);
-        return cfg.eliteMobChance + (cfg.eliteMobChanceMax - cfg.eliteMobChance) * t;
-    }
-
     /** Sapper creepers wanted in one wave (whole part sure, the rest as a chance), before sapperMaxPerWave. */
     public static double sappersWanted(int level, SiegeConfig cfg) {
         return 1.0 + Math.max(0.0, cfg.sappersPerLevel) * level;

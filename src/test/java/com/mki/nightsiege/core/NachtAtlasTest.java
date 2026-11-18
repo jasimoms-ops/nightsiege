@@ -214,7 +214,6 @@ class NachtAtlasTest {
                 l -> l < c.stunnerFromLevel ? "-" : SiegeMath.stunnersWanted(1, c, 0) + " / " + SiegeMath.stunnersWanted(4, c, 0));
         special(a, "Brecher (Tank)", c.breakerFromLevel, "Foes, 1 je Tank/Welle", at, l -> l < c.breakerFromLevel ? "-" : "1 je Tank");
         special(a, "Scharfrichter (Tank)", c.executionerFromLevel, "Foes, 1 je Tank/Welle", at, l -> l < c.executionerFromLevel ? "-" : "1 je Tank");
-        special(a, "Elite", c.eliteMobFromLevel, "Elites, Anteil der Monster", at, l -> pct(eliteChance(c, l)));
         special(a, "Schatzräuber", c.treasureRaiderFromLevel, "Foes, Chance je Nacht (ab 3 Wellen)", at, l -> l < c.treasureRaiderFromLevel ? "-" : pct(c.treasureRaiderChance));
         special(a, "Phantome (Welle 2)", 1, "SiegeManager", at, l -> String.valueOf(phantoms(c, l)));
         for (Object[] r : new Object[][]{{"Wiedergänger", poolMin(c, "nightsiege:revenant")}, {"Tunnelgräber", poolMin(c, "nightsiege:tunneler")},
@@ -226,9 +225,9 @@ class NachtAtlasTest {
         if (c.sapperFromLevel <= 0 || c.sapperMaxPerWave <= 0) {
             flag("3 Sondermonster aus", -1, -1, "Sprengmeister");
         }
-        // Elite: eliteMobs=false is the Chef's choice (17.11.), only the smart night sends them: no breach of D.2.
-        if (c.stunnersMax <= 0 || c.eliteMobChance <= 0 || c.treasureRaiderChance <= 0) {
-            flag("3 Sondermonster aus", -1, -1, "Betäuber/Elite/Schatzräuber Wert 0");
+        // Elite: the fixed eliteMobs are gone (Tor 12 J), only the smart night, the bastion and the wardens send them.
+        if (c.stunnersMax <= 0 || c.treasureRaiderChance <= 0) {
+            flag("3 Sondermonster aus", -1, -1, "Betäuber/Schatzräuber Wert 0");
         }
 
         // ---------------------------------------------------------------- D: special nights
@@ -401,10 +400,6 @@ class NachtAtlasTest {
             case "nightsiege:treasure_raider", "nightsiege:breaker", "nightsiege:executioner" -> "0 (nie aus Liste)";
             default -> "-";
         };
-    }
-
-    private static double eliteChance(SiegeConfig c, int level) {
-        return SiegeMath.eliteChance(c, level);
     }
 
     private interface At {

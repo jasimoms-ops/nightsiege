@@ -11,23 +11,18 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Life steal only against the damage a player really took (Simon 05.11. 15:0x: "Lebensraub an den
- * eingesteckten Schaden koppeln", 100 % of the last 5 s). Every point of life a player loses goes
- * into his pool for lifestealTakenSeconds; a life-steal heal (hits, kills, combo, the berserker,
- * the summoner's ghoul hunger and soul pact) takes from the oldest points first and heals no more
- * than is in it. Healers, potions, regeneration and abilities stay free. So a fighter whom nobody
- * hits heals nothing, and nobody heals himself up past what the monsters took.
+ * The life a player lost lately, for the late hit life steal (Tor 4, config hitLifestealLate): every point
+ * of life lost goes into his pool for lifestealTakenSeconds, and that steal heals no more than is in it.
+ * (The coupling of all life steal to it, lifestealCoupled, is gone: Tor 12 J.)
  *
  * <p>The loss is measured as the life before and after the hit (after armour, the shield, the
  * reductions and absorption), so the statistics get the life that was really lost too.
  */
 public final class StealPool {
 
-    /** Per player: [game time, life left to heal back] of each loss, oldest first. */
-    private static final Map<UUID, ArrayDeque<double[]>> LOST = new HashMap<>();
     /**
-     * Tor 4 (Simon 08.11.): the same, kept always (also without the coupling), for the late hit life
-     * steal (config hitLifestealLate): from hitLifestealLateLevel the axe fighter heals no more than
+     * Per player: [game time, life left to heal back] of each loss, oldest first. Tor 4 (Simon 08.11.): for the
+     * late hit life steal (config hitLifestealLate): from hitLifestealLateLevel the axe fighter heals no more than
      * hitLifestealLateTakenShare of what he lost in the last lifestealTakenSeconds.
      */
     private static final Map<UUID, ArrayDeque<double[]>> LATE = new HashMap<>();
@@ -109,9 +104,6 @@ public final class StealPool {
         if (cfg.hitLifestealLateTakenShare > 0) {
             add(LATE.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>()), now, amount * cfg.hitLifestealLateTakenShare, cfg);
         }
-        if (cfg.lifestealCoupled) {
-            add(LOST.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>()), now, amount * cfg.lifestealTakenShare, cfg);
-        }
     }
 
     private static void add(ArrayDeque<double[]> q, long now, double amount, SiegeConfig cfg) {
@@ -157,37 +149,6 @@ public final class StealPool {
         return given;
     }
 
-    /**
-     * How much of a life-steal heal may land now (at most the missing life and what is in the pool),
-     * taken from the pool. Without the coupling the whole heal.
-     */
-    public static float take(ServerPlayer player, float amount, long now) {
-        SiegeConfig cfg = cfg();
-        if (amount <= 0f) {
-            return 0f;
-        }
-        if (cfg == null || !cfg.lifestealCoupled) {
-            return amount;
-        }
-        double want = Math.min(amount, Math.max(0.0, player.getMaxHealth() - player.getHealth()));
-        return (float) drain(LOST.get(player.getUUID()), want, now, cfg);
-    }
-
-    /** What life steal could still heal back now (for the tests and the HUD). */
-    public static double available(ServerPlayer player, long now) {
-        SiegeConfig cfg = cfg();
-        ArrayDeque<double[]> q = LOST.get(player.getUUID());
-        if (cfg == null || q == null) {
-            return 0.0;
-        }
-        prune(q, now, cfg);
-        double sum = 0;
-        for (double[] e : q) {
-            sum += e[1];
-        }
-        return sum;
-    }
-
     private static void prune(ArrayDeque<double[]> q, long now, SiegeConfig cfg) {
         long keep = Math.round(cfg.lifestealTakenSeconds * 20.0);
         while (!q.isEmpty() && (now - (long) q.peekFirst()[0] > keep || now < (long) q.peekFirst()[0])) {
@@ -197,13 +158,11 @@ public final class StealPool {
 
     /** A player's pool is gone (death, the end of the night, a test). */
     public static void forget(UUID player) {
-        LOST.remove(player);
         LATE.remove(player);
     }
 
     /** The night ended. */
     public static void clear() {
-        LOST.clear();
         LATE.clear();
         OPEN.clear();
     }

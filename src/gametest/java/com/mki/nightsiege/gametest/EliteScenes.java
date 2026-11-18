@@ -110,8 +110,6 @@ final class EliteScenes {
         // A test night at level 15 without waves (the elites may have both affixes there).
         server(context, "night", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
-            m.config().eliteMobs = true;          // off for the other scenes (EventLookTest)
-            m.config().lifestealCoupled = true;
             saved[0] = m.config().testPrepSeconds;
             saved[1] = m.config().batchIntervalSeconds;
             refill[0] = m.config().refillSpawns;
@@ -133,75 +131,6 @@ final class EliteScenes {
             log("the night's first monsters gone: " + monsters.size());
         });
         context.waitTicks(10);
-
-        // ---------------------------------------------------------------- life steal against the damage taken
-        server(context, "steal", (player, m) -> {
-            ServerLevel level = (ServerLevel) player.level();
-            check(m.isActive(), "the test night runs (level " + m.currentLevel() + ")");
-            check(m.config().lifestealCoupled && Math.abs(m.config().lifestealTakenShare - 1.0) < 1e-9
-                    && Math.abs(m.config().lifestealTakenSeconds - 5.0) < 1e-9, "config: coupled, 100 %, 5 s");
-            for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
-                player.setItemSlot(slot, ItemStack.EMPTY);
-            }
-            Wounds.cure(player);
-            StealPool.forget(player.getUUID());
-            Mob zombie = mob(level, EntityTypes.ZOMBIE, player.getX() + 2, player.getY(), player.getZ());
-            // Not hit: no life steal at all.
-            player.setHealth(10f);
-            CombatEffects.steal(player, 6f);
-            check(Math.abs(player.getHealth() - 10f) < 0.01f, "nobody hit him: life steal heals nothing (" + f(player.getHealth()) + ")");
-            // Hit for 4: life steal heals those 4 back, no more.
-            player.setHealth(16f);
-            float lost = hit(level, player, zombie, 4f);
-            double pool = StealPool.available(player, level.getGameTime());
-            log("hit 4: lost=" + f(lost) + " pool=" + f(pool) + " health=" + f(player.getHealth()));
-            check(lost > 0.2f && Math.abs(pool - lost) < 0.05, "the pool holds what was lost (" + f(pool) + " of " + f(lost) + ")");
-            float h0 = player.getHealth();
-            CombatEffects.steal(player, 10f);
-            check(Math.abs(player.getHealth() - (h0 + lost)) < 0.05f, "a steal of 10 heals the lost " + f(lost) + " only ("
-                    + f(player.getHealth() - h0) + ")");
-            float h1 = player.getHealth();
-            CombatEffects.steal(player, 5f);
-            check(Math.abs(player.getHealth() - h1) < 0.01f, "the pool is used up: no more heal");
-            // Many small steals take it bit by bit.
-            player.setHealth(16f);
-            float lost2 = hit(level, player, zombie, 3f);
-            float h2 = player.getHealth();
-            for (int i = 0; i < 10; i++) {
-                CombatEffects.steal(player, 0.5f);
-            }
-            check(Math.abs(player.getHealth() - (h2 + lost2)) < 0.05f, "ten small steals heal no more than the " + f(lost2) + " lost ("
-                    + f(player.getHealth() - h2) + ")");
-            // Wounded: half of it.
-            player.setHealth(16f);
-            float lost3 = hit(level, player, zombie, 4f);
-            Wounds.afterDamage(player, level.damageSources().mobAttack(mob(level, EntityTypes.SPIDER, player.getX(), player.getY(), player.getZ() - 2)), 1f);
-            float h3 = player.getHealth();
-            CombatEffects.steal(player, 10f);
-            check(Math.abs(player.getHealth() - (h3 + lost3 * 0.5f)) < 0.05f, "wounded: half of the lost comes back ("
-                    + f(player.getHealth() - h3) + " of " + f(lost3) + ")");
-            Wounds.cure(player);
-            // Off: as before.
-            m.config().lifestealCoupled = false;
-            player.setHealth(10f);
-            CombatEffects.steal(player, 4f);
-            check(Math.abs(player.getHealth() - 14f) < 0.01f, "lifestealCoupled false: the steal heals as before");
-            m.config().lifestealCoupled = true;
-            zombie.discard();
-            // An old loss runs out after 5 s.
-            player.setHealth(16f);
-            Mob z2 = mob(level, EntityTypes.ZOMBIE, player.getX() + 2, player.getY(), player.getZ());
-            hit(level, player, z2, 3f);
-            z2.discard();
-        });
-        context.waitTicks(110);
-        server(context, "steal expiry", (player, m) -> {
-            check(m.isActive() && player.isAlive(), "the night still runs, the player stands");
-            float h = player.getHealth();
-            double pool = StealPool.available(player, player.level().getGameTime());
-            CombatEffects.steal(player, 5f);
-            check(pool < 1e-6 && Math.abs(player.getHealth() - h) < 0.01f, "after 5.5 s the loss is gone from the pool (" + f(pool) + ")");
-        });
 
         // ---------------------------------------------------------------- the statistics: life really lost
         server(context, "armour", (player, m) -> {
@@ -274,10 +203,6 @@ final class EliteScenes {
         server(context, "elites", (player, m) -> {
             ServerLevel level = (ServerLevel) player.level();
             SiegeConfig cfg = m.config();
-            check(Elites.chance(cfg, 9) == 0.0, "no elites below level 10");
-            check(Math.abs(Elites.chance(cfg, 10) - 0.125) < 1e-9, "level 10: one in eight");
-            check(Math.abs(Elites.chance(cfg, 15) - 0.1625) < 1e-9, "level 15: " + f(Elites.chance(cfg, 15)));
-            check(Math.abs(Elites.chance(cfg, 20) - 0.2) < 1e-9 && Math.abs(Elites.chance(cfg, 30) - 0.2) < 1e-9, "level 20 and up: one in five");
             // The rolls: 600 zombies at level 15 and at level 12.
             Random random = new Random(42);
             int elites = 0;
@@ -286,12 +211,12 @@ final class EliteScenes {
             int elites12 = 0;
             for (int i = 0; i < 600; i++) {
                 Mob z = EntityTypes.ZOMBIE.create(level, EntitySpawnReason.COMMAND);
-                if (z != null && Elites.maybe(level, z, 15, cfg, random)) {
+                if (z != null && Elites.maybe(level, z, 15, cfg, random, 0.1625)) {
                     elites++;
                     both += Elites.affixes(z).size() > 1 ? 1 : 0;
                 }
                 Mob y = EntityTypes.ZOMBIE.create(level, EntitySpawnReason.COMMAND);
-                if (y != null && Elites.maybe(level, y, 12, cfg, random)) {
+                if (y != null && Elites.maybe(level, y, 12, cfg, random, 0.14)) {
                     elites12++;
                     single12 += Elites.affixes(y).size() == 1 ? 1 : 0;
                 }
@@ -382,7 +307,7 @@ final class EliteScenes {
             boolean any = false;
             Random r2 = new Random(1);
             for (int i = 0; i < 100; i++) {
-                any |= Elites.maybe(level, champ, 20, cfg, r2);
+                any |= Elites.maybe(level, champ, 20, cfg, r2, 1.0);
             }
             check(!any && !Elites.isElite(champ), "a champion never becomes an elite");
             plain.discard();
@@ -419,8 +344,6 @@ final class EliteScenes {
             m.config().testPrepSeconds = saved[0];
             m.config().batchIntervalSeconds = saved[1];
             m.config().refillSpawns = refill[0];
-            m.config().eliteMobs = false;
-            m.config().lifestealCoupled = false;
             player.setHealth(player.getMaxHealth());
         });
         context.waitTicks(20);

@@ -761,23 +761,13 @@ public class SiegeConfig {
     public double antiHealShare = 0.5;
     public double antiHealSeconds = 4.0;
     public int antiHealFromLevel = 5;
-    /**
-     * Life steal only against the damage taken (Simon 05.11.): life steal heals at most this share of the
-     * life the player lost in the last lifestealTakenSeconds (false = as before, from the damage dealt alone).
-     */
-    public boolean lifestealCoupled = false;   // Simon 05.11. 19:48: life steal as before again (the coupling stays for later)
-    public double lifestealTakenShare = 1.0;
+    /** How long a lost point of life stays in the late pool of hitLifestealLate (seconds). */
     public double lifestealTakenSeconds = 5.0;
     /**
-     * Elite monsters (Simon 05.11.): from eliteMobFromLevel on this share of the night's monsters is an elite
-     * (rising in a line to eliteMobChanceMax at eliteMobMaxLevel), from eliteMobTwoFromLevel on with both
-     * affixes at eliteMobTwoChance. Elites have eliteMobLife times the life and glow in their affix's colour.
+     * Elite monsters (sent by the smart night, the bastion and the wardens; the fixed share eliteMobs is gone,
+     * Tor 12 J): from eliteMobTwoFromLevel on with both affixes at eliteMobTwoChance. Elites have eliteMobLife
+     * times the life and glow in their affix's colour.
      */
-    public boolean eliteMobs = false;   // Simon 05.11. 19:51: "erstmal wieder raus" (the smart night still sends them)
-    public int eliteMobFromLevel = 10;
-    public double eliteMobChance = 0.125;
-    public double eliteMobChanceMax = 0.2;
-    public int eliteMobMaxLevel = 20;
     public int eliteMobTwoFromLevel = 15;
     public double eliteMobTwoChance = 0.35;
     public double eliteMobLife = 1.75;
@@ -792,7 +782,7 @@ public class SiegeConfig {
      * hard (stress above smartNightDownStress, or a death, weighed by the group): one step down, at most
      * smartNightDownSteps. Hidden
      * (log and statistics only), every night starts at 0; not in the war leader's rounds, the bosses stay.
-     * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step, on top of eliteMobs), the
+     * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step), the
      * stunners, breakers and executioners smartNightSpecialLevelsPerStep levels earlier per step and from
      * step 2 extra ones with the waves (from smartNightAnyClassFromStep for every defender, not only the
      * fighters). Down: smartNightFewerPerStep fewer monsters at once per step, no extras, from step
@@ -2342,7 +2332,6 @@ public class SiegeConfig {
             dungeonGuardLife = onOld(dungeonGuardLife, 1.5, 2.0);
             dungeonGuardCount = onOld(dungeonGuardCount, 1.25, 1.5);
             championSpeed = onOld(championSpeed, 1.2, 1.4);
-            lifestealTakenShare = onOld(lifestealTakenShare, 1.0, 2.0);
             ironKnightSlow = onOld(ironKnightSlow, 0.25, 0.0);
             monsterDamage = onOld(monsterDamage, 1.2, 0.924);
             onOldKey(monsterDamageByType, "minecraft:pillager", 1.0, 0.77);
@@ -2437,13 +2426,8 @@ public class SiegeConfig {
         antiHealShare = Double.isNaN(antiHealShare) ? 0.5 : Math.min(1.0, Math.max(0.0, antiHealShare));
         antiHealSeconds = Double.isNaN(antiHealSeconds) || antiHealSeconds <= 0 ? 4.0 : Math.min(30.0, antiHealSeconds);
         antiHealFromLevel = Math.max(1, antiHealFromLevel);
-        lifestealTakenShare = Double.isNaN(lifestealTakenShare) ? 1.0 : clampDouble(lifestealTakenShare, 0.0, 5.0);
         lifestealTakenSeconds = Double.isNaN(lifestealTakenSeconds) || lifestealTakenSeconds <= 0 ? 5.0
                 : clampDouble(lifestealTakenSeconds, 0.5, 60.0);
-        eliteMobFromLevel = clamp(eliteMobFromLevel, 1, 1000);
-        eliteMobChance = Double.isNaN(eliteMobChance) ? 0.125 : clampDouble(eliteMobChance, 0.0, 1.0);
-        eliteMobChanceMax = Double.isNaN(eliteMobChanceMax) ? 0.2 : clampDouble(eliteMobChanceMax, 0.0, 1.0);
-        eliteMobMaxLevel = clamp(eliteMobMaxLevel, eliteMobFromLevel, 1000);
         eliteMobTwoFromLevel = clamp(eliteMobTwoFromLevel, 1, 1000);
         eliteMobTwoChance = Double.isNaN(eliteMobTwoChance) ? 0.35 : clampDouble(eliteMobTwoChance, 0.0, 1.0);
         eliteMobLife = Double.isNaN(eliteMobLife) || eliteMobLife <= 0 ? 1.75 : clampDouble(eliteMobLife, 1.0, 10.0);

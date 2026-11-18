@@ -5278,18 +5278,17 @@ public final class SiegeManager {
         safe("Statistik", () -> stats.smartEnd(smart, elites, extras));
     }
 
-    /** A new monster of the night: an elite by the fixed chance (eliteMobs) and the smart night's. */
+    /** A new monster of the night: an elite by the smart night's chance (the fixed eliteMobs are gone, Tor 12 J). */
     private void smartElite(Mob mob) {
         if (bastionRound) {
             // The bastion: fixed elites from wave 5, a little more every wave; no smart night (Update 7).
             Elites.maybe(world, mob, siegeLevel, config, random,
-                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config), false);
+                    com.mki.nightsiege.core.BastionMath.eliteChance(bastion.wave, config));
             return;
         }
         int step = smart.step();
         Elites.maybe(world, mob, siegeLevel, config, random,
-                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites,
-                com.mki.nightsiege.core.SmartNight.specials(config, step));
+                com.mki.nightsiege.core.SmartNight.eliteChance(config, step, siegeLevel) + overflowElites);
     }
 
     /** Once a second: the defenders' life for the smart night, and its look when it is time. */
