@@ -1253,6 +1253,11 @@ public final class SiegeManager {
         if (!roundLost.isEmpty()) {
             NightSiegeMod.LOGGER.warn("[Night Siege] Belagerung starten lief beim Absturz ({} Spieler): ohne Wirkung beendet", roundLost.size());
         }
+        int reopened = com.mki.nightsiege.core.Chapters.reopen(save.chapters());   // Teil H: veterans under 20 become open
+        if (reopened > 0) {
+            NightSiegeMod.LOGGER.info("[Night Siege] Teil H: {} Veteranen unter Stufe 20 sind jetzt offene Charaktere", reopened);
+            persist();
+        }
         int respec = save.migrateSkills();
         if (respec > 0) {
             NightSiegeMod.LOGGER.info("[Night Siege] Neue Klassen-Bäume: {} Spieler bekommen ihre Punkte zurück", respec);
@@ -4805,7 +4810,7 @@ public final class SiegeManager {
             }
             int weight = waveWeight.getOrDefault(id, 1) * (save.specialNight ? config.specialNightXpMultiplier : 1);
             int points = bonus + WaveXp.survive(save.skillsOf(id.toString()), weight, config.wavesPerPoint,
-                    config.pointGainMultiplier * CrateEffects.pointFactor(player));
+                    config.pointGainMultiplier * CrateEffects.pointFactor(player) * catchUpFor(id));   // Teil H: Aufholbonus
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(points > 0
                     ? Component.translatable("nightsiege.msg.wave_point", wavesStarted, points).withStyle(ChatFormatting.AQUA)
                     : Component.translatable("nightsiege.msg.wave_held", wavesStarted).withStyle(ChatFormatting.GRAY)));
@@ -5794,6 +5799,10 @@ public final class SiegeManager {
                     .withStyle(ChatFormatting.RED));
         }
 
+        for (Map.Entry<UUID, Double> paid : catchUpPaid.entrySet()) {   // Teil H: "Aufholbonus ×2" at the night's end
+            tellCatchUp(server.getPlayerList().getPlayer(paid.getKey()), paid.getValue());
+        }
+        catchUpPaid.clear();
         // Tor 6.6, the outer loop: only real nights count (the tests and the playtest returned above).
         if (!inPlaytest()) {
             boolean held = won && quotaMet;
@@ -5873,6 +5882,7 @@ public final class SiegeManager {
         }
         Set<String> everyone = new java.util.LinkedHashSet<>(save.registered);
         everyone.addAll(team);
+        Map<String, PlayerSkills> before = save.skills == null ? Map.of() : new HashMap<>(save.skills);   // Teil H: who went where
         List<String> frozen = com.mki.nightsiege.core.Chapters.advance(progress, bossNights(), save.siegesWon, save.skills,
                 everyone, team, own -> skillTree.chosenSubclass(own, own.clazz()),
                 (uuid, own) -> team.contains(uuid) ? worldLevel : characterLevel(own, worldLevel), date);
@@ -5880,12 +5890,20 @@ public final class SiegeManager {
         save.bossBag = new ArrayList<>();   // the next chapter's bosses
         save.nextBoss = null;
         save.groupBosses.clear();
+        Set<String> opened = new HashSet<>();
         for (String uuid : frozen) {
-            List<com.mki.nightsiege.core.Chapters.Veteran> list = progress.veteransOf(uuid);
-            com.mki.nightsiege.core.Chapters.Veteran v = list.isEmpty() ? null : list.get(list.size() - 1);
-            if (v != null) {
-                v.treeVersion = save.skillTreeVersion;
-                HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
+            PlayerSkills was = before.get(uuid);
+            for (com.mki.nightsiege.core.Chapters.Veteran v : progress.veteransOf(uuid)) {
+                if (was != null && v.skills == was) {
+                    v.treeVersion = save.skillTreeVersion;
+                    HallService.veteran(this, uuid, v);   // the hall of fame keeps the veteran
+                }
+            }
+            for (com.mki.nightsiege.core.Chapters.Veteran o : progress.openOf(uuid)) {
+                if (was != null && o.skills == was) {
+                    o.treeVersion = save.skillTreeVersion;   // Teil H: unfinished, it stays open
+                    opened.add(uuid);
+                }
             }
         }
         NightSiegeMod.LOGGER.info("[Night Siege] Kapitel {} gewonnen: {} Veteranen, Kapitel {} beginnt (Nacht 1, Stufe 1)",
@@ -5899,8 +5917,8 @@ public final class SiegeManager {
             if (frozen.contains(uuid)) {
                 SkillService.clear(player);
                 ClassTags.update(server, player, save.skillsOf(uuid), "");
-                player.sendSystemMessage(Component.translatable("nightsiege.chapter.new_character", closed)
-                        .withStyle(ChatFormatting.AQUA));
+                player.sendSystemMessage(Component.translatable(opened.contains(uuid) ? "nightsiege.chapter.open_character"
+                        : "nightsiege.chapter.new_character", closed).withStyle(ChatFormatting.AQUA));
             }
         }
         persist();
@@ -6007,7 +6025,12 @@ public final class SiegeManager {
                 return "nightsiege.round.block_night";
             }
         }
-        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+        if (pick <= -2) {
+            // Teil H: an open character (no finale needed: it exists only after a chapter change)
+            if (player == null || com.mki.nightsiege.core.Chapters.openIndex(pick) >= save.chapters().openOf(player.getUUID().toString()).size()) {
+                return "nightsiege.round.no_open";
+            }
+        } else if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
             String lock = finaleLock(player);
             if (lock != null) {
                 return lock;
@@ -6087,18 +6110,27 @@ public final class SiegeManager {
         }
         List<com.mki.nightsiege.core.Chapters.Veteran> vets = save.chapters().veteransOf(uuid);
         PlayerSkills real = save.realSkillsOf(uuid);
-        String why = com.mki.nightsiege.core.Chapters.join(round, uuid, pick, finaleLock(player) == null, vets.size(), real.hasClass());
+        List<com.mki.nightsiege.core.Chapters.Veteran> opens = save.chapters().openOf(uuid);
+        String why = com.mki.nightsiege.core.Chapters.join(round, uuid, pick, finaleLock(player) == null, vets.size(), opens.size(), real.hasClass());
         if (why != null) {
             player.sendSystemMessage(Component.translatable(why).withStyle(ChatFormatting.GRAY));
             return false;
         }
-        if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
+        com.mki.nightsiege.core.Chapters.Veteran open = pick <= -2 ? opens.get(com.mki.nightsiege.core.Chapters.openIndex(pick)) : null;
+        if (open != null) {
+            // Teil H: the open character itself plays (migrated in place), so what it learns in the round stays
+            PlayerSkills playing = veteranCharacter(open);
+            open.skills = playing;
+            open.treeVersion = save.skillTreeVersion;
+            save.lend(uuid, playing);
+        } else if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
             save.lend(uuid, veteranCharacter(vets.get(pick)));   // the veteran plays; the frozen one stays as it is
         } else {
             save.endLoan(uuid);   // changed their mind: the current character again
         }
         if (uuid.equals(round.starter)) {
-            round.level = pick != com.mki.nightsiege.core.Chapters.CURRENT ? Math.max(1, Math.min(config.maxLevel, vets.get(pick).level))
+            round.level = open != null ? Math.max(1, Math.min(config.maxLevel, open.level))   // Teil H: a night of its own level
+                    : pick != com.mki.nightsiege.core.Chapters.CURRENT ? Math.max(1, Math.min(config.maxLevel, vets.get(pick).level))
                     : characterLevel(real, currentLevel());
         }
         if (fresh) {
@@ -6114,7 +6146,8 @@ public final class SiegeManager {
         }
         player.sendSystemMessage(Component.translatable("nightsiege.round.ready_you").withStyle(ChatFormatting.GREEN));
         NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten: {} bereit ({})", player.getScoreboardName(),
-                pick == com.mki.nightsiege.core.Chapters.CURRENT ? "aktueller Charakter" : "Veteran " + pick);
+                pick == com.mki.nightsiege.core.Chapters.CURRENT ? "aktueller Charakter"
+                        : open != null ? "offener Charakter " + com.mki.nightsiege.core.Chapters.openIndex(pick) : "Veteran " + pick);
         persist();
         if (round.picks.keySet().containsAll(nearCore(server))) {
             beginSiegeRound(server);   // everyone near the core is ready (alone: at once)
@@ -6241,24 +6274,43 @@ public final class SiegeManager {
         int cap = poolCap();
         for (String uuid : everyone) {
             int pick = round.picks.getOrDefault(uuid, com.mki.nightsiege.core.Chapters.CURRENT);
-            boolean veteran = pick != com.mki.nightsiege.core.Chapters.CURRENT;
-            if (veteran) {
+            boolean veteran = pick >= 0;
+            int openIndex = com.mki.nightsiege.core.Chapters.openIndex(pick);
+            if (pick != com.mki.nightsiege.core.Chapters.CURRENT) {
                 save.endLoan(uuid);
             }
             ServerPlayer player = server == null ? null : server.getPlayerList().getPlayer(UUID.fromString(uuid));
-            if (player != null && veteran) {
+            if (player != null && pick != com.mki.nightsiege.core.Chapters.CURRENT) {
                 SkillService.clear(player);
             }
             if (!credit) {
                 continue;
             }
-            PlayerSkills own = save.realSkillsOf(uuid);
             com.mki.nightsiege.core.Chapters.NightXp xp = roundXp.get(UUID.fromString(uuid));
-            int added = com.mki.nightsiege.core.Chapters.addToPool(own, xp == null ? 0 : xp.points(), com.mki.nightsiege.core.Chapters.xpShare(veteran, round.extras));
+            List<com.mki.nightsiege.core.Chapters.Veteran> opens = save.chapters().openOf(uuid);
+            if (openIndex >= 0 && openIndex < opens.size()) {
+                // Teil H: all of it straight into the open character (not the pool), with the catch-up bonus up to 20
+                com.mki.nightsiege.core.Chapters.Veteran open = opens.get(openIndex);
+                double factor = com.mki.nightsiege.core.Chapters.catchUpFactor(open.level, com.mki.nightsiege.core.Chapters.LENGTH, config);
+                int gained = com.mki.nightsiege.core.Chapters.creditOpen(open, xp == null ? 0 : xp.points(), factor);
+                open.level = Math.max(open.level, openLevel(open.skills));
+                boolean done = com.mki.nightsiege.core.Chapters.promote(save.chapters(), uuid, open);
+                if (player != null) {
+                    player.sendSystemMessage(Component.translatable(done ? "nightsiege.round.open_done" : "nightsiege.round.open_gain",
+                            gained, open.level).withStyle(done ? ChatFormatting.GOLD : ChatFormatting.AQUA));
+                    tellCatchUp(player, factor);
+                }
+                continue;
+            }
+            PlayerSkills own = save.realSkillsOf(uuid);
+            double factor = catchUpFactor(uuid);   // Teil H: the receiving current character's catch-up bonus
+            int added = com.mki.nightsiege.core.Chapters.addToPool(own, xp == null ? 0 : xp.points(),
+                    com.mki.nightsiege.core.Chapters.xpShare(veteran, round.extras) * factor);
             int flowed = com.mki.nightsiege.core.Chapters.flowPool(own, cap);
             if (player != null) {
                 player.sendSystemMessage(Component.translatable("nightsiege.round.pool_gain", added, flowed, own.xpPool, currentLevel())
                         .withStyle(ChatFormatting.AQUA));
+                tellCatchUp(player, factor);
             }
         }
         roundXp.clear();
@@ -6266,6 +6318,37 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] Belagerung starten vorbei ({}): {} Spieler", won ? "gehalten" : "verloren", everyone.size());
         }
         persist();
+    }
+
+    /** Teil H: an open character's level by its points (up to 20). */
+    public int openLevel(PlayerSkills own) {
+        return own == null ? 1 : characterLevel(own, com.mki.nightsiege.core.Chapters.LENGTH);
+    }
+
+    /** Teil H: the catch-up factor of this player's current character (×2 while 3+ levels under the world level). */
+    public double catchUpFactor(String uuid) {
+        int world = currentLevel();
+        return com.mki.nightsiege.core.Chapters.catchUpFactor(characterLevel(save.realSkillsOf(uuid), world), world, config);
+    }
+
+    /** Teil H: the catch-up factor for a real night's experience; notes who got it for the night's end. */
+    private double catchUpFor(UUID id) {
+        double factor = catchUpFactor(id.toString());
+        if (factor > 1.0) {
+            catchUpPaid.put(id, factor);
+        }
+        return factor;
+    }
+
+    /** Teil H: who got the catch-up bonus in this real night (told at its end). */
+    private final Map<UUID, Double> catchUpPaid = new HashMap<>();
+
+    /** Teil H: "Aufholbonus ×2" at the end of the night (or the round). */
+    private static void tellCatchUp(ServerPlayer player, double factor) {
+        if (player != null && factor > 1.0) {
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.catch_up",
+                    com.mki.nightsiege.core.Chapters.factorText(factor)).withStyle(ChatFormatting.LIGHT_PURPLE));
+        }
     }
 
     /** The level a character plays in "Belagerung starten": its own (by its points, at most the world's). */
@@ -6389,6 +6472,7 @@ public final class SiegeManager {
         safe("Nemesis", () -> nemesis.endNight(nemesisHost));
         Curses.end();   // broken off: the stones stay on the altar for the next night
         nightCurses = 0;
+        catchUpPaid.clear();   // Teil H: broken off, no "Aufholbonus" line at the next night's end
         clearRemainingMobs();
         digger.reset();
         logLadders();
@@ -6769,7 +6853,7 @@ public final class SiegeManager {
             if (fallen.contains(id)) {
                 continue;
             }
-            save.skillsOf(id.toString()).award(amount);
+            save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H: Aufholbonus
         }
         Fx.pointsEarned(server, config);
         broadcast(server, Component.translatable("nightsiege.msg.points_earned", amount)
@@ -6796,7 +6880,7 @@ public final class SiegeManager {
         if (amount > 0) {
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
-                    save.skillsOf(id.toString()).award(amount);
+                    save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H
                 }
             }
         }
@@ -8201,7 +8285,8 @@ public final class SiegeManager {
                 choosable.add(c);
             }
         }
-        return com.mki.nightsiege.core.Chapters.lockedClasses(save.chapters().veteransOf(player.getUUID().toString()), choosable);
+        String uuid = player.getUUID().toString();   // Teil H: the open characters' classes too
+        return com.mki.nightsiege.core.Chapters.lockedClasses(save.chapters().veteransOf(uuid), save.chapters().openOf(uuid), choosable);
     }
 
     /** True when the class is locked for this player's new character (Tor 11). */

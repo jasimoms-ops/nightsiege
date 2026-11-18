@@ -84,6 +84,134 @@ final class KapitelScenes {
         shots++;
     }
 
+    /** The round window over the core window (its stats), as the core's "Belagerung starten" opens it. */
+    private static void roundWindow(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen core) {
+                try {
+                    java.lang.reflect.Field f = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("stats");
+                    f.setAccessible(true);
+                    if (f.get(core) instanceof com.mki.nightsiege.core.CoreStats stats) {
+                        client.setScreenAndShow(new com.mki.nightsiege.client.SiegeRoundScreen(stats, core));
+                    }
+                } catch (ReflectiveOperationException e) {
+                    log("round window not opened: " + e);
+                }
+            }
+        });
+        context.waitTicks(10);
+    }
+
+    /** The core window's stats on the client (null when it is not open). */
+    private static com.mki.nightsiege.core.CoreStats clientStats(ClientGameTestContext context) {
+        return context.computeOnClient(client -> {
+            if (client.gui.screen() instanceof com.mki.nightsiege.client.CoreScreen core) {
+                try {
+                    java.lang.reflect.Field f = com.mki.nightsiege.client.CoreScreen.class.getDeclaredField("stats");
+                    f.setAccessible(true);
+                    return f.get(core) instanceof com.mki.nightsiege.core.CoreStats stats ? stats : null;
+                } catch (ReflectiveOperationException e) {
+                    return null;
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Tor 12 Teil H (Simon 18.11.): an open character (guardian, about level 10, left from chapter 1) – its class is
+     * locked for a new pick, it plays "Belagerung starten" at its own level, all of the experience (×2 catch-up) goes
+     * into it, not the pool. Pictures of the character choice and the core window with "Aufholbonus ×2", EN and DE.
+     */
+    private static void openCharacter(ClientGameTestContext context) {
+        final Chapters.Veteran[] open = new Chapters.Veteran[1];
+        final int[] keep = new int[6];
+        server(context, "open character", (player, m) -> {
+            var save = m.save();
+            String uuid = player.getUUID().toString();
+            check(save.chapters().openOf(uuid).isEmpty(), "the finale's warrior did not stay open");
+            PlayerSkills g = new PlayerSkills();
+            g.chosenClass = SkillClass.GUARDIAN.name();
+            g.unlocked.add(SkillClass.GUARDIAN.name());
+            g.earned = com.mki.nightsiege.game.TestKit.pointsBefore(10, m.config());
+            open[0] = Chapters.freeze(g, "", m.openLevel(g), 1, "", false);
+            open[0].treeVersion = save.skillTreeVersion;
+            save.chapters().open.computeIfAbsent(uuid, k -> new ArrayList<>()).add(open[0]);
+            log("open guardian level " + open[0].level + ", earned " + g.earned);
+            check(open[0].level >= 5 && open[0].level < 17, "an open guardian under level 17 (" + open[0].level + ")");
+            check(m.veteranLocked(player, SkillClass.GUARDIAN) && m.veteranLocked(player, SkillClass.WARRIOR)
+                    && !m.veteranLocked(player, SkillClass.ENGINEER), "class pick: the open and the veteran class locked, others free");
+            keep[0] = m.config().testPrepSeconds;
+            keep[1] = m.config().batchIntervalSeconds;
+            m.config().testPrepSeconds = 0;
+            m.config().batchIntervalSeconds = 600;
+            com.mki.nightsiege.game.CoreRecord rec = m.mainCore();
+            if (rec != null) {
+                player.teleportTo(rec.x + 2.5, rec.y, rec.z + 2.5);
+            }
+            PlayerSkills own = save.realSkillsOf(uuid);
+            keep[2] = own.xpPool;
+            keep[3] = own.earned;
+            keep[4] = open[0].skills.earned;
+            boolean ok = m.startSiegeRound(player, Chapters.openPick(0));
+            check(ok && m.isActive() && m.inSiegeRound(), "Belagerung starten with the open character runs");
+            check(save.skillsOf(uuid).clazz() == SkillClass.GUARDIAN && own.clazz() == SkillClass.ARCHER,
+                    "the open guardian plays, the archer waits");
+            check(m.currentLevel() == open[0].level, "a night of its own level (" + m.currentLevel() + ")");
+        });
+        context.waitTicks(40);
+        server(context, "open character end", (player, m) -> {
+            var save = m.save();
+            String uuid = player.getUUID().toString();
+            m.roundWavesForTests(player.getUUID(), 20);
+            m.finish(player.level().getServer(), true);
+            Chapters.Veteran o = open[0];
+            int base = (int) Math.floor(20 * m.config().pointGainMultiplier / Math.max(1, m.config().wavesPerPoint) + 1e-9);
+            int gained = o.skills.earned - keep[4];
+            log("open guardian +" + gained + " (waves alone " + base + "), level " + o.level);
+            check(!m.isActive() && !m.inSiegeRound(), "the round is over");
+            check(gained >= 2 * base, "all of it ×2 (Aufholbonus) into the open character (+" + gained + ", waves " + base + ")");
+            PlayerSkills own = save.realSkillsOf(uuid);
+            check(own.xpPool == keep[2] && own.earned == keep[3], "nothing into the pool or the current character");
+            check(save.skillsOf(uuid).clazz() == SkillClass.ARCHER, "the archer is back");
+            check(save.chapters().openOf(uuid).contains(o) || save.chapters().veteransOf(uuid).contains(o), "the open character is kept");
+            m.config().testPrepSeconds = keep[0];
+            m.config().batchIntervalSeconds = keep[1];
+            keep[5] = save.siegesWon;
+            save.siegesWon += 8;   // the world ahead: the archer is 3+ levels behind
+            log("world level " + m.currentLevel() + ", archer earned " + own.earned);
+            check(m.catchUpFactor(uuid) == 2.0, "the current character gets the catch-up bonus ×2");
+        });
+        String lang = context.computeOnClient(client -> client.options.languageCode);
+        for (String code : List.of("de_de", "en_us")) {
+            LayoutCheck.language(context, code);
+            String tag = code.substring(0, 2);
+            tab(context, "STATS");
+            com.mki.nightsiege.core.CoreStats stats = clientStats(context);
+            check(stats != null && stats.catchUpFactor == 2.0 && stats.openChars.size() == 1, tag + ": the core window knows bonus and open character");
+            shot(context, "kapitel_aufholbonus_" + tag);
+            roundWindow(context);
+            int buttons = context.computeOnClient(client -> {
+                int n = 0;
+                if (client.gui.screen() instanceof com.mki.nightsiege.client.SiegeRoundScreen s) {
+                    for (var child : s.children()) {
+                        if (child instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().contains("×2")
+                                && b.active) {
+                            n++;
+                        }
+                    }
+                }
+                return n;
+            });
+            check(buttons == 1, tag + ": the open character to pick, with ×2 (" + buttons + ")");
+            shot(context, "kapitel_offen_" + tag);
+            EventLookTest.closeScreen(context);
+            context.waitTicks(5);
+        }
+        LayoutCheck.language(context, lang);
+        server(context, "open character back", (player, m) -> m.save().siegesWon = keep[5]);
+    }
+
     static void run(ClientGameTestContext context, TestSingleplayerContext game) {
         FAILS.clear();
         checks = 0;
@@ -370,6 +498,7 @@ final class KapitelScenes {
         shot(context, "kapitel_belagerung_wahl");
         EventLookTest.closeScreen(context);
         context.waitTicks(10);
+        openCharacter(context);
         // The hall: the chronicle of this player with the veteran card.
         context.runOnClient(client -> {
             try {

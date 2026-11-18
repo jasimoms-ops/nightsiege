@@ -416,6 +416,14 @@ public class SiegeConfig {
     public int skillPointsPerKill = 0;
     /** Survived waves that make one experience point (sieges give experience only this way). */
     public int wavesPerPoint = 2;
+    /**
+     * Tor 12 Teil H, Aufholbonus (Simon 18.11.): a character catchUpLevelGap or more levels under its goal (the
+     * world level; 20 for an open character) gets this factor on its experience, in real nights and "Belagerung
+     * starten". 1 = off.
+     */
+    public double catchUpXpFactor = 2.0;
+    /** Levels under the goal from which the catch-up bonus counts (0 = off). */
+    public int catchUpLevelGap = 3;
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
     public double pointGainMultiplier = 1.5;
     /**
@@ -1479,6 +1487,15 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /**
+     * Tor 12 Teil H (v32): the catch-up bonus comes as new keys with the server's standard (×2 from 3 levels under the
+     * goal). The open characters themselves move in the save (Chapters.reopen), not here.
+     */
+    private void migrateV32Nachzuegler() {
+        catchUpXpFactor = 2.0;
+        catchUpLevelGap = 3;
+    }
+
     /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     private static double onOld(double now, double old, double target) {
         return Math.abs(now - old) < 1e-6 ? target : now;
@@ -1611,7 +1628,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 31;
+    public static final int SETTINGS_VERSION = 32;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -2456,6 +2473,10 @@ public class SiegeConfig {
             }
             settingsVersion = 31;
         }
+        if (settingsVersion < 32) {
+            migrateV32Nachzuegler();
+            settingsVersion = 32;
+        }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
         }
@@ -2674,6 +2695,8 @@ public class SiegeConfig {
             pointGainMultiplier = 1.0;
         }
         pointGainMultiplier = Math.min(10.0, Math.max(0.1, pointGainMultiplier));
+        catchUpXpFactor = Double.isNaN(catchUpXpFactor) ? 2.0 : Math.min(5.0, Math.max(1.0, catchUpXpFactor));
+        catchUpLevelGap = clamp(catchUpLevelGap, 0, 20);
         if (effectMobReplacements == null) {
             effectMobReplacements = defaultEffectMobReplacements();
         }

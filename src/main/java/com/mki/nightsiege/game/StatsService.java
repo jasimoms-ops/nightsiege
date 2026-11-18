@@ -254,6 +254,19 @@ public final class StatsService {
             c.finale = v.finale;
             stats.veterans.add(c);
         }
+        // Teil H: the open characters to pick, and the catch-up bonus
+        stats.catchUpFactor = manager.catchUpFactor(viewer.getUUID().toString());
+        String openBlock = manager.roundBlock(server, viewer, com.mki.nightsiege.core.Chapters.openPick(0));
+        stats.roundOpenCharBlock = openBlock == null || "nightsiege.round.no_open".equals(openBlock) ? "" : openBlock;
+        for (com.mki.nightsiege.core.Chapters.Veteran v : save.chapters().openOf(viewer.getUUID().toString())) {
+            CoreStats.VeteranChoice c = new CoreStats.VeteranChoice();
+            c.clazz = v.clazz;
+            c.sub = v.subclass;
+            c.chapter = v.chapter;
+            c.level = v.level;
+            c.catchUp = com.mki.nightsiege.core.Chapters.catchUpFactor(v.level, com.mki.nightsiege.core.Chapters.LENGTH, manager.config());
+            stats.openChars.add(c);
+        }
         for (com.mki.nightsiege.core.SkillClass c : com.mki.nightsiege.core.SkillClass.values()) {
             if (c.isShared() || !manager.mayChoose(viewer, c)) {
                 continue;

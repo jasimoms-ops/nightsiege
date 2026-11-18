@@ -332,6 +332,12 @@ public class CoreStats {
     public int poolLevel = 1;
     /** This player's veterans, oldest first (the index is what "round:start:<i>" sends). */
     public List<VeteranChoice> veterans = new ArrayList<>();
+    /** Teil H: this player's open characters, oldest first (index i sends "round:start:<-2-i>"). */
+    public List<VeteranChoice> openChars = new ArrayList<>();
+    /** Teil H: why the open characters are grey (empty: open). */
+    public String roundOpenCharBlock = "";
+    /** Teil H: the current character's catch-up factor (1: none; 2: "Aufholbonus ×2"). */
+    public double catchUpFactor = 1.0;
 
     public static class VeteranChoice {
         public String clazz = "";
@@ -339,6 +345,8 @@ public class CoreStats {
         public int chapter;
         public int level;
         public boolean finale;
+        /** Teil H, open characters: the catch-up factor up to level 20 (1: none). */
+        public double catchUp = 1.0;
     }
     /** Crate gains per class: gain id to stage. */
     public java.util.Map<String, java.util.Map<String, Integer>> gains = new java.util.HashMap<>();

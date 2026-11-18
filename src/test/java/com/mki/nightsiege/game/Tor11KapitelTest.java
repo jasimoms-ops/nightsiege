@@ -96,7 +96,7 @@ class Tor11KapitelTest {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":28,\"bossEvery\":4,\"healthPerLevel\":0.123}", SiegeConfig.class);
         c.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, c.settingsVersion);
-        assertEquals(31, SiegeConfig.SETTINGS_VERSION);   // 31 since Tor 12 (defaults = server)
+        assertTrue(SiegeConfig.SETTINGS_VERSION >= 31);   // 31 since Tor 12 (defaults = server), later steps follow
         assertEquals(List.of(0.0, 0.0, 0.10, 0.20, 0.30), c.chapterScaling);
         assertEquals(0.123, c.healthPerLevel, 1e-9);
         SiegeConfig own = new Gson().fromJson("{\"settingsVersion\":28,\"chapterScaling\":[0,0,0.05]}", SiegeConfig.class);
@@ -155,10 +155,11 @@ class Tor11KapitelTest {
         assertTrue(va.finale);
         assertTrue(Chapters.done(va));
         assertTrue(va.skills == a);
-        Chapters.Veteran vb = p.veteransOf("b").get(0);
+        assertTrue(p.veteransOf("b").isEmpty());              // Tor 12 Teil H: not there, level 9: stays open
+        Chapters.Veteran vb = p.openOf("b").get(0);
         assertEquals(9, vb.level);
         assertFalse(vb.finale);
-        assertFalse(Chapters.done(vb));                       // not there, level 9: not done
+        assertFalse(Chapters.done(vb));
         assertEquals(1, Chapters.stars(p.veteransOf("a")));
         assertEquals(0, Chapters.stars(p.veteransOf("b")));
         assertTrue(p.veteransOf("c").isEmpty());
