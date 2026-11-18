@@ -60,10 +60,6 @@ public class SiegeSave {
     /** Player uuid to their tally. */
     public Map<String, PlayerStats> playerStats = new HashMap<>();
 
-    /** Countdown state, so a restart does not reset the clock. */
-    public long readyTicks;
-    public long requiredTicks;
-
     /** Players who signed up at the core (uuids). Everyone else is left alone by the mod. */
     public List<String> registered = new ArrayList<>();
     /** Day of the next siege night (in-game day), or -1 if none is set yet. */

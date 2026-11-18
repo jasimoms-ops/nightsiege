@@ -7,12 +7,11 @@ public final class SiegeMath {
     }
 
     /**
-     * Siege level: starts at 1 and rises with every siege survived (and, if set,
-     * with the age of the world). A lost night keeps its level: it comes again.
+     * Siege level: starts at 1 and rises with every siege survived. A lost night keeps its level: it comes
+     * again. ({@code ingameDays} no longer counts: daysPerLevel is gone, Tor 12 J.)
      */
     public static int level(int siegesWon, long ingameDays, SiegeConfig cfg) {
-        long fromDays = cfg.daysPerLevel <= 0 ? 0L : Math.max(0L, ingameDays) / cfg.daysPerLevel;
-        long raw = 1L + Math.max(0, siegesWon) + fromDays;
+        long raw = 1L + Math.max(0, siegesWon);
         return (int) Math.min(cfg.maxLevel, Math.max(1L, raw));
     }
 

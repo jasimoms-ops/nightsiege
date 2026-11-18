@@ -85,17 +85,6 @@ public class CoreStats {
         public java.util.Map<String, String> blocked = new java.util.HashMap<>();
     }
 
-    /** One perk of the main core. */
-    public static class PerkLine {
-        public String id = "";
-        public int fragments;
-        public int stage;
-        /** Fragments in total for the next stage; 0 at the top stage. */
-        public int nextAt;
-        /** Fragments in total for the current stage. */
-        public int stageAt;
-    }
-
     // --- the base around the core, as the scan found it
     public boolean baseKnown;
     public boolean baseClosed;
@@ -179,11 +168,6 @@ public class CoreStats {
     public int[] oddsCursed = new int[5];
     public boolean nemesisEnabled;
     public List<NemesisLine> nemeses = new ArrayList<>();
-
-    // --- perks of the main core
-    public List<PerkLine> perks = new ArrayList<>();
-    public int perkRadius;
-    public boolean perkInRange;
 
     // --- siege state
     public boolean siegeActive;

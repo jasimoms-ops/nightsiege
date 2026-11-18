@@ -14,7 +14,6 @@ import com.mki.nightsiege.core.SkillClass;
 import com.mki.nightsiege.core.SiegeConfig;
 import com.mki.nightsiege.core.SiegeEvent;
 import com.mki.nightsiege.core.SiegeMath;
-import com.mki.nightsiege.core.SiegeScheduler;
 import com.mki.nightsiege.core.CrateKind;
 import com.mki.nightsiege.core.SiegeRhythm;
 import com.mki.nightsiege.core.SkillTree;
@@ -136,7 +135,6 @@ public final class SiegeManager {
     /** Trap wear is saved in batches, not on every spike hit. */
     private boolean trapsDirty;
     private int trapSaveCounter;
-    private final SiegeScheduler scheduler = new SiegeScheduler();
     private final SkillTree skillTree = new SkillTree();
     private final TrapService traps = new TrapService(() -> save, skillTree);
     private final KitService kits = new KitService(() -> save, () -> config, skillTree, traps, this::persist);
@@ -750,9 +748,6 @@ public final class SiegeManager {
             spawnedTotal++;
         }
         Fx.mobSpawned(world, config, mob, true);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-            SiegeTeams.mark(world.getServer(), mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
         return mob;
     }
 
@@ -818,10 +813,6 @@ public final class SiegeManager {
 
     public SkillTree skillTree() {
         return skillTree;
-    }
-
-    public SiegeScheduler scheduler() {
-        return scheduler;
     }
 
     public boolean isActive() {
@@ -939,7 +930,6 @@ public final class SiegeManager {
                 events.end(server, world, currentEvent);
             }
             EventAtmosphere.resetServer();
-            syncSchedulerToSave();
             persist();
         });
         // Survival safety (Simon 31.10., D4): what the dungeons and the camp built or took down counts as done
@@ -1221,7 +1211,6 @@ public final class SiegeManager {
      * config is read again from the disk, which is what the command is for.
      */
     public void reloadKeepingState() {
-        syncSchedulerToSave();
         persist();
         reload();
     }
@@ -1238,7 +1227,6 @@ public final class SiegeManager {
             NightSiegeMod.LOGGER.info("[Night Siege] {} Skills mit Server-Werten", tweaked);
         }
         Json.write(configPath, config);
-        DungeonContent.active = config.dungeonsEnabled && config.legacyDungeons;   // the old dungeons (their maps came from the caravan, gone since 31.10.)
 
         SiegeSave loadedSave = savePath == null ? null : Json.read(savePath, SiegeSave.class);
         save = loadedSave == null ? new SiegeSave() : loadedSave;
@@ -1325,11 +1313,6 @@ public final class SiegeManager {
         }
         // The subclass first, its level 1 free (Simon, 29 October 2026): once per player, see migrateFreeSubclasses.
         migrateFreeSubclasses();
-        scheduler.setReadyTicks(save.readyTicks);
-        scheduler.setRequiredTicks(save.requiredTicks);
-        if (scheduler.requiredTicks() <= 0L && !save.cores.isEmpty()) {
-            scheduler.rollInterval(random, config);
-        }
 
         pool = new MobPool(config.mobs);
         unavailableMobs.clear();
@@ -1368,11 +1351,6 @@ public final class SiegeManager {
                     players, points);
             persist();
         }
-    }
-
-    private void syncSchedulerToSave() {
-        save.readyTicks = scheduler.readyTicks();
-        save.requiredTicks = scheduler.requiredTicks();
     }
 
     public void persist() {
@@ -4951,9 +4929,6 @@ public final class SiegeManager {
                     aimAtDefender(server, mob);
                 }
                 Fx.mobSpawned(world, config, mob, spawned < config.audibleSpawnsPerBatch);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-                    SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
                 wave.add(mob);
                 spawned++;
             }
@@ -4980,9 +4955,6 @@ public final class SiegeManager {
                 liveMobs.add(phantom.getUUID());
                 spawnedTotal++;
                 aimAtDefender(server, phantom);
-                if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow) {
-                    SiegeTeams.mark(server, phantom, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-                }
             }
         }
         // Some of them carry ladders; a sapper creeper may come along (it does not count for the kill goal).
@@ -5040,9 +5012,6 @@ public final class SiegeManager {
             aimAtDefender(server, mob);
         }
         Fx.mobSpawned(world, config, mob, false);
-        if (currentEvent == SiegeEvent.BLOOD_MOON && config.bloodMoonGlow && !Elites.isElite(mob)) {
-            SiegeTeams.mark(server, mob, SiegeTeams.BLOOD_MOON, TeamColor.DARK_RED);
-        }
     }
 
     private void aimAtDefender(MinecraftServer server, Mob mob) {
@@ -7422,14 +7391,9 @@ public final class SiegeManager {
             return;
         }
         save.cores.add(new CoreRecord(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        if (scheduler.requiredTicks() <= 0L) {
-            scheduler.rollInterval(random, config);
-        }
-        syncSchedulerToSave();
         persist();
         if (placer instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed",
-                    config.requiredPlayers, (int) config.coreRadius).withStyle(ChatFormatting.GOLD));
+            player.sendSystemMessage(Component.translatable("nightsiege.msg.core_placed").withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -7467,7 +7431,6 @@ public final class SiegeManager {
             return;
         }
         save.removeCore(dimension, pos.getX(), pos.getY(), pos.getZ());
-        syncSchedulerToSave();
         persist();
 
         MinecraftServer server = brokenWorld.getServer();

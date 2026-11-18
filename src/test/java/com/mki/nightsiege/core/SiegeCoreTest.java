@@ -60,8 +60,6 @@ class SiegeCoreTest {
         assertEquals(4, SiegeMath.level(3, 0, c));
         assertEquals(1, SiegeMath.level(0, 16, c));   // time alone no longer raises it
         assertEquals(c.maxLevel, SiegeMath.level(999, 9999, c));
-        c.daysPerLevel = 8;   // still possible by config
-        assertEquals(3, SiegeMath.level(0, 16, c));
     }
 
     @Test
@@ -862,57 +860,6 @@ class SiegeCoreTest {
         assertNull(pool.pick(1, random, Set.of("minecraft:zombie", "minecraft:skeleton")));
     }
 
-    // --- countdown ----------------------------------------------------
-
-    @Test
-    void intervalStaysWithinTheConfiguredRange() {
-        SiegeConfig c = cfg();
-        SiegeScheduler scheduler = new SiegeScheduler();
-        Random random = new Random(11);
-        Set<Long> days = new HashSet<>();
-        for (int i = 0; i < 300; i++) {
-            scheduler.rollInterval(random, c);
-            days.add(scheduler.requiredTicks() / 24000L);
-        }
-        assertTrue(days.stream().allMatch(d -> d >= c.minDaysBetweenSieges && d <= c.maxDaysBetweenSieges));
-        assertTrue(days.size() > 1, "the gap should vary between sieges");
-    }
-
-    @Test
-    void countdownOnlyFiresWhenFull() {
-        SiegeConfig c = cfg();
-        SiegeScheduler scheduler = new SiegeScheduler();
-        scheduler.rollInterval(new Random(1), c);
-        long needed = scheduler.requiredTicks();
-
-        assertFalse(scheduler.armed());
-        assertEquals(SiegeScheduler.Decision.NONE, scheduler.evaluate(24000L * 9 + 12000, false, c));
-
-        scheduler.addQualifyingTicks(needed - 1);
-        assertFalse(scheduler.armed());
-        scheduler.addQualifyingTicks(1);
-        assertTrue(scheduler.armed());
-
-        long day = 24000L * 20;
-        assertEquals(SiegeScheduler.Decision.WARN, scheduler.evaluate(day + 12000, false, c));
-        assertEquals(SiegeScheduler.Decision.START, scheduler.evaluate(day + 15000, false, c));
-        assertEquals(SiegeScheduler.Decision.NONE, scheduler.evaluate(day + 16000, false, c));
-    }
-
-    @Test
-    void finishingASiegeRestartsTheCountdown() {
-        SiegeConfig c = cfg();
-        SiegeScheduler scheduler = new SiegeScheduler();
-        scheduler.rollInterval(new Random(1), c);
-        scheduler.addQualifyingTicks(scheduler.requiredTicks());
-        assertTrue(scheduler.armed());
-
-        scheduler.markSiegeFinished(new Random(2), c);
-        assertFalse(scheduler.armed());
-        assertEquals(0L, scheduler.readyTicks());
-        assertEquals(0.0, scheduler.progress(), 1e-9);
-    }
-
     // --- anchor -------------------------------------------------------
 
     @Test
@@ -1023,9 +970,6 @@ class SiegeCoreTest {
         bad.baseMobsPerBatch = -5;
         bad.maxLevel = 0;
         bad.spawnMaxDistance = 1;
-        bad.minDaysBetweenSieges = 9;
-        bad.maxDaysBetweenSieges = 2;
-        bad.requiredPlayers = 0;
         bad.mobs = new java.util.ArrayList<>();
         bad.protectedBlocks = null;
         bad.sanitize();
@@ -1033,63 +977,9 @@ class SiegeCoreTest {
         assertTrue(bad.baseMobsPerBatch >= 1);
         assertTrue(bad.maxLevel >= 1);
         assertTrue(bad.spawnMaxDistance > bad.spawnMinDistance);
-        assertTrue(bad.maxDaysBetweenSieges >= bad.minDaysBetweenSieges);
-        assertTrue(bad.requiredPlayers >= 1);
         assertFalse(bad.mobs.isEmpty());
         assertTrue(bad.protectedBlocks.contains("minecraft:bedrock"));
     }
-
-    @Test
-    void countdownOnlyAdvancesWhileDefendersAreThere() {
-        SiegeConfig c = cfg();
-        SiegeScheduler s = new SiegeScheduler();
-        s.rollInterval(new Random(1), c);
-        assertTrue(s.requiredTicks() >= c.minDaysBetweenSieges * 24000L);
-        assertTrue(s.requiredTicks() <= c.maxDaysBetweenSieges * 24000L);
-        assertFalse(s.armed());
-
-        // Time that does not qualify is simply never handed in.
-        assertEquals(0.0, s.progress(), 1e-9);
-        s.addQualifyingTicks(s.requiredTicks() / 2);
-        assertEquals(0.5, s.progress(), 0.01);
-        assertFalse(s.armed());
-
-        s.addQualifyingTicks(s.requiredTicks());
-        assertTrue(s.armed());
-        assertEquals(0L, s.remainingTicks());
-    }
-
-    @Test
-    void nothingStartsBeforeTheCountdownIsFull() {
-        SiegeConfig c = cfg();
-        SiegeScheduler s = new SiegeScheduler();
-        s.rollInterval(new Random(1), c);
-        long night = 24000L * 3;
-        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(night + c.warningDayTime, false, c));
-
-        s.addQualifyingTicks(s.requiredTicks());
-        assertEquals(SiegeScheduler.Decision.WARN, s.evaluate(night + c.warningDayTime, false, c));
-        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(night + c.warningDayTime + 100, false, c));
-        assertEquals(SiegeScheduler.Decision.START, s.evaluate(night + c.startDayTime, false, c));
-        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(night + c.startDayTime + 100, false, c));
-    }
-
-    @Test
-    void intervalStaysWithinTwoToFiveDays() {
-        SiegeConfig c = cfg();
-        SiegeScheduler s = new SiegeScheduler();
-        Random random = new Random(11);
-        for (int i = 0; i < 500; i++) {
-            s.rollInterval(random, c);
-            long days = s.requiredTicks() / 24000L;
-            assertTrue(days >= c.minDaysBetweenSieges && days <= c.maxDaysBetweenSieges,
-                    "interval out of range: " + days);
-        }
-    }
-
-
-
-
 
     @Test
     void shovelsAreNotHandedOutByDefault() {
@@ -2224,7 +2114,6 @@ class SiegeCoreTest {
         old.settingsVersion = 2;
         old.sanitize();
         assertTrue(old.dungeonsEnabled);
-        assertFalse(old.bloodMoonGlow);
         assertEquals(SiegeConfig.SETTINGS_VERSION, old.settingsVersion);
         // Switched off again by hand, it stays off.
         old.dungeonsEnabled = false;
@@ -2469,21 +2358,6 @@ class SiegeCoreTest {
         for (int i = 0; i < 2000; i++) {
             assertNotEquals(SiegeEvent.ECLIPSE, EventPicker.pick(10, random, c));
         }
-    }
-
-    @Test
-    void anEclipseWarnsAndStartsAroundNoon() {
-        SiegeConfig c = new SiegeConfig();
-        SiegeScheduler s = new SiegeScheduler();
-        s.setRequiredTicks(24000);
-        s.setReadyTicks(24000);
-        long day = 24000L * 5;
-        int warn = c.eclipseWarningDayTime;
-        int start = c.eclipseStartDayTime;
-        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(day + 3000, false, warn, start));
-        assertEquals(SiegeScheduler.Decision.WARN, s.evaluate(day + warn, false, warn, start));
-        assertEquals(SiegeScheduler.Decision.START, s.evaluate(day + start, false, warn, start));
-        assertEquals(SiegeScheduler.Decision.NONE, s.evaluate(day + start + 100, false, warn, start));
     }
 
     @Test

@@ -307,7 +307,6 @@ public final class StatsService {
         stats.nightFragment = save.nightFragment;
         stats.scout = manager.expeditions().scoutLine(viewer);
         describeCurses(stats, manager, cfg, save);
-        stats.perkRadius = (int) Math.round(manager.config().perkRadius);
         stats.skillsEnabled = cfg.skillsEnabled;
         describeBase(stats, save, cfg, viewer);
         stats.corePoints = save.coreSkills().points();
