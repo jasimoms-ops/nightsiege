@@ -22,7 +22,7 @@ fails = 0
 for head, lines, errors in sections:
     print("== " + head)
     for l in lines:
-        if l.startswith(("OK", "FAIL", "NACHT", "NEUSTART", "WEITER", "SUMME", "EXTRA", "Abmelden", "Wieder", "nach Neustart", "BURG", "START", "ARTEN", "FEHLERLISTE", "HORN")) or "langlauf-skript" in l:
+        if l.startswith(("OK", "FAIL", "NACHT", "NEUSTART", "WEITER", "SUMME", "EXTRA", "Abmelden", "Wieder", "nach Neustart", "BURG", "START", "ARTEN", "FEHLERLISTE", "HORN", "NACHZUEGLER", "RUNDE")) or "langlauf-skript" in l:
             print("   " + l)
     distinct = []
     for e in errors:

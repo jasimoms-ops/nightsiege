@@ -3,6 +3,7 @@ package com.mki.nightsiege.game;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mki.nightsiege.NightSiegeMod;
+import com.mki.nightsiege.core.Chapters;
 import com.mki.nightsiege.core.GatherPhase;
 import com.mki.nightsiege.core.NightFragment;
 import com.mki.nightsiege.core.PlayerSkills;
@@ -97,6 +98,12 @@ public final class Langlauf {
         String curEvent = "";
         List<String> accepted = new ArrayList<>();
         String decliner;
+        /** Teil H/I: the latecomer (bot index, -1 none); he misses nights 5-14 and the finale of chapter 1. */
+        int late = -1;
+        /** He is offline now (2 players: a refusal would cancel the night, so he stays away). */
+        boolean lateOut;
+        /** His "Belagerung starten" with the open character: "" | "faellig" | "laeuft" | "fertig". */
+        String lateRound = "";
     }
 
     private static boolean on;
@@ -161,6 +168,19 @@ public final class Langlauf {
     private static double maxMs;
     private static int help;
     private static final List<String> nightFails = new ArrayList<>();
+    // the latecomer (Teil H/I)
+    private static boolean roundNight;
+    private static boolean lateAwayTonight;
+    private static int lateEarned0 = -1;
+    private static int refEarned0 = -1;
+    private static double lateFactor0;
+    private static double refFactor0;
+    private static int lateSpent0 = -1;
+    private static int roundOpenEarned0;
+    private static int roundCurEarned0;
+    private static int roundCurPool0;
+    private static int roundOpenLevel0;
+    private static double roundFactor0;
 
     private Langlauf() {
     }
@@ -192,6 +212,7 @@ public final class Langlauf {
         on = true;
         if (st == null) {
             st = new State();
+            boolean lateWanted = true;
             for (String token : env.trim().split("\\s+")) {
                 String[] kv = token.split("=", 2);
                 if (kv.length == 2) {
@@ -200,13 +221,16 @@ public final class Langlauf {
                         case "bis" -> st.target = Math.max(1, Integer.parseInt(kv[1].trim()));
                         case "min" -> st.minutes = Math.max(5, Integer.parseInt(kv[1].trim()));
                         case "folge" -> st.order = new ArrayList<>(List.of(kv[1].trim().split(",")));   // own order from cycle 2
+                        case "nachzuegler" -> lateWanted = !"0".equals(kv[1].trim());
                         default -> {
                         }
                     }
                 }
             }
+            st.late = lateWanted && st.group >= 2 ? st.group - 1 : -1;
             st.startedMs = System.currentTimeMillis();
-            line("START spieler=" + st.group + " bis=Nacht " + st.target + " karte=" + (karte == null ? "standard" : karte.getFileName()));
+            line("START spieler=" + st.group + " bis=Nacht " + st.target + " karte=" + (karte == null ? "standard" : karte.getFileName())
+                    + " nachzuegler=" + (st.late < 0 ? "-" : name(st.late) + (st.group < 3 ? " (offline)" : " (Absage)")));
         } else {
             core = new BlockPos(st.cx, st.cy, st.cz);
             scenario = st.curScenario == null ? "" : st.curScenario;
@@ -245,6 +269,9 @@ public final class Langlauf {
             if (loginAt >= 0 && now >= loginAt) {
                 loginAt = -1L;
                 for (int i = 0; i < st.group; i++) {
+                    if (i == st.late && st.lateOut) {
+                        continue;   // the latecomer stays offline
+                    }
                     SimBots.login(server, world, name(i), core.getX() + 0.5, core.getY() + 1, core.getZ() + 2.5);
                 }
                 if (st.pending != null) {
@@ -383,6 +410,9 @@ public final class Langlauf {
         if (next < 0) {
             return;
         }
+        if (lateStep(server, m, day, time, next, now)) {
+            return;
+        }
         if (!st.done.contains("extra") && m.save().chapters().chapter == 1 && m.currentLevel() >= cfg.extraSiegeFromLevel
                 && next > day) {
             if (time >= 1000 && time < cfg.warningDayTime - 2000) {
@@ -501,6 +531,11 @@ public final class Langlauf {
         for (int i = 0; i < st.group; i++) {
             ServerPlayer b = bot(server, i);
             if (b == null) {
+                continue;
+            }
+            if (i == st.late && lateAway(m)) {
+                m.vote(b, false);   // the latecomer (4 players) has no time: his refusal
+                line("NACHZUEGLER " + name(i) + " sagt ab (K" + m.save().chapters().chapter + " Nacht " + m.chapterNight() + ")");
                 continue;
             }
             if (scenario.equals("zuwenig") && (st.group <= 3 || i >= 2)) {
@@ -675,6 +710,11 @@ public final class Langlauf {
 
     private static void onNightStart(MinecraftServer server, SiegeManager m, long now) {
         nightStart = now;
+        roundNight = m.inSiegeRound();
+        if (roundNight) {
+            roundStart(server, m);
+            return;
+        }
         long day = m.clockDayFor(server);
         int time = m.clockTimeFor(server);
         if (st.startDay == day) {
@@ -719,6 +759,7 @@ public final class Langlauf {
             }
         }
         boost(server, m);
+        guard("Nachzügler-Start", () -> lateSnapshot(server, m));
         for (int i = 0; i < st.group; i++) {
             startSounds += SimBots.takeSounds(bot(server, i)).size();   // sent in the start tick
         }
@@ -745,7 +786,18 @@ public final class Langlauf {
                 winN = 0;
             }
         }
-        if (t == 100) {
+        if (roundNight) {
+            if (t == 100) {
+                guard("Runde", () -> roundCheckAt100(server, m));
+            }
+            if (t % 200 == 0) {
+                ServerPlayer b = bot(server, st.late);
+                if (b != null && m.isDefending(b) && !b.isSpectator()) {   // as "Hilfe": the round is to pay experience
+                    b.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 260, 2, false, false));
+                    b.addEffect(new MobEffectInstance(MobEffects.STRENGTH, 260, 1, false, false));
+                }
+            }
+        } else if (t == 100) {
             for (int i = 0; i < st.group; i++) {
                 ServerPlayer b = bot(server, i);
                 if (b == null) {
@@ -760,6 +812,10 @@ public final class Langlauf {
                 }
                 if (!expected && (defends || kit > 0)) {
                     nightFails.add(name(i) + " hat abgesagt, ist aber dabei (verteidigt=" + defends + " kit=" + kit + ")");
+                }
+                if (inNight.contains(b.getUUID())) {
+                    final int bi = i;
+                    guard("Angleich", () -> syncCheck(m, b, bi));
                 }
             }
         }
@@ -821,6 +877,11 @@ public final class Langlauf {
     private static void endChecks(MinecraftServer server, SiegeManager m) {
         SiegeConfig cfg = m.config();
         int secs = (int) ((nightEnd - nightStart) / 20);
+        if (roundNight) {
+            roundNight = false;
+            guard("Runde", () -> roundChecks(server, m, secs));
+            return;
+        }
         boolean won = m.save().siegesWon > wonBefore;
         boolean lost = m.save().siegesLost > lostBefore;
         String result = won ? "gewonnen" : lost ? "verloren" : "ohne_ergebnis";
@@ -846,7 +907,9 @@ public final class Langlauf {
         for (int i = 0; i < st.group; i++) {
             ServerPlayer b = bot(server, i);
             if (b == null) {
-                f.add(name(i) + " nicht online nach der Nacht");
+                if (!(i == st.late && st.lateOut)) {
+                    f.add(name(i) + " nicht online nach der Nacht");
+                }
                 continue;
             }
             int logs = count(b, Items.OAK_LOG);
@@ -869,7 +932,7 @@ public final class Langlauf {
                     dEarned = Math.min(dEarned, m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0));
                 }
                 dCrates = Math.min(dCrates, crates(m, b) - cratesBefore.getOrDefault(id, 0));
-            } else if (id.equals(decliner)) {
+            } else if (id.equals(decliner) || (i == st.late && lateAwayTonight)) {
                 int d = m.save().skillsOf(id.toString()).earned - earnedBefore.getOrDefault(id, 0);
                 if (d != 0) {
                     f.add(name(i) + " abgesagt, bekam trotzdem " + d + " Punkte");
@@ -938,6 +1001,7 @@ public final class Langlauf {
             st.fail++;
             st.fails.add("k=" + st.cycle + " " + label(chapterStart, lvlStart) + ": 8:00-Grenze " + secs + " s");
         }
+        guard("Nachzügler", () -> lateEndChecks(server, m, chapterChange));
         int abs = (chapterStart - 1) * com.mki.nightsiege.core.Chapters.LENGTH + nightNo;
         if (abs > st.reached && (won || lost)) {
             st.reached = abs;
@@ -963,7 +1027,7 @@ public final class Langlauf {
         for (int i = 0; i < st.group; i++) {
             ServerPlayer b = bot(server, i);
             if (b != null) {
-                spend(m, b, st.subs.get(i), help >= 1);
+                spend(m, b, st.subs.get(i), help >= 1 && i != st.late);   // the latecomer keeps his own level (Teil H/I)
             }
         }
         brains.clear();
@@ -972,6 +1036,304 @@ public final class Langlauf {
         } else if (st.lossStreak >= 7) {
             fail("festgefahren: " + st.lossStreak + " Niederlagen auf " + label(st.lossChapter, st.lossLevel));
             finish(server, "festgefahren");
+        }
+    }
+
+    // ------------------------------------------------------------------ the latecomer (Teil H/I)
+
+    /**
+     * The latecomer misses the nights 5-14 of chapter 1 and its finale (Tor 11: whoever wins the finale becomes a
+     * veteran at its level, so he would not stay open).
+     */
+    private static boolean lateAway(SiegeManager m) {
+        int n = m.chapterNight();
+        return st.late >= 0 && m.save().chapters().chapter == 1 && (n >= 5 && n <= 14 || n >= Chapters.LENGTH);
+    }
+
+    /** Before the invitation: offline or back (2 players); after the chapter change his round. True: step taken. */
+    private static boolean lateStep(MinecraftServer server, SiegeManager m, long day, int time, long next, long now) {
+        if (st.late < 0) {
+            return false;
+        }
+        boolean away = lateAway(m);
+        if (st.group < 3 && away != st.lateOut) {
+            if (away) {
+                ServerPlayer b = bot(server, st.late);
+                if (b != null) {
+                    SimBots.logout(server, b);
+                }
+            } else {
+                SimBots.login(server, world, name(st.late), core.getX() + 0.5, core.getY() + 1, core.getZ() + 2.5);
+            }
+            st.lateOut = away;
+            line("NACHZUEGLER " + name(st.late) + (away ? " geht offline" : " ist wieder da") + " vor K" + m.save().chapters().chapter
+                    + " Nacht " + m.chapterNight() + " (Stufe " + m.currentLevel() + ")");
+            save();
+        }
+        if ("laeuft".equals(st.lateRound)) {
+            fail("Belagerung starten mit dem offenen Charakter: die Nacht kam nicht");
+            st.lateRound = "fertig";
+            save();
+        }
+        if ("faellig".equals(st.lateRound) && next > day) {
+            if (time >= 1000 && time < 4000) {
+                guard("Runde", () -> startLateRound(server, m));
+                lastIdle = now;
+                return true;
+            }
+            if (next > day + 1) {
+                jump(server, (day + 1) * 24000L + 1500);
+                lastIdle = now;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Real night start: what the latecomer and a steady player (Bot01) had, for the catch-up and sync checks. */
+    private static void lateSnapshot(MinecraftServer server, SiegeManager m) {
+        lateAwayTonight = st.late >= 0 && lateAway(m);
+        lateEarned0 = -1;
+        refEarned0 = -1;
+        lateSpent0 = -1;
+        ServerPlayer b = st.late < 0 ? null : bot(server, st.late);
+        if (b == null || !inNight.contains(b.getUUID())) {
+            return;
+        }
+        String id = b.getUUID().toString();
+        PlayerSkills own = m.save().realSkillsOf(id);
+        lateEarned0 = own.earned;
+        lateFactor0 = m.catchUpFactor(id);
+        lateSpent0 = spentOwn(m, own);
+        ServerPlayer ref = bot(server, 0);
+        if (ref != null && inNight.contains(ref.getUUID())) {
+            refEarned0 = m.save().realSkillsOf(ref.getUUID().toString()).earned;
+            refFactor0 = m.catchUpFactor(ref.getUUID().toString());
+        }
+    }
+
+    /** Five seconds into a real night: whoever is below world level − levelSyncGap plays on that level, nobody else. */
+    private static void syncCheck(SiegeManager m, ServerPlayer b, int i) {
+        SiegeConfig cfg = m.config();
+        PlayerSkills own = m.save().realSkillsOf(b.getUUID().toString());
+        boolean want = LevelSync.pointsToLend(cfg, lvlStart, own.earned) > 0;
+        if (!want && !own.synced()) {
+            return;   // steady player: nothing to see
+        }
+        int target = LevelSync.target(cfg, lvlStart);
+        boolean good = want == own.synced() && (!want || own.syncLevel == target);
+        check(good, "Angleich k=" + st.cycle + " " + label(chapterStart, lvlStart) + " " + name(i) + (i == st.late ? " (Nachzügler)" : "")
+                + " stufe=" + levelOf(own.earned, cfg, lvlStart) + " welt=" + lvlStart + " -> angeglichen=" + own.synced()
+                + " auf " + own.syncLevel + " (soll " + (want ? target : "-") + ") geliehen=" + own.borrowedPoints);
+        if (good && i == st.late) {
+            st.seen.merge("nz_angleich", 1, Integer::sum);
+        }
+    }
+
+    /** After a real night: the lent levels are back (memory and save), the catch-up bonus, the chapter change. */
+    private static void lateEndChecks(MinecraftServer server, SiegeManager m, boolean chapterChange) {
+        SiegeConfig cfg = m.config();
+        StringBuilder still = new StringBuilder();
+        for (int i = 0; i < st.group; i++) {
+            ServerPlayer o = bot(server, i);
+            if (o != null && m.save().realSkillsOf(o.getUUID().toString()).synced()) {
+                still.append(' ').append(name(i));
+            }
+        }
+        if (st.late < 0) {
+            if (!still.isEmpty()) {
+                fail("Angleich nach der Nacht nicht zurück:" + still);
+            }
+            return;
+        }
+        ServerPlayer b = bot(server, st.late);
+        String id = SimBots.idOf(name(st.late)).toString();
+        String who = "k=" + st.cycle + " " + label(chapterStart, lvlStart) + " " + name(st.late);
+        if (lateEarned0 >= 0 && b != null && !chapterChange) {
+            PlayerSkills own = m.save().realSkillsOf(id);
+            PlayerSkills saved = savedSkills(server, id);
+            int spentSaved = saved == null ? -1 : spentOwn(m, saved);
+            check(still.isEmpty() && !own.synced() && own.borrowedPoints == 0 && spentSaved == lateSpent0,
+                    "Angleich zurück " + who + ": angeglichen=" + own.synced() + " geliehen=" + own.borrowedPoints
+                            + ", Spielstand Baum " + spentSaved + " Punkte (vor der Nacht " + lateSpent0 + "), verdient " + (saved == null ? "-" : saved.earned)
+                            + "/" + own.earned + (still.isEmpty() ? "" : ", noch angeglichen:" + still));
+            int lvl0 = levelOf(lateEarned0, cfg, lvlStart);
+            int lvl1 = levelOf(own.earned, cfg, lvlStart);
+            double f0 = Chapters.catchUpFactor(lvl0, lvlStart, cfg);
+            double f1 = Chapters.catchUpFactor(lvl1, lvlStart, cfg);
+            int dN = own.earned - lateEarned0;
+            boolean ok = Math.abs(lateFactor0 - f0) < 1e-6;
+            String cmp = "kein Vergleich";
+            ServerPlayer ref = bot(server, 0);
+            if (refEarned0 >= 0 && ref != null && refFactor0 <= 1.0 && standingIds.contains(ref.getUUID()) && standingIds.contains(b.getUUID())) {
+                int dS = m.save().realSkillsOf(ref.getUUID().toString()).earned - refEarned0;
+                double lo = Math.min(f0, f1) * dS - 2;
+                double hi = Math.max(f0, f1) * dS + 2;
+                cmp = name(0) + " +" + dS + " (soll " + Math.round(lo) + ".." + Math.round(hi) + ")";
+                if (dS >= 2) {
+                    ok &= dN >= lo && dN <= hi;
+                }
+            }
+            check(ok, "Aufholbonus " + who + ": stufe " + lvl0 + "->" + lvl1 + " welt " + lvlStart + " abstand " + (lvlStart - lvl0)
+                    + " faktor server=" + lateFactor0 + " regel=" + f0 + " punkte +" + dN + ", " + cmp);
+            st.seen.merge(f0 > 1.0 ? "nz_bonus_x2" : "nz_bonus_x1", 1, Integer::sum);
+        } else if (!still.isEmpty()) {
+            fail("Angleich nach der Nacht nicht zurück:" + still);
+        }
+        if (chapterChange) {
+            List<Chapters.Veteran> opens = m.save().chapters().openOf(id);
+            Chapters.Veteran v = opens.isEmpty() ? null : opens.get(opens.size() - 1);
+            boolean noVet = m.save().chapters().veteransOf(id).stream().noneMatch(x -> x.chapter == chapterStart);
+            PlayerSkills fresh = m.save().realSkillsOf(id);
+            boolean good = v != null && v.chapter == chapterStart && !v.finale && v.level < Chapters.LENGTH && v.skills != null
+                    && v.level == levelOf(v.skills.earned, cfg, Chapters.LENGTH) && v.clazz.equalsIgnoreCase(st.subs.get(st.late)[0])
+                    && noVet && fresh.earned == 0;
+            check(good, "Kapitelwechsel " + name(st.late) + " (Nachzügler, nicht im Finale): offen=" + opens.size()
+                    + (v == null ? "" : " [" + v.clazz + "/" + v.subclass + " Stufe " + v.level + " Kapitel " + v.chapter + " verdient "
+                    + (v.skills == null ? "-" : v.skills.earned) + "]") + " veteran=" + !noVet + " neuer Charakter verdient=" + fresh.earned);
+            st.lateRound = v == null ? "fertig" : "faellig";
+            if (good) {
+                st.seen.merge("nz_offen", 1, Integer::sum);
+            }
+        }
+    }
+
+    /** "Belagerung starten" with the open character: the others are away, he alone at the core presses ready. */
+    private static void startLateRound(MinecraftServer server, SiegeManager m) {
+        ServerPlayer b = bot(server, st.late);
+        String id = SimBots.idOf(name(st.late)).toString();
+        List<Chapters.Veteran> opens = m.save().chapters().openOf(id);
+        if (b == null || opens.isEmpty()) {
+            fail("Belagerung starten: Nachzügler online=" + (b != null) + " offene Charaktere=" + opens.size());
+            st.lateRound = "fertig";
+            save();
+            return;
+        }
+        travel(server);
+        BlockPos spot = TeamSim.standable(world, core.offset(2, 0, 2), 3);
+        b.teleportTo(world, spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, java.util.Set.of(), 0f, 0f, true);
+        Chapters.Veteran open = opens.get(0);
+        PlayerSkills cur = m.save().realSkillsOf(id);
+        roundOpenEarned0 = open.skills == null ? 0 : open.skills.earned;
+        roundOpenLevel0 = open.level;
+        roundCurEarned0 = cur.earned;
+        roundCurPool0 = cur.xpPool;
+        roundFactor0 = Chapters.catchUpFactor(open.level, Chapters.LENGTH, m.config());
+        scenarioDone = true;
+        String block = m.roundBlock(server, b, Chapters.openPick(0));
+        boolean ok = m.startSiegeRound(b, Chapters.openPick(0));
+        check(ok, "Belagerung starten mit dem offenen Charakter: " + name(st.late) + " " + open.clazz + " Stufe " + open.level
+                + " (welt K" + m.save().chapters().chapter + " Stufe " + m.currentLevel() + ", sperre=" + block + ")");
+        st.lateRound = ok ? "laeuft" : "fertig";
+        save();
+    }
+
+    private static void roundStart(MinecraftServer server, SiegeManager m) {
+        nightFails.clear();
+        lvlStart = m.currentLevel();
+        chapterStart = m.save().chapters().chapter;
+        lastStanding = 0;
+        startSounds = 0;
+        waves = false;
+        wardenSeen = false;
+        cursesSeen = 0;
+        winSum = 0;
+        winN = 0;
+        slow = 0;
+        maxMs = 0;
+        inNight.clear();
+        for (int i = 0; i < st.group; i++) {
+            ServerPlayer b = bot(server, i);
+            if (b != null && m.isDefending(b)) {
+                inNight.add(b.getUUID());
+                TeamBrain brain = brain(m, b, i);
+                brain.prepare(m, b, world);
+                brain.reset(world.getGameTime());
+            }
+        }
+        line("RUNDE START (Belagerung starten) " + name(st.late) + " offener Charakter Stufe " + roundOpenLevel0 + " verteidiger=" + inNight.size()
+                + " welt K" + chapterStart + " Stufe " + lvlStart);
+    }
+
+    /** Five seconds into the round: he plays with the open character (lent), with kit, not synced, alone. */
+    private static void roundCheckAt100(MinecraftServer server, SiegeManager m) {
+        ServerPlayer b = bot(server, st.late);
+        String id = SimBots.idOf(name(st.late)).toString();
+        boolean defends = b != null && m.isDefending(b);
+        boolean loan = m.save().hasLoan(id);
+        boolean synced = m.save().realSkillsOf(id).synced() || m.save().skillsOf(id).synced();
+        int kit = b == null ? 0 : kitItems(b);
+        int others = inNight.size() - (b != null && inNight.contains(b.getUUID()) ? 1 : 0);
+        check(defends && loan && kit > 0 && !synced && others == 0, "Runde läuft: " + name(st.late) + " verteidigt=" + defends
+                + " offener Charakter geliehen=" + loan + " kit=" + kit + " angeglichen=" + synced + " (soll nein) andere=" + others);
+    }
+
+    /** After the round: the experience went to the open character (×2 below 18), not to the pool; all given back. */
+    private static void roundChecks(MinecraftServer server, SiegeManager m, int secs) {
+        SiegeConfig cfg = m.config();
+        ServerPlayer b = bot(server, st.late);
+        String id = SimBots.idOf(name(st.late)).toString();
+        List<Chapters.Veteran> opens = m.save().chapters().openOf(id);
+        List<Chapters.Veteran> vets = m.save().chapters().veteransOf(id);
+        Chapters.Veteran open = !opens.isEmpty() ? opens.get(0) : vets.isEmpty() ? null : vets.get(vets.size() - 1);
+        int earned = open == null || open.skills == null ? -1 : open.skills.earned;
+        int gained = earned - roundOpenEarned0;
+        PlayerSkills cur = m.save().realSkillsOf(id);
+        boolean poolSame = cur.earned == roundCurEarned0 && cur.xpPool == roundCurPool0;
+        boolean levelOk = open != null && open.level == levelOf(earned, cfg, Chapters.LENGTH);
+        boolean evenOk = roundFactor0 <= 1.0 || gained % 2 == 0;
+        boolean loanGone = !m.save().hasLoan(id);
+        String things = "-";
+        boolean thingsOk = false;
+        if (b != null) {
+            int logs = count(b, Items.OAK_LOG);
+            int flint = count(b, Items.FLINT);
+            int kit = kitItems(b);
+            thingsOk = logs == LOGS && flint == FLINTS && kit == 0 && !m.kits().hasStash(b) && !b.isSpectator();
+            things = "Holz " + logs + " Feuerstein " + flint + " Kit " + kit + " Zuschauer " + b.isSpectator();
+            if (logs != LOGS || flint != FLINTS) {
+                fixMarkers(b, logs, flint);
+            }
+        }
+        check(gained > 0 && poolSame && levelOk && evenOk && loanGone && thingsOk && secs <= 480 && slow == 0 && waves,
+                "Runde vorbei " + name(st.late) + " dauer=" + secs + "s stehend=" + lastStanding + " offener Charakter +" + gained
+                        + " (faktor " + roundFactor0 + ", stufe " + roundOpenLevel0 + "->" + (open == null ? "-" : open.level)
+                        + (opens.isEmpty() ? ", jetzt Veteran" : "") + "), aktueller Charakter verdient " + roundCurEarned0 + "->" + cur.earned
+                        + " vorrat " + roundCurPool0 + "->" + cur.xpPool + ", leihe weg=" + loanGone + ", " + things
+                        + (slow > 0 ? ", langsam " + slow + "×" : ""));
+        st.seen.merge("runde_offen", 1, Integer::sum);
+        st.lateRound = "fertig";
+        save();
+    }
+
+    /** A character's level by its points (as SiegeManager.characterLevel). */
+    private static int levelOf(int earned, SiegeConfig cfg, int cap) {
+        int level = 1;
+        for (int l = 2; l <= cap; l++) {
+            if (earned >= TestKit.pointsBefore(l, cfg)) {
+                level = l;
+            }
+        }
+        return level;
+    }
+
+    /** Points in the own tree, the lent levels left aside. */
+    private static int spentOwn(SiegeManager m, PlayerSkills own) {
+        SkillClass clazz = own.clazz();
+        return clazz == null ? 0 : own.withoutBorrowed(() -> m.skillTree().pointsSpent(own, clazz));
+    }
+
+    /** This player's skills as written in the world's nightsiege-state.json, or null. */
+    private static PlayerSkills savedSkills(MinecraftServer server, String id) {
+        try {
+            Path file = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("nightsiege-state.json");
+            com.google.gson.JsonObject all = com.google.gson.JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+            com.google.gson.JsonObject skills = all.getAsJsonObject("skills");
+            com.google.gson.JsonElement one = skills == null ? null : skills.get(id);
+            return one == null ? null : Json.fromJson(one.toString(), PlayerSkills.class);
+        } catch (Exception e) {
+            line("Spielstand nicht lesbar: " + e);
+            return null;
         }
     }
 
@@ -1009,6 +1371,9 @@ public final class Langlauf {
                 for (int i = 0; i < st.group; i++) {
                     ServerPlayer b = bot(server, i);
                     if (b == null) {
+                        if (i == st.late && st.lateOut) {
+                            continue;
+                        }
                         f.add(name(i) + " nicht da");
                         continue;
                     }
@@ -1202,6 +1567,16 @@ public final class Langlauf {
         }
         inv.add(new ItemStack(Items.OAK_LOG, LOGS));
         inv.add(new ItemStack(Items.FLINT, FLINTS));
+    }
+
+    /** A check of the latecomer that breaks writes a FAIL with its stack, the run goes on. */
+    private static void guard(String what, Runnable check) {
+        try {
+            check.run();
+        } catch (RuntimeException e) {
+            NightSiegeMod.LOGGER.error(P + what, e);
+            fail(what + "-Prüfung: " + e);
+        }
     }
 
     private static void check(boolean good, String what) {
