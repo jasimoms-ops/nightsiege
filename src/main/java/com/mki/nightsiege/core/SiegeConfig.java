@@ -1429,7 +1429,6 @@ public class SiegeConfig {
         // nothing to move: the keys fall out of the file with the next write
     }
 
-    /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     /**
      * v32, Tor 12 I (Simon 18.11.): the Teil-Angleich replaces the old catch-up systems. Their keys (catchUpMax,
      * lateJoiners, lateJoinerNights, soloHelper, soloHelperBelow) are no fields any more, so the file written after
@@ -1440,6 +1439,7 @@ public class SiegeConfig {
         levelSyncGap = Math.max(0, levelSyncGap);
     }
 
+    /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     private static double onOld(double now, double old, double target) {
         return Math.abs(now - old) < 1e-6 ? target : now;
     }
