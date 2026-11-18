@@ -3200,7 +3200,9 @@ public final class SiegeManager {
         for (UUID id : participants) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {
+                safe("Angleich", () -> syncLevel(player));   // Tor 12 I: joinNight came before "active"; lend before kit and skills
                 equipKit(player);
+                fitKit(player);   // the kit of the horn: with the levels of tonight
                 SkillService.apply(player, save.skillsOf(player.getUUID().toString()), skillTree);
                 safe("Startbegleiter", () -> companions.startNight(player));
             }
@@ -4718,6 +4720,7 @@ public final class SiegeManager {
                 player.getScoreboardName(), own.syncLevel, lent);
         player.sendSystemMessage(Component.translatable("nightsiege.msg.level_sync", own.syncLevel, lent)
                 .withStyle(ChatFormatting.AQUA));
+        fitKit(player);   // the kit came first (horn, dungeon or camp door): built anew with the lent levels
         if (liveSkillsFor(player) != null) {
             float before = player.getMaxHealth();
             SkillService.apply(player, own, skillTree);
@@ -4735,7 +4738,19 @@ public final class SiegeManager {
             return;
         }
         if (player != null && liveSkillsFor(player) != null) {
+            fitKit(player);   // still in the fight: no lent kit part stays
             SkillService.apply(player, own, skillTree);
+        }
+    }
+
+    /**
+     * Tor 12 I: a worn kit built with other levels than count now (given before the lend, or lent and no longer) is
+     * built anew, once; a second lend after logging in again finds it fitting (no second kit).
+     */
+    private void fitKit(ServerPlayer player) {
+        if (config.nightKits && kits.hasStash(player) && !player.isDeadOrDying() && !kits.waitsForRespawn(player)
+                && kits.builtLent(player) != save.skillsOf(player.getUUID().toString()).synced()) {
+            kits.refit(player, levelForKit());
         }
     }
 
