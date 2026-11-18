@@ -171,9 +171,8 @@ public class CoreStats {
 
     // --- siege state
     public boolean siegeActive;
-    /** Kills of the running night and the kills it asks for (0 = no goal). */
+    /** Kills of the running night. */
     public int nightKills;
-    public int killsRequired;
     public int level;
     public int secondsLeft;
     public String eventKey = "";

@@ -114,7 +114,6 @@ public final class StatsService {
         stats.siegeActive = manager.isActive();
         if (stats.siegeActive) {
             stats.nightKills = manager.nightKills();
-            stats.killsRequired = 0;   // Tor 12 F: no kill goal any more
         }
         stats.level = level;
         stats.secondsLeft = manager.secondsLeft();

@@ -130,7 +130,6 @@ class SiegeCoreTest {
         assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);   // v31: alone a little easier (Sim k2)
         assertEquals(1.0, SiegeMath.healthForGroup(3, server), 1e-9);
         assertEquals(1.0, SiegeMath.healthForGroup(8, server), 1e-9);
-        assertTrue(server.quotaSkipsVanished);
         assertEquals(0.8, server.subclassDamage.get("alchemist"), 1e-9);   // 0.9 until v30, the server's 0.8 since Tor 12
         assertEquals(0.85, server.subclassDamageTaken.get("soulcatcher"), 1e-9);
         assertEquals(80.0, server.skillTweaks.get("d_soulcatcher").values.get("swarmcd"), 1e-9);
@@ -2363,19 +2362,6 @@ class SiegeCoreTest {
         assertEquals("", SiegeEvent.NONE.atmosphere());
         assertEquals("ECLIPSE", SiegeEvent.ECLIPSE.atmosphere());
         assertEquals("FROST", SiegeEvent.FROST.atmosphere());
-    }
-
-    @Test
-    void theKillGoalIsSixtyPercentOfWhatComes() {
-        // 8 waves of 10: 48 kills.
-        assertEquals(48, SiegeMath.killQuota(0.6, 8, 10));
-        // Halfway, all waves full so far: still 48.
-        assertEquals(48, SiegeMath.killsRequired(0.6, 48, 40, 4, 10));
-        // A crowded field kept the waves small: 60 % of what really came.
-        assertEquals(30, SiegeMath.killsRequired(0.6, 48, 50, 0, 10));
-        // Turned off.
-        assertEquals(0, SiegeMath.killsRequired(0.0, 48, 50, 0, 10));
-        assertEquals(0.6, new SiegeConfig().killQuotaShare, 1e-9);
     }
 
     @Test

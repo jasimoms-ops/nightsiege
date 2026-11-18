@@ -217,18 +217,6 @@ public final class SiegeMath {
     }
 
     /**
-     * Kills a night asks for: the share of its monsters, but never more than
-     * that share of what has come and can still come.
-     */
-    public static int killsRequired(double share, int quota, int spawned, int wavesLeft, int perWave) {
-        if (share <= 0) {
-            return 0;
-        }
-        int possible = spawned + Math.max(0, wavesLeft) * Math.max(0, perWave);
-        return (int) Math.min(quota, Math.ceil(share * possible));
-    }
-
-    /**
      * Waves a night of {@code totalTicks} brings: one at the start, then one per interval (batchIntervalSeconds times
      * the wave factor of the curses; a wave starts a tick after its cooldown, hence the +1). Tor 12: moved out of the
      * SiegeManager unchanged so the night atlas can call it.
@@ -256,10 +244,5 @@ public final class SiegeMath {
     /** Stunners one wave adds for {@code melee} melee defenders: 1, 1, 2, 2, 3 ..., at most stunnersMax alive. */
     public static int stunnersWanted(int melee, SiegeConfig cfg, int alive) {
         return Math.min(1 + (melee - 1) / 2, cfg.stunnersMax - alive);
-    }
-
-    /** The kill goal set at the start of a night. */
-    public static int killQuota(double share, int waves, int perWave) {
-        return (int) Math.ceil(Math.max(0, share) * Math.max(0, waves) * Math.max(0, perWave));
     }
 }

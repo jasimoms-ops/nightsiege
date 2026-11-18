@@ -57,7 +57,7 @@ class Tor12StandardTest {
         fresh.sanitize();
         SiegeConfig server = read("tools/sim/server-config-v30.json");
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
-        assertEquals(31, server.settingsVersion);
+        assertTrue(server.settingsVersion >= 31);   // the v30 file comes up through v31 (and later steps)
         assertSameBalance(balance(server), balance(fresh));
         // the numbers from Simon's night 1 (local world on the old defaults)
         assertEquals(1.8, fresh.mobsPerLevel, 1e-9);

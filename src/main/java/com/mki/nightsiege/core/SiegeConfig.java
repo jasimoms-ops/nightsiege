@@ -1073,15 +1073,7 @@ public class SiegeConfig {
     public boolean dungeonsEnabled = true;
     /** A special night (night fragment set into the core): more monsters, more experience. */
     public double specialNightMobMultiplier = 1.3;
-    /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
-    public double killQuotaShare = 0.6;
-    /**
-     * The kill goal leaves out monsters gone without being slain: blown-up creepers, a fleeing
-     * nemesis, … (team sim 29.10.: alone, half of all spawned monsters went that way, and the 60 %
-     * goal could hardly be reached). Off: every spawned monster counts, as before.
-     */
-    public boolean quotaSkipsVanished = false;
-    /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
+    /** Balancing targets for /nightsiege balance: share of nights won, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
     // ---------------- Balancing on the server (no new client needed) ----------------
     /** Short guide written into the config file. */
@@ -1419,6 +1411,19 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /**
+     * Tor 12 J (v32, Altlasten): the dead switches are gone from this class (minDays/maxDaysBetweenSieges,
+     * requiredPlayers, daysPerLevel, playtestLivePerPlayer, failureBlast*, bloodMoonGlow, skillPointsPerSiege/PerKill,
+     * championPointMultiplier, skillPointsLevelStep, tankDamagePerPoint, defeatSkillLoss, comboKillLifesteal,
+     * berserkerLifesteal, legacyDungeons, lifestealCoupled, lifestealTakenShare, eliteMobs, eliteMobFromLevel,
+     * eliteMobChance, eliteMobChanceMax, eliteMobMaxLevel, killQuotaShare, quotaSkipsVanished, targetGoalRate,
+     * perksEnabled). Gson skips unknown keys when it reads the file, so an old value does nothing any more, and the
+     * file written after the load no longer has them. Nothing to carry over: every one of them was off or unread.
+     */
+    void migrateV32Altlasten() {
+        // nothing to move: the keys fall out of the file with the next write
+    }
+
     /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     private static double onOld(double now, double old, double target) {
         return Math.abs(now - old) < 1e-6 ? target : now;
@@ -1538,7 +1543,6 @@ public class SiegeConfig {
      * at once, so traps can be set and positions taken. 0 = the night starts at once.
      */
     public int testPrepSeconds = 60;
-    public double targetGoalRate = 0.8;
     public double targetDeathsPerNight = 1.0;
     public double targetClassSpread = 0.25;
     public int specialNightXpMultiplier = 2;
@@ -1549,7 +1553,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 31;
+    public static final int SETTINGS_VERSION = 32;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** The aurora's reach round a core (was the reach of the old core perks; the name stays for the config files). */
@@ -1929,7 +1933,6 @@ public class SiegeConfig {
 
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
-        killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
         classDamage = filled(classDamage, CLASS_KEYS);
         classDamageTaken = filled(classDamageTaken, CLASS_KEYS);
         boolean swiftMissing = subclassDamage == null || subclassDamage.get("swift") == null;
@@ -1949,7 +1952,6 @@ public class SiegeConfig {
             skillTweaks = new LinkedHashMap<>();
         }
         targetWinRate = clampDouble(targetWinRate <= 0 ? 0.75 : targetWinRate, 0.05, 1.0);
-        targetGoalRate = clampDouble(targetGoalRate <= 0 ? 0.8 : targetGoalRate, 0.05, 1.0);
         targetDeathsPerNight = clampDouble(targetDeathsPerNight <= 0 ? 1.0 : targetDeathsPerNight, 0.1, 20.0);
         targetClassSpread = clampDouble(targetClassSpread <= 0 ? 0.25 : targetClassSpread, 0.05, 2.0);
         specialNightXpMultiplier = clamp(specialNightXpMultiplier, 1, 10);
@@ -2126,13 +2128,13 @@ public class SiegeConfig {
         if (settingsVersion < 17) {
             // Update 30.10. (Simon 30.10., 03:37: "bau ein update wenn alle tests abgeschlossen sind"):
             // the night scales by group size (team sim skal3-skal5: about 70 % wins for 1-10 players),
-            // the kill goal leaves out monsters gone without a kill, and the class balancing (klassen3).
+            // the kill goal left out monsters gone without a kill (quotaSkipsVanished, gone since Tor 12 J), and the
+            // class balancing (klassen3).
             soloScaling = 0.6;
             overflowHealth = 0.0;
             liveCapByPlayers = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
             damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
             mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
-            quotaSkipsVanished = true;
             // The shield fighter stays as he was (klassen4: his group won 20 points less with -49 %
             // damage; Simon: a class that swings too strongly stays out), so no guard of his either.
             shieldfighterGuardRadius = 0.0;
@@ -2375,6 +2377,10 @@ public class SiegeConfig {
                 }
             }
             settingsVersion = 31;
+        }
+        if (settingsVersion < 32) {
+            migrateV32Altlasten();
+            settingsVersion = 32;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;
