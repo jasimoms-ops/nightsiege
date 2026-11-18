@@ -96,7 +96,7 @@ class Tor11KapitelTest {
         SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":28,\"bossEvery\":4,\"healthPerLevel\":0.123}", SiegeConfig.class);
         c.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, c.settingsVersion);
-        assertEquals(31, SiegeConfig.SETTINGS_VERSION);   // 31 since Tor 12 (defaults = server)
+        assertEquals(32, SiegeConfig.SETTINGS_VERSION);   // 31 since Tor 12 (defaults = server), 32 Sim s2
         assertEquals(List.of(0.0, 0.0, 0.10, 0.20, 0.30), c.chapterScaling);
         assertEquals(0.123, c.healthPerLevel, 1e-9);
         SiegeConfig own = new Gson().fromJson("{\"settingsVersion\":28,\"chapterScaling\":[0,0,0.05]}", SiegeConfig.class);

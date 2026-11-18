@@ -192,7 +192,7 @@ public class SiegeConfig {
      * on level 1 players take this share of the monsters' damage and deal lowLevelDamageDealt times
      * their own; both fade out evenly up to lowLevelUntil (from there 1).
      */
-    public double lowLevelDamageTaken = 0.75;
+    public double lowLevelDamageTaken = 0.6;
     public double lowLevelDamageDealt = 1.15;
     public int lowLevelUntil = 10;
     /**
@@ -1479,6 +1479,18 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /**
+     * Tor 12 D (v32, Team-Sim s2, Stufe 1-20 x 1/2/4, 60 Laeufe je Feld): alone and in pairs the nights were too hard
+     * (63 % / 64 %), from four on too easy (79 %), and levels 1-3 hardest of all (57 %). Only values still on the
+     * v31 default move; a server's own value stays. "Fruehe Naechte" (lowLevelDamageTaken/Dealt with
+     * lowLevelExtraMobs/minMobsPerWave) are tuned as one group: only the damage taken moves.
+     */
+    private void migrateV32Balance() {
+        lowLevelDamageTaken = onOld(lowLevelDamageTaken, 0.75, 0.6);
+        damageTakenByPlayers = onOldList(damageTakenByPlayers, List.of(0.7, 0.85, 1.0, 1.0), List.of(0.63, 0.77, 1.0, 1.2));
+        mobHealthByPlayers = onOldList(mobHealthByPlayers, List.of(0.75, 0.9, 1.0, 1.0), List.of(0.71, 0.85, 1.0, 1.1));
+    }
+
     /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     private static double onOld(double now, double old, double target) {
         return Math.abs(now - old) < 1e-6 ? target : now;
@@ -1611,7 +1623,7 @@ public class SiegeConfig {
      */
     public int settingsVersion = 0;
     /** The newest settings version (the migrations below end there). */
-    public static final int SETTINGS_VERSION = 31;
+    public static final int SETTINGS_VERSION = 32;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
     /** Perks from core fragments work within this many blocks of the main core. */
@@ -1762,7 +1774,7 @@ public class SiegeConfig {
         soloHelperBelow = Double.isNaN(soloHelperBelow) ? 0.65 : clampDouble(soloHelperBelow, 0.0, 1.0);
         playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
         playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
-        lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
+        lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.6 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
         lowLevelDamageDealt = Double.isNaN(lowLevelDamageDealt) ? 1.15 : clampDouble(lowLevelDamageDealt, 0.5, 2.0);
         lowLevelUntil = clamp(lowLevelUntil, 1, 100);
         rangedPushbackSeconds = Double.isNaN(rangedPushbackSeconds) ? 1.5 : clampDouble(rangedPushbackSeconds, 0.0, 10.0);
@@ -2455,6 +2467,10 @@ public class SiegeConfig {
                 }
             }
             settingsVersion = 31;
+        }
+        if (settingsVersion < 32) {
+            migrateV32Balance();
+            settingsVersion = 32;
         }
         if (Double.isNaN(meleeLifesteal)) {
             meleeLifesteal = 0.08;

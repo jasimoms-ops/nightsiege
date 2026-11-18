@@ -57,7 +57,7 @@ class Tor12StandardTest {
         fresh.sanitize();
         SiegeConfig server = read("tools/sim/server-config-v30.json");
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
-        assertEquals(31, server.settingsVersion);
+        assertEquals(32, server.settingsVersion);
         assertSameBalance(balance(server), balance(fresh));
         // the numbers from Simon's night 1 (local world on the old defaults)
         assertEquals(1.8, fresh.mobsPerLevel, 1e-9);
@@ -125,6 +125,18 @@ class Tor12StandardTest {
         // the rest moved
         assertEquals(0.1, c.healthPerLevel, 1e-9);
         assertEquals(0.9, c.subclassDamage.get("blademaster"), 1e-9);
+    }
+
+    @Test
+    void v32MovesOnlyTheOldDefaults() {
+        // Tor 12 D (Sim s2): an own value stays, a table still on the v31 default moves
+        SiegeConfig c = new Gson().fromJson("{\"settingsVersion\":31,\"lowLevelDamageTaken\":0.8,"
+                + "\"damageTakenByPlayers\":[0.5,0.9],\"mobHealthByPlayers\":[0.75,0.9,1.0,1.0]}", SiegeConfig.class);
+        c.sanitize();
+        assertEquals(32, c.settingsVersion);
+        assertEquals(0.8, c.lowLevelDamageTaken, 1e-9);
+        assertEquals(List.of(0.5, 0.9), c.damageTakenByPlayers);
+        assertEquals(List.of(0.71, 0.85, 1.0, 1.1), c.mobHealthByPlayers);
     }
 
     @Test

@@ -29,11 +29,11 @@ class Tor6SpielerzahlTest {
         fresh.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, fresh.settingsVersion);
         // Tor 12 (v31, Sim k2): alone and in pairs a little easier again.
-        assertEquals(List.of(0.7, 0.85, 1.0, 1.0), fresh.damageTakenByPlayers);
-        assertEquals(List.of(0.75, 0.9, 1.0, 1.0), fresh.mobHealthByPlayers);
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
-        assertEquals(0.9, SiegeMath.healthForGroup(2, fresh), 1e-9);
-        assertEquals(1.0, SiegeMath.damageTakenForGroup(10, fresh), 1e-9);
+        assertEquals(List.of(0.63, 0.77, 1.0, 1.2), fresh.damageTakenByPlayers);
+        assertEquals(List.of(0.71, 0.85, 1.0, 1.1), fresh.mobHealthByPlayers);
+        assertEquals(0.63, SiegeMath.damageTakenForGroup(1, fresh), 1e-9);
+        assertEquals(0.85, SiegeMath.healthForGroup(2, fresh), 1e-9);
+        assertEquals(1.2, SiegeMath.damageTakenForGroup(10, fresh), 1e-9);
         assertEquals(0.0, fresh.eliteHealthPerExtraPlayer, 1e-9);
         for (int n = 1; n <= 10; n++) {
             assertEquals(1.0, SiegeMath.groupHealth(n, fresh.eliteHealthPerExtraPlayer), 1e-9);   // elites ×1
@@ -49,10 +49,10 @@ class Tor6SpielerzahlTest {
         server.sanitize();
         assertEquals(SiegeConfig.SETTINGS_VERSION, server.settingsVersion);
         // Tor 12 (v31): a table still on the old default moves to the new one (Sim k2).
-        assertEquals(List.of(0.7, 0.85, 1.0, 1.0), server.damageTakenByPlayers);
-        assertEquals(List.of(0.75, 0.9, 1.0, 1.0), server.mobHealthByPlayers);
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, server), 1e-9);
-        assertEquals(0.9, SiegeMath.healthForGroup(2, server), 1e-9);
+        assertEquals(List.of(0.63, 0.77, 1.0, 1.2), server.damageTakenByPlayers);
+        assertEquals(List.of(0.71, 0.85, 1.0, 1.1), server.mobHealthByPlayers);
+        assertEquals(0.63, SiegeMath.damageTakenForGroup(1, server), 1e-9);
+        assertEquals(0.85, SiegeMath.healthForGroup(2, server), 1e-9);
         assertEquals(0.0, server.eliteHealthPerExtraPlayer, 1e-9);
     }
 
@@ -86,8 +86,8 @@ class Tor6SpielerzahlTest {
         c.sanitize();
         double one = SiegeMath.mobsWanted(10, 1, c, c.playerScaling);
         assertEquals(one * 4, SiegeMath.mobsWanted(10, 4, c, c.playerScaling), 1e-9);   // 0.6 per player, linear
-        assertEquals(0.7, SiegeMath.damageTakenForGroup(1, c), 1e-9);   // v31 (Sim k2): alone a little easier
-        assertEquals(1.0, SiegeMath.damageTakenForGroup(8, c), 1e-9);
+        assertEquals(0.63, SiegeMath.damageTakenForGroup(1, c), 1e-9);   // v32 (Sim s2): alone a little easier
+        assertEquals(1.2, SiegeMath.damageTakenForGroup(8, c), 1e-9);
     }
 
     @Test
