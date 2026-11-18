@@ -11,10 +11,6 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.fabricmc.fabric.api.loot.v3.LootTableEvents;
-import net.minecraft.world.level.storage.loot.LootPool;
-import net.minecraft.world.level.storage.loot.entries.LootItem;
-import net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -58,27 +54,7 @@ public final class DungeonContent {
         }
         MAP = item("dungeon_map", p -> new Item(p.stacksTo(16).rarity(Rarity.UNCOMMON)));   // the old dungeons are gone (29 October 2026)
         COMPASS = item("dungeon_compass", p -> new Item(p.stacksTo(1).rarity(Rarity.EPIC)));
-        registerLoot();
         net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions.register(DUNGEONS_ON);
-    }
-
-    /** Blank dungeon maps now and then in the chests of vanilla structures. */
-    private static final Map<String, Float> MAP_LOOT = Map.of(
-            "chests/simple_dungeon", 0.25f,
-            "chests/pillager_outpost", 0.3f,
-            "chests/shipwreck_map", 0.3f,
-            "chests/underwater_ruin_big", 0.25f,
-            "chests/ruined_portal", 0.15f,
-            "chests/bastion_treasure", 0.4f);
-
-    /** Whether the dungeons are on; set from the config when the siege loads it. */
-    public static volatile boolean active;
-
-    /** Loot is built before the siege reads its config, so the file is read here directly. */
-    private static boolean enabledInFile() {
-        com.mki.nightsiege.core.SiegeConfig config = Json.read(Json.configFile("nightsiege.json"),
-                com.mki.nightsiege.core.SiegeConfig.class);
-        return config != null && config.settingsVersion >= 1 && config.dungeonsEnabled && config.legacyDungeons;
     }
 
     /** Data files with this load condition only load while the dungeons are on (the cartographer's map trade). */
@@ -95,29 +71,8 @@ public final class DungeonContent {
 
         @Override
         public boolean test(net.minecraft.resources.RegistryOps.RegistryInfoLookup registryInfo) {
-            return enabledInFile();
+            return false;   // the old dungeons are gone (legacyDungeons, Tor 12 J); kept so no data file breaks
         }
-    }
-
-    /** Dungeon maps in chests (off since October 2026; the trader caravan that sold them is gone too, 31.10.). */
-    private static final boolean MAPS_IN_CHESTS = false;
-
-    private static void registerLoot() {
-        LootTableEvents.MODIFY.register((key, tableBuilder, source, registries) -> {
-            if (!source.isBuiltin() || !"minecraft".equals(key.identifier().getNamespace())) {
-                return;
-            }
-            if (!enabledInFile() || !MAPS_IN_CHESTS) {
-                return;   // no maps in chests (the old dungeons are off)
-            }
-            Float chance = MAP_LOOT.get(key.identifier().getPath());
-            if (chance == null) {
-                return;
-            }
-            tableBuilder.withPool(LootPool.lootPool()
-                    .add(LootItem.lootTableItem(MAP))
-                    .when(LootItemRandomChanceCondition.randomChance(chance)));
-        });
     }
 
     public static List<Item> creativeItems() {

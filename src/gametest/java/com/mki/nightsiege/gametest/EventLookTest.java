@@ -54,10 +54,7 @@ public class EventLookTest implements FabricClientGameTest {
             boolean simRun = System.getenv("NIGHTSIEGE_SIM") != null;
             if (!simRun) {
                 onServer(context, (player, manager) -> manager.config().machinesRandomFromLevel = 1000);
-                // So do the elites and the life steal against the damage taken (Simon 05.11.): the scene "elite" has them.
                 onServer(context, (player, manager) -> {
-                    manager.config().eliteMobs = false;
-                    manager.config().lifestealCoupled = false;
                     manager.config().smartNight = false;   // the scene "schlau" has the smart night (05.11.)
                 });
             }

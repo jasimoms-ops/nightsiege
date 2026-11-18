@@ -13,9 +13,6 @@ import java.util.List;
 public class SiegeConfig {
 
     // --- scheduling -------------------------------------------------------
-    /** Old random gap (no longer used: sieges come every daysBetweenSieges days after a vote). */
-    public int minDaysBetweenSieges = 2;
-    public int maxDaysBetweenSieges = 5;
     /** A siege night is offered every this many in-game days. */
     public int daysBetweenSieges = 3;
     /** Day time of the invitation on a siege day (1000 = early morning). */
@@ -45,8 +42,6 @@ public class SiegeConfig {
     public int gatherReadyMaxSeconds = 180;
 
     // --- core and participants -------------------------------------------
-    /** Players needed around the core before the countdown moves at all. */
-    public int requiredPlayers = 3;
     /** Radius around the core in which those players are counted. */
     public double coreRadius = 300.0;
     /** Radius that decides who defends once a siege has begun. */
@@ -60,9 +55,6 @@ public class SiegeConfig {
     public int softCapLevel = 20;
     /** Share of the usual growth per level above softCapLevel (0.25 = a quarter). */
     public double growthAboveSoftCap = 0.25;
-    /** Every N in-game days the level rises by one. */
-    /** Extra level every this many in-game days; 0 = the level only rises with won nights. */
-    public int daysPerLevel = 0;
 
     public int baseDurationSeconds = 240;
     public int durationSecondsPerLevel = 20;
@@ -155,11 +147,6 @@ public class SiegeConfig {
      */
     public double playtestPlayerScaling = 1.0;
     /**
-     * Unused since 04.11. ("Playtest 2": a playtest night scales like a real night, liveCapByPlayers and
-     * fieldRefCaps). Kept so the config files that have it still read as before.
-     */
-    public double playtestLivePerPlayer = 0.5;
-    /**
      * Tor 6.4 (Chef 09.11.): extra life of a night's elite for every defender here beyond the first
      * (1 + share × further, like the bosses' bossHealthPerExtraPlayer). Rescaled when someone joins or leaves.
      * Chef 09.11. 12:05: off in the package (0 = ×1 for any group); a parameter for Tor 8 (e.g. 0.5).
@@ -209,14 +196,6 @@ public class SiegeConfig {
     public boolean spawnArcRotate = true;
     /** How far from the core the base scan looks for walls (set with /nightsiege base radius). */
     public int baseRadius = 64;
-
-    // --- punishment -------------------------------------------------------
-    /** A lost night blows up the area around the core (off: a defeat has no punishment). */
-    public boolean failureBlast = false;
-    /** Radius of the destruction when a siege is lost. */
-    public int failureBlastRadius = 12;
-    /** Keep chests and other containers intact in the blast, so no items are lost. */
-    public boolean failureBlastProtectsContainers = true;
 
     // --- events -----------------------------------------------------------
     public boolean eventsEnabled = true;
@@ -393,8 +372,6 @@ public class SiegeConfig {
     // --- sound and visuals -------------------------------------------------
     public boolean soundsEnabled = true;
     public boolean particlesEnabled = true;
-    /** Colour the attackers' glow red on a blood moon night (off since their own look came in). */
-    public boolean bloodMoonGlow = false;
     /** How many mobs of one batch make a spawn sound. The rest spawn quietly. */
     public int audibleSpawnsPerBatch = 3;
 
@@ -404,12 +381,16 @@ public class SiegeConfig {
     public boolean skillsEnabled = true;
     /** Hand every player the written guide the first time they join. */
     public boolean giveGuideBook = true;
-    /** Points every surviving defender gets for a cleared siege. */
-    public int skillPointsPerSiege = 0;
-    /** Experience for every attacker a player kills. */
-    public int skillPointsPerKill = 0;
     /** Survived waves that make one experience point (sieges give experience only this way). */
     public int wavesPerPoint = 2;
+    /**
+     * Tor 12 Teil H, Aufholbonus (Simon 18.11.): a character catchUpLevelGap or more levels under its goal (the
+     * world level; 20 for an open character) gets this factor on its experience, in real nights and "Belagerung
+     * starten". 1 = off.
+     */
+    public double catchUpXpFactor = 2.0;
+    /** Levels under the goal from which the catch-up bonus counts (0 = off). */
+    public int catchUpLevelGap = 3;
     /** Factor on the points from survived waves (1.5 = half as much again); the test kits count with it too. */
     public double pointGainMultiplier = 1.5;
     /**
@@ -420,14 +401,6 @@ public class SiegeConfig {
     public int levelSyncGap = 3;
     /** Defenders who die in a siege keep their inventory. */
     public boolean keepInventoryInSiege = true;
-    /** Learned levels each defender loses when a night is lost (the level stays, the night comes again). */
-    public int defeatSkillLoss = 0;
-    /** The killing blow on a boss is worth this many times a normal kill. */
-    public int championPointMultiplier = 10;
-    /** One extra point for every this many siege levels. */
-    public int skillPointsLevelStep = 5;
-    /** A guardian earns one kill's worth for every this much damage caught or healing given. */
-    public int tankDamagePerPoint = 20;
 
     // --- mobs -------------------------------------------------------------
     public List<MobEntry> mobs = defaultMobs();
@@ -498,19 +471,6 @@ public class SiegeConfig {
     public int hitLifestealLateLevel = 15;
     /** ... and heals at most this share of the life lost in the last lifestealTakenSeconds (0 = no cap). */
     public double hitLifestealLateTakenShare = 1.0;
-    /**
-     * The blademaster has no life steal on his hits; a kill in the middle of a combo heals him by
-     * this share of the monster's maximum life instead.
-     * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.w_combo.values.killheal}.
-     */
-    @Deprecated
-    public double comboKillLifesteal = 0.15;
-    /**
-     * The berserker's life steal on every hit while he is below half his life (Simon, 25 October 2026).
-     * @deprecated no longer read (balance update, 26 October 2026): use {@code skillTweaks.bloodlust.values.steal}.
-     */
-    @Deprecated
-    public double berserkerLifesteal = 0.12;
     /** Zombies (husks, drowned …) and spiders hit warriors and guardians this many times harder (Simon, 25 October 2026). */
     public double zombieSpiderVsMelee = 2.0;
     /** Rüstungsbruch (Simon, 26 October 2026): a zombie hit or creeper blast takes this share of a player's armour … */
@@ -714,8 +674,6 @@ public class SiegeConfig {
     public int expeditionGraceSeconds = 0;
     /** Skill points for every fighter of a won dungeon (Simon: "5 XP pro Dungeon"). */
     public int expeditionSkillPoints = 5;
-    /** The old dungeon cores in the structures of Dungeons and Taverns (replaced by the own dungeons). */
-    public boolean legacyDungeons = false;
     /**
      * The statistics logger for the December playtest (28 October 2026): one JSON file per night,
      * dungeon and war camp attempt and a line per opened crate in {@code <world>/nightsiege/stats/}.
@@ -799,23 +757,13 @@ public class SiegeConfig {
     public double antiHealShare = 0.5;
     public double antiHealSeconds = 4.0;
     public int antiHealFromLevel = 5;
-    /**
-     * Life steal only against the damage taken (Simon 05.11.): life steal heals at most this share of the
-     * life the player lost in the last lifestealTakenSeconds (false = as before, from the damage dealt alone).
-     */
-    public boolean lifestealCoupled = false;   // Simon 05.11. 19:48: life steal as before again (the coupling stays for later)
-    public double lifestealTakenShare = 1.0;
+    /** How long a lost point of life stays in the late pool of hitLifestealLate (seconds). */
     public double lifestealTakenSeconds = 5.0;
     /**
-     * Elite monsters (Simon 05.11.): from eliteMobFromLevel on this share of the night's monsters is an elite
-     * (rising in a line to eliteMobChanceMax at eliteMobMaxLevel), from eliteMobTwoFromLevel on with both
-     * affixes at eliteMobTwoChance. Elites have eliteMobLife times the life and glow in their affix's colour.
+     * Elite monsters (sent by the smart night, the bastion and the wardens; the fixed share eliteMobs is gone,
+     * Tor 12 J): from eliteMobTwoFromLevel on with both affixes at eliteMobTwoChance. Elites have eliteMobLife
+     * times the life and glow in their affix's colour.
      */
-    public boolean eliteMobs = false;   // Simon 05.11. 19:51: "erstmal wieder raus" (the smart night still sends them)
-    public int eliteMobFromLevel = 10;
-    public double eliteMobChance = 0.125;
-    public double eliteMobChanceMax = 0.2;
-    public int eliteMobMaxLevel = 20;
     public int eliteMobTwoFromLevel = 15;
     public double eliteMobTwoChance = 0.35;
     public double eliteMobLife = 1.75;
@@ -830,7 +778,7 @@ public class SiegeConfig {
      * hard (stress above smartNightDownStress, or a death, weighed by the group): one step down, at most
      * smartNightDownSteps. Hidden
      * (log and statistics only), every night starts at 0; not in the war leader's rounds, the bosses stay.
-     * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step, on top of eliteMobs), the
+     * Up: elites from smartNightEliteFromLevel (smartNightElitePerStep per step), the
      * stunners, breakers and executioners smartNightSpecialLevelsPerStep levels earlier per step and from
      * step 2 extra ones with the waves (from smartNightAnyClassFromStep for every defender, not only the
      * fighters). Down: smartNightFewerPerStep fewer monsters at once per step, no extras, from step
@@ -1121,15 +1069,7 @@ public class SiegeConfig {
     public boolean dungeonsEnabled = true;
     /** A special night (night fragment set into the core): more monsters, more experience. */
     public double specialNightMobMultiplier = 1.3;
-    /** Share of the night's monsters the defenders must kill; a held night below it comes again. 0 turns it off. */
-    public double killQuotaShare = 0.6;
-    /**
-     * The kill goal leaves out monsters gone without being slain: blown-up creepers, a fleeing
-     * nemesis, … (team sim 29.10.: alone, half of all spawned monsters went that way, and the 60 %
-     * goal could hardly be reached). Off: every spawned monster counts, as before.
-     */
-    public boolean quotaSkipsVanished = false;
-    /** Balancing targets for /nightsiege balance: share of nights won, of held nights with the kill goal, deaths per night, allowed spread of subclass damage. */
+    /** Balancing targets for /nightsiege balance: share of nights won, deaths per night, allowed spread of subclass damage. */
     public double targetWinRate = 0.75;
     // ---------------- Balancing on the server (no new client needed) ----------------
     /** Short guide written into the config file. */
@@ -1467,6 +1407,28 @@ public class SiegeConfig {
         tweak.values.put(key, value);
     }
 
+    /**
+     * Tor 12 Teil H (v32): the catch-up bonus comes as new keys with the server's standard (×2 from 3 levels under the
+     * goal). The open characters themselves move in the save (Chapters.reopen), not here.
+     */
+    private void migrateV32Nachzuegler() {
+        catchUpXpFactor = 2.0;
+        catchUpLevelGap = 3;
+    }
+
+    /**
+     * Tor 12 J (v32, Altlasten): the dead switches are gone from this class (minDays/maxDaysBetweenSieges,
+     * requiredPlayers, daysPerLevel, playtestLivePerPlayer, failureBlast*, bloodMoonGlow, skillPointsPerSiege/PerKill,
+     * championPointMultiplier, skillPointsLevelStep, tankDamagePerPoint, defeatSkillLoss, comboKillLifesteal,
+     * berserkerLifesteal, legacyDungeons, lifestealCoupled, lifestealTakenShare, eliteMobs, eliteMobFromLevel,
+     * eliteMobChance, eliteMobChanceMax, eliteMobMaxLevel, killQuotaShare, quotaSkipsVanished, targetGoalRate,
+     * perksEnabled). Gson skips unknown keys when it reads the file, so an old value does nothing any more, and the
+     * file written after the load no longer has them. Nothing to carry over: every one of them was off or unread.
+     */
+    void migrateV32Altlasten() {
+        // nothing to move: the keys fall out of the file with the next write
+    }
+
     /** Tor 12 (v31): the new value when the value is still exactly the old default, else the value as it is. */
     /**
      * v32, Tor 12 I (Simon 18.11.): the Teil-Angleich replaces the old catch-up systems. Their keys (catchUpMax,
@@ -1596,12 +1558,9 @@ public class SiegeConfig {
      * at once, so traps can be set and positions taken. 0 = the night starts at once.
      */
     public int testPrepSeconds = 60;
-    public double targetGoalRate = 0.8;
     public double targetDeathsPerNight = 1.0;
     public double targetClassSpread = 0.25;
     public int specialNightXpMultiplier = 2;
-    /** Old core perks (from the first dungeons); off, the fragments now make special nights. */
-    public boolean perksEnabled = false;
     /**
      * Version of the general settings in this file. Version 1 switched the
      * dungeons off (they wait for better structures); set dungeonsEnabled back
@@ -1612,7 +1571,7 @@ public class SiegeConfig {
     public static final int SETTINGS_VERSION = 32;
     /** Version of the dungeon list in this file. Older lists are replaced on load. */
     /** Which structures hold dungeons, how hard they are and what lives there. */
-    /** Perks from core fragments work within this many blocks of the main core. */
+    /** The aurora's reach round a core (was the reach of the old core perks; the name stays for the config files). */
     public double perkRadius = 64.0;
 
     /**
@@ -1721,7 +1680,6 @@ public class SiegeConfig {
 
     /** Clamps nonsense values so a hand-edited config can never break the mod. */
     public void sanitize() {
-        minDaysBetweenSieges = Math.max(1, minDaysBetweenSieges);
         daysBetweenSieges = clamp(daysBetweenSieges, 1, 100);
         inviteDayTime = clamp(inviteDayTime, 0, 11000);
         requiredAccepts = clamp(requiredAccepts, 1, 100);
@@ -1732,16 +1690,13 @@ public class SiegeConfig {
         naturalSpawnBlockRadius = clampDouble(naturalSpawnBlockRadius, 16.0, 1024.0);
         effectMobsFromLevel = clamp(effectMobsFromLevel, 1, 1000);
         effectMobShareStep = clampDouble(effectMobShareStep, 0.0, 1.0);
-        maxDaysBetweenSieges = Math.max(minDaysBetweenSieges, maxDaysBetweenSieges);
         warningDayTime = clamp(warningDayTime, 0, 23999);
         startDayTime = clamp(startDayTime, 0, 23999);
         gatherReadyMaxSeconds = clamp(gatherReadyMaxSeconds, 30, 600);
-        requiredPlayers = Math.max(1, requiredPlayers);
         coreRadius = Math.max(16.0, coreRadius);
         participantRadius = Math.max(16.0, participantRadius);
 
         maxLevel = clamp(maxLevel, 1, 1000);
-        daysPerLevel = Math.max(0, daysPerLevel);
 
         baseDurationSeconds = Math.max(30, baseDurationSeconds);
         durationSecondsPerLevel = Math.max(0, durationSecondsPerLevel);
@@ -1758,7 +1713,6 @@ public class SiegeConfig {
         presentRadius = Double.isNaN(presentRadius) ? 180.0 : clampDouble(presentRadius, 16.0, 2000.0);
         presentGraceSeconds = clamp(presentGraceSeconds, 0, 600);
         playtestPlayerScaling = Double.isNaN(playtestPlayerScaling) ? 1.0 : clampDouble(playtestPlayerScaling, 0.0, 2.0);
-        playtestLivePerPlayer = Double.isNaN(playtestLivePerPlayer) ? 0.5 : clampDouble(playtestLivePerPlayer, 0.0, 2.0);
         lowLevelDamageTaken = Double.isNaN(lowLevelDamageTaken) ? 0.75 : clampDouble(lowLevelDamageTaken, 0.3, 1.5);
         lowLevelDamageDealt = Double.isNaN(lowLevelDamageDealt) ? 1.15 : clampDouble(lowLevelDamageDealt, 0.5, 2.0);
         lowLevelUntil = clamp(lowLevelUntil, 1, 100);
@@ -1812,8 +1766,6 @@ public class SiegeConfig {
 
         spawnMinDistance = Math.max(8.0, spawnMinDistance);
         spawnMaxDistance = Math.max(spawnMinDistance + 4.0, spawnMaxDistance);
-
-        failureBlastRadius = clamp(failureBlastRadius, 0, 64);
 
         digTicksPerBlock = clamp(digTicksPerBlock, 1, 2000);
         baseRadius = clamp(baseRadius <= 0 ? 64 : baseRadius, 16, 192);
@@ -1993,14 +1945,8 @@ public class SiegeConfig {
         wardenFinaleSeconds = clamp(wardenFinaleSeconds <= 0 ? 150 : wardenFinaleSeconds, 30, 1200);
         wardenPoints = clamp(wardenPoints, 0, 20);
 
-        skillPointsPerSiege = Math.max(0, skillPointsPerSiege);
-        skillPointsPerKill = Math.max(0, skillPointsPerKill);
-        championPointMultiplier = Math.max(1, championPointMultiplier);
         audibleSpawnsPerBatch = Math.max(0, audibleSpawnsPerBatch);
-        skillPointsLevelStep = Math.max(1, skillPointsLevelStep);
-        tankDamagePerPoint = Math.max(1, tankDamagePerPoint);
         specialNightMobMultiplier = clampDouble(specialNightMobMultiplier, 1.0, 5.0);
-        killQuotaShare = clampDouble(killQuotaShare, 0.0, 1.0);
         classDamage = filled(classDamage, CLASS_KEYS);
         classDamageTaken = filled(classDamageTaken, CLASS_KEYS);
         boolean swiftMissing = subclassDamage == null || subclassDamage.get("swift") == null;
@@ -2020,7 +1966,6 @@ public class SiegeConfig {
             skillTweaks = new LinkedHashMap<>();
         }
         targetWinRate = clampDouble(targetWinRate <= 0 ? 0.75 : targetWinRate, 0.05, 1.0);
-        targetGoalRate = clampDouble(targetGoalRate <= 0 ? 0.8 : targetGoalRate, 0.05, 1.0);
         targetDeathsPerNight = clampDouble(targetDeathsPerNight <= 0 ? 1.0 : targetDeathsPerNight, 0.1, 20.0);
         targetClassSpread = clampDouble(targetClassSpread <= 0 ? 0.25 : targetClassSpread, 0.05, 2.0);
         specialNightXpMultiplier = clamp(specialNightXpMultiplier, 1, 10);
@@ -2029,7 +1974,7 @@ public class SiegeConfig {
             settingsVersion = 1;
         }
         if (settingsVersion < 2) {
-            bloodMoonGlow = false;   // the blood moon mobs have their own look now
+            // (was: bloodMoonGlow off; the switch is gone since Tor 12 J)
             settingsVersion = 2;
         }
         if (settingsVersion < 3) {
@@ -2039,22 +1984,17 @@ public class SiegeConfig {
         if (settingsVersion < 4) {
             // The balancing of October 2026: experience only from survived waves, a flatter climb.
             SiegeConfig fresh = new SiegeConfig();
-            daysPerLevel = fresh.daysPerLevel;
             baseMobsPerBatch = fresh.baseMobsPerBatch;
             mobsPerLevel = fresh.mobsPerLevel;
             playerScaling = fresh.playerScaling;
             healthPerLevel = fresh.healthPerLevel;
             damagePerLevel = fresh.damagePerLevel;
             auroraPointSeconds = fresh.auroraPointSeconds;
-            skillPointsPerSiege = fresh.skillPointsPerSiege;
-            skillPointsPerKill = fresh.skillPointsPerKill;
             settingsVersion = 4;
         }
         if (settingsVersion < 5) {
             // Version A (October 2026): no cap at level 20, a defeat has no punishment.
-            maxLevel = 1000;
-            failureBlast = false;
-            defeatSkillLoss = 0;
+            maxLevel = 1000;   // (failureBlast and defeatSkillLoss were set off here; gone since Tor 12 J)
             settingsVersion = 5;
         }
         if (settingsVersion < 6) {
@@ -2202,13 +2142,13 @@ public class SiegeConfig {
         if (settingsVersion < 17) {
             // Update 30.10. (Simon 30.10., 03:37: "bau ein update wenn alle tests abgeschlossen sind"):
             // the night scales by group size (team sim skal3-skal5: about 70 % wins for 1-10 players),
-            // the kill goal leaves out monsters gone without a kill, and the class balancing (klassen3).
+            // the kill goal left out monsters gone without a kill (quotaSkipsVanished, gone since Tor 12 J), and the
+            // class balancing (klassen3).
             soloScaling = 0.6;
             overflowHealth = 0.0;
             liveCapByPlayers = new ArrayList<>(List.of(9, 15, 20, 33, 46, 58, 70, 82, 98, 114));
             damageTakenByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
             mobHealthByPlayers = new ArrayList<>(List.of(0.7, 0.9, 0.95, 1.0));
-            quotaSkipsVanished = true;
             // The shield fighter stays as he was (klassen4: his group won 20 points less with -49 %
             // damage; Simon: a class that swings too strongly stays out), so no guard of his either.
             shieldfighterGuardRadius = 0.0;
@@ -2408,7 +2348,6 @@ public class SiegeConfig {
             dungeonGuardLife = onOld(dungeonGuardLife, 1.5, 2.0);
             dungeonGuardCount = onOld(dungeonGuardCount, 1.25, 1.5);
             championSpeed = onOld(championSpeed, 1.2, 1.4);
-            lifestealTakenShare = onOld(lifestealTakenShare, 1.0, 2.0);
             ironKnightSlow = onOld(ironKnightSlow, 0.25, 0.0);
             monsterDamage = onOld(monsterDamage, 1.2, 0.924);
             onOldKey(monsterDamageByType, "minecraft:pillager", 1.0, 0.77);
@@ -2454,6 +2393,8 @@ public class SiegeConfig {
             settingsVersion = 31;
         }
         if (settingsVersion < 32) {
+            migrateV32Nachzuegler();
+            migrateV32Altlasten();
             migrateV32Angleich();
             settingsVersion = 32;
         }
@@ -2507,13 +2448,8 @@ public class SiegeConfig {
         antiHealShare = Double.isNaN(antiHealShare) ? 0.5 : Math.min(1.0, Math.max(0.0, antiHealShare));
         antiHealSeconds = Double.isNaN(antiHealSeconds) || antiHealSeconds <= 0 ? 4.0 : Math.min(30.0, antiHealSeconds);
         antiHealFromLevel = Math.max(1, antiHealFromLevel);
-        lifestealTakenShare = Double.isNaN(lifestealTakenShare) ? 1.0 : clampDouble(lifestealTakenShare, 0.0, 5.0);
         lifestealTakenSeconds = Double.isNaN(lifestealTakenSeconds) || lifestealTakenSeconds <= 0 ? 5.0
                 : clampDouble(lifestealTakenSeconds, 0.5, 60.0);
-        eliteMobFromLevel = clamp(eliteMobFromLevel, 1, 1000);
-        eliteMobChance = Double.isNaN(eliteMobChance) ? 0.125 : clampDouble(eliteMobChance, 0.0, 1.0);
-        eliteMobChanceMax = Double.isNaN(eliteMobChanceMax) ? 0.2 : clampDouble(eliteMobChanceMax, 0.0, 1.0);
-        eliteMobMaxLevel = clamp(eliteMobMaxLevel, eliteMobFromLevel, 1000);
         eliteMobTwoFromLevel = clamp(eliteMobTwoFromLevel, 1, 1000);
         eliteMobTwoChance = Double.isNaN(eliteMobTwoChance) ? 0.35 : clampDouble(eliteMobTwoChance, 0.0, 1.0);
         eliteMobLife = Double.isNaN(eliteMobLife) || eliteMobLife <= 0 ? 1.75 : clampDouble(eliteMobLife, 1.0, 10.0);
@@ -2546,14 +2482,6 @@ public class SiegeConfig {
         zombieSpiderVsMelee = Math.min(5.0, Math.max(0.1, zombieSpiderVsMelee));
         armorBreakShare = Double.isNaN(armorBreakShare) ? 0.3 : Math.min(1.0, Math.max(0.0, armorBreakShare));
         armorBreakSeconds = Double.isNaN(armorBreakSeconds) ? 3.0 : Math.min(30.0, Math.max(0.0, armorBreakSeconds));
-        if (Double.isNaN(berserkerLifesteal)) {
-            berserkerLifesteal = 0.12;
-        }
-        berserkerLifesteal = Math.min(1.0, Math.max(0.0, berserkerLifesteal));
-        if (Double.isNaN(comboKillLifesteal)) {
-            comboKillLifesteal = 0.15;
-        }
-        comboKillLifesteal = Math.min(1.0, Math.max(0.0, comboKillLifesteal));
         if (Double.isNaN(shieldEnergySeconds) || shieldEnergySeconds <= 0) {
             shieldEnergySeconds = 6.0;
         }
@@ -2675,11 +2603,12 @@ public class SiegeConfig {
             pointGainMultiplier = 1.0;
         }
         pointGainMultiplier = Math.min(10.0, Math.max(0.1, pointGainMultiplier));
+        catchUpXpFactor = Double.isNaN(catchUpXpFactor) ? 2.0 : Math.min(5.0, Math.max(1.0, catchUpXpFactor));
+        catchUpLevelGap = clamp(catchUpLevelGap, 0, 20);
         if (effectMobReplacements == null) {
             effectMobReplacements = defaultEffectMobReplacements();
         }
         levelSyncGap = clamp(levelSyncGap, 0, 20);
-        defeatSkillLoss = clamp(defeatSkillLoss, 0, 20);
 
         toolEquipChance = clampDouble(toolEquipChance, 0.0, 1.0);
         if (!allowShovelDigging) {

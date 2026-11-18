@@ -29,8 +29,8 @@ import java.util.Set;
  *   <li><b>Heilungshemmend</b> (dark green): every hit leaves gaping wounds (half healing for 4 s).</li>
  * </ul>
  * Not the bosses, champions, guards or the summoner's dead; only the waves and the refills of a night.
- * Since 05.11. 19:51 the fixed elites are off (eliteMobs false); the smart night sends them when the
- * defenders are too good (SmartNight.eliteChance).
+ * The fixed share of elites is gone (eliteMobs, off since 05.11., removed in Tor 12 J); the smart night sends
+ * them when the defenders are too good (SmartNight.eliteChance), the bastion from wave 5.
  */
 public final class Elites {
 
@@ -86,26 +86,13 @@ public final class Elites {
 
     // ------------------------------------------------------------------ who becomes one
 
-    /** The chance that a monster of this level is an elite (0 below the start level). */
-    public static double chance(SiegeConfig cfg, int level) {
-        return com.mki.nightsiege.core.SiegeMath.eliteChance(cfg, level);
-    }
-
-    /** A new monster of the night: rolls whether it is an elite, and makes it one. */
-    public static boolean maybe(ServerLevel level, Mob mob, int siegeLevel, SiegeConfig cfg, Random random) {
-        return maybe(level, mob, siegeLevel, cfg, random, 0.0, true);
-    }
-
-    /**
-     * As above with the smart night (05.11.): {@code extra} on top of the fixed chance, and without the
-     * fixed elites when {@code fixed} is false (the night has stepped far down).
-     */
+    /** A new monster of the night: an elite with this chance (the smart night's or the bastion's), made one. */
     public static boolean maybe(ServerLevel level, Mob mob, int siegeLevel, SiegeConfig cfg, Random random,
-                                double extra, boolean fixed) {
+                                double extra) {
         if (mob == null || level == null || !eligible(mob)) {
             return false;
         }
-        double chance = Math.min(1.0, (fixed ? chance(cfg, siegeLevel) : 0.0) + Math.max(0.0, extra));
+        double chance = Math.min(1.0, Math.max(0.0, extra));
         if (chance <= 0 || random.nextDouble() >= chance) {
             return false;
         }

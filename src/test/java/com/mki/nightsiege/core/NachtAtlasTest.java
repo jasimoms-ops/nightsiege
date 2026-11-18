@@ -60,17 +60,6 @@ class NachtAtlasTest {
     void writeAtlas() throws Exception {
         SiegeConfig c = new Gson().fromJson("{}", SiegeConfig.class);
         c.sanitize();
-        // Kill goal: only while the mod still has it (Teil F removes it).
-        Method quota = null;
-        boolean hasKill = false;
-        try {
-            SiegeConfig.class.getField("killQuotaShare");
-            quota = SiegeMath.class.getMethod("killQuota", double.class, int.class, int.class);
-            hasKill = true;
-        } catch (ReflectiveOperationException e) {
-            // no kill goal in this version
-        }
-        double share = hasKill ? c.killQuotaShare : 0.0;
 
         StringBuilder a = new StringBuilder();
 
@@ -80,9 +69,8 @@ class NachtAtlasTest {
                 + "Stufen 21-40 gibt es als Testnacht oder alter Spielstand. Art: N normal, B Boss, F Finale (Vierer-Nacht, keine Wellen).\n");
         a.append("Welle = Monster je Welle (normale Nacht, ohne Ereignis); Grenze = Lebend-Grenze; Spitze = Grenze + Phantome + "
                 + "Sprengmeister/Betäuber je Welle (Sonderspawns zählen nicht gegen die Grenze); Überlauf = gewollte Zahl über der Grenze (kommt als Elite/Leben).\n\n");
-        a.append("| Stufe | Art | Länge s | Wellen | Spieler | Welle | gesamt | Grenze | Spitze | Überlauf | Maschinen | Boss-Vorwelle |"
-                + (hasKill ? " Kill-Ziel |" : "") + "\n");
-        a.append("|---|---|---|---|---|---|---|---|---|---|---|---|" + (hasKill ? "---|" : "") + "\n");
+        a.append("| Stufe | Art | Länge s | Wellen | Spieler | Welle | gesamt | Grenze | Spitze | Überlauf | Maschinen | Boss-Vorwelle |\n");
+        a.append("|---|---|---|---|---|---|---|---|---|---|---|---|\n");
         Map<String, Integer> prevBase = new LinkedHashMap<>();
         for (int level = 1; level <= MAX_LEVEL; level++) {
             BossPlan.NightKind kind = Chapters.nightKind(Chapters.nightOf(level), c);
@@ -110,13 +98,6 @@ class NachtAtlasTest {
                     machines = "nur Lager x" + SiegeMachineKind.campCount(level, c.machinesCampFactor, c.machinesMax);
                 }
                 String kill = "";
-                if (hasKill) {
-                    int q = (int) quota.invoke(null, share, waves, wave);
-                    kill = " " + q + " |";
-                    if (kind == BossPlan.NightKind.NORMAL && q > waves * wave) {
-                        flag("5 Kill-Ziel unerreichbar", level, n, "Ziel " + q + " > geplante Monster " + waves * wave);
-                    }
-                }
                 a.append("| ").append(level).append(" | ").append(art).append(" | ").append(seconds).append(" | ")
                         .append(kind == BossPlan.NightKind.GROUP ? "-" : String.valueOf(waves)).append(" | ").append(n).append(" | ")
                         .append(kind == BossPlan.NightKind.GROUP ? "-" : String.valueOf(wave)).append(" | ")
@@ -214,7 +195,6 @@ class NachtAtlasTest {
                 l -> l < c.stunnerFromLevel ? "-" : SiegeMath.stunnersWanted(1, c, 0) + " / " + SiegeMath.stunnersWanted(4, c, 0));
         special(a, "Brecher (Tank)", c.breakerFromLevel, "Foes, 1 je Tank/Welle", at, l -> l < c.breakerFromLevel ? "-" : "1 je Tank");
         special(a, "Scharfrichter (Tank)", c.executionerFromLevel, "Foes, 1 je Tank/Welle", at, l -> l < c.executionerFromLevel ? "-" : "1 je Tank");
-        special(a, "Elite", c.eliteMobFromLevel, "Elites, Anteil der Monster", at, l -> pct(eliteChance(c, l)));
         special(a, "Schatzräuber", c.treasureRaiderFromLevel, "Foes, Chance je Nacht (ab 3 Wellen)", at, l -> l < c.treasureRaiderFromLevel ? "-" : pct(c.treasureRaiderChance));
         special(a, "Phantome (Welle 2)", 1, "SiegeManager", at, l -> String.valueOf(phantoms(c, l)));
         for (Object[] r : new Object[][]{{"Wiedergänger", poolMin(c, "nightsiege:revenant")}, {"Tunnelgräber", poolMin(c, "nightsiege:tunneler")},
@@ -226,9 +206,9 @@ class NachtAtlasTest {
         if (c.sapperFromLevel <= 0 || c.sapperMaxPerWave <= 0) {
             flag("3 Sondermonster aus", -1, -1, "Sprengmeister");
         }
-        // Elite: eliteMobs=false is the Chef's choice (17.11.), only the smart night sends them: no breach of D.2.
-        if (c.stunnersMax <= 0 || c.eliteMobChance <= 0 || c.treasureRaiderChance <= 0) {
-            flag("3 Sondermonster aus", -1, -1, "Betäuber/Elite/Schatzräuber Wert 0");
+        // Elite: the fixed eliteMobs are gone (Tor 12 J), only the smart night, the bastion and the wardens send them.
+        if (c.stunnersMax <= 0 || c.treasureRaiderChance <= 0) {
+            flag("3 Sondermonster aus", -1, -1, "Betäuber/Schatzräuber Wert 0");
         }
 
         // ---------------------------------------------------------------- D: special nights
@@ -304,7 +284,7 @@ class NachtAtlasTest {
                 + "ATLAS_OUT=C:/Users/simon/NightSiege-Mod/production/qa/tor-12/atlas.md JAVA_HOME=C:/Users/simon/NightSiege-Mod/tools/jdk-25 "
                 + "PATH=\"$JAVA_HOME/bin:C:/Users/simon/NightSiege-Mod/tools/gradle/bin:$PATH\" gradle test --no-daemon "
                 + "-Pfabric_version=0.161.0+26.2 --tests com.mki.nightsiege.core.NachtAtlasTest\n```\n\n");
-        out.append("Kill-Ziel: ").append(hasKill ? "vorhanden (Anteil " + share + "), Spalte in Tabelle A" : "in diesem Stand nicht vorhanden, Spalte fehlt").append(".\n\n");
+        out.append("Kill-Ziel: gibt es nicht mehr (Tor 12 F/J).\n\n");
         out.append("## Verstöße gegen die Prüfregeln (D.2) – nur gemeldet, nicht behoben\n\n");
         Map<String, List<Finding>> byRule = new TreeMap<>();
         for (Finding f : findings) {
@@ -401,10 +381,6 @@ class NachtAtlasTest {
             case "nightsiege:treasure_raider", "nightsiege:breaker", "nightsiege:executioner" -> "0 (nie aus Liste)";
             default -> "-";
         };
-    }
-
-    private static double eliteChance(SiegeConfig c, int level) {
-        return SiegeMath.eliteChance(c, level);
     }
 
     private interface At {

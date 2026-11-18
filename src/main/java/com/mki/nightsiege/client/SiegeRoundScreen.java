@@ -55,7 +55,7 @@ public class SiegeRoundScreen extends Screen {
 
     @Override
     protected void init() {
-        int rows = 1 + stats.veterans.size();
+        int rows = 1 + stats.openChars.size() + stats.veterans.size();
         W = Math.max(200, Math.min(360, this.width - 10));
         Font font = Minecraft.getInstance().font;
         lines.clear();
@@ -66,6 +66,10 @@ public class SiegeRoundScreen extends Screen {
         wrap(font, stats.roundOpenBy.isEmpty() ? Component.translatable("nightsiege.round.you_start")
                 : Component.translatable("nightsiege.round.open_by", stats.roundOpenBy), 0xFFFFD86B, false, 2);
         wrap(font, Component.translatable("nightsiege.round.pool", stats.xpPool, stats.poolLevel), 0xFF7FD8FF, true, 2);
+        if (stats.catchUpFactor > 1.0) {   // Teil H
+            wrap(font, Component.translatable("nightsiege.msg.catch_up", com.mki.nightsiege.core.Chapters.factorText(stats.catchUpFactor)),
+                    0xFFFF77FF, true, 0);
+        }
         head = 22 + 6;
         for (Line l : lines) {
             head += LINE + l.gap();
@@ -82,6 +86,24 @@ public class SiegeRoundScreen extends Screen {
                 .build();
         current.active = stats.roundBlock.isEmpty();
         addRenderableWidget(current);
+        // Teil H: the open characters, each a night of its own level, all of the experience into it
+        for (int i = 0; i < stats.openChars.size() && y + 2 * ROW < top + H - 30; i++) {
+            y += ROW;
+            CoreStats.VeteranChoice o = stats.openChars.get(i);
+            SkillClass c = SkillClass.byName(o.clazz);
+            Component name = o.sub != null && !o.sub.isEmpty() ? Component.translatable("nightsiege.subclass." + o.sub)
+                    : Component.translatable(c == null ? "nightsiege.round.unknown" : c.translationKey());
+            Component label = o.catchUp > 1.0
+                    ? Component.translatable("nightsiege.round.open_char_bonus", name, o.level, com.mki.nightsiege.core.Chapters.factorText(o.catchUp))
+                    : Component.translatable("nightsiege.round.open_char", name, o.level);
+            final int pick = -2 - i;
+            Button ob = Button.builder(label, b -> start(pick)).bounds(left + 12, y, W - 24, 18)
+                    .tooltip(Tooltip.create(stats.roundOpenCharBlock.isEmpty() ? Component.translatable("nightsiege.round.open_char_hint", o.chapter)
+                            : Component.translatable(stats.roundOpenCharBlock, 48)))
+                    .build();
+            ob.active = stats.roundOpenCharBlock.isEmpty();
+            addRenderableWidget(ob);
+        }
         for (int i = 0; i < stats.veterans.size() && y + 2 * ROW < top + H - 30; i++) {
             y += ROW;
             CoreStats.VeteranChoice v = stats.veterans.get(i);
@@ -129,7 +151,7 @@ public class SiegeRoundScreen extends Screen {
             y += LINE;
         }
         if (stats.veterans.isEmpty()) {
-            int ny = top + head + ROW + 4;
+            int ny = top + head + (1 + stats.openChars.size()) * ROW + 4;
             for (net.minecraft.util.FormattedCharSequence part : font.split(Component.translatable("nightsiege.round.no_veterans"), W - 24)) {
                 gui.text(font, part, left + 12, ny, 0xFF8A8494, false);
                 ny += LINE;
