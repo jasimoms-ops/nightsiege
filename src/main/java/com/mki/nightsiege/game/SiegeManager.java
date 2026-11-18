@@ -6777,7 +6777,7 @@ public final class SiegeManager {
         if (amount > 0) {
             for (UUID id : participants) {
                 if (!fallen.contains(id)) {
-                    save.skillsOf(id.toString()).award(amount);
+                    save.skillsOf(id.toString()).award((int) Math.floor(amount * catchUpFor(id) + 1e-9));   // Teil H: Aufholbonus
                 }
             }
         }
