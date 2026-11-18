@@ -2290,6 +2290,8 @@ public final class SiegeManager {
 
     /** True while a test siege runs: nothing it does is counted, won or lost. */
     private boolean testRun;
+    /** Team sim only (Tor 12 J.3): the outer loop's offset for its test nights; NaN = off as in every test night. */
+    public double simOuterLoop = Double.NaN;
     private int levelOverride;
     private SiegeEvent eventOverride;
 
@@ -5264,6 +5266,9 @@ public final class SiegeManager {
      * leader and bastion nights and outside a night).
      */
     public double outerLoopFactor() {
+        if (active && testRun && !Double.isNaN(simOuterLoop)) {
+            return com.mki.nightsiege.core.OuterLoop.factor(simOuterLoop, config);   // the team sim's switch (Tor 12 J.3)
+        }
         return active && !testRun && !inPlaytest() ? com.mki.nightsiege.core.OuterLoop.factor(save.outerLoop, config) : 1.0;
     }
 

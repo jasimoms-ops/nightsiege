@@ -108,6 +108,8 @@ public final class TeamSim {
     private static long fightStart;
     /** The side of the running night, read when the fight starts (after it the test night has ended). */
     private static int runArc = -1;
+    /** The outer loop's factor on the normal monsters of the running night (Tor 12 J.3; 1 = off). */
+    private static double runLoop = 1.0;
     private static int index;
     private static int maxTicks;
     private static final List<Run> queue = new ArrayList<>();
@@ -298,6 +300,28 @@ public final class TeamSim {
         }
     }
 
+    /** Tor 12 s2: whether a variant plays this level/group ("stufen=5/10/15/20", "gruppen=4"; none = all). */
+    private static boolean plays(String variant, String key, int value) {
+        String v = variants.getOrDefault(variant, Map.of()).get(key);
+        if (v == null || v.isBlank()) {
+            return true;
+        }
+        List<Integer> list = new ArrayList<>();
+        addInts(list, v.replace('/', ','));
+        return list.contains(value);
+    }
+
+    /** Tor 12 I.4: the variant's own "rueck=10/10" before the common "rueck=10,10". */
+    private static List<Integer> behindOf(String variant) {
+        String v = variants.getOrDefault(variant, Map.of()).get("rueck");
+        if (v == null || v.isBlank()) {
+            return behind;
+        }
+        List<Integer> out = new ArrayList<>();
+        addInts(out, v.replace('/', ','));
+        return out;
+    }
+
     private static void addInts(List<Integer> into, String csv) {
         for (String p : csv.split(",")) {
             if (!p.isBlank()) {
@@ -326,6 +350,9 @@ public final class TeamSim {
                 }
                 // Every variant plays the same groups, so old and new can be compared run by run.
                 for (String v : variants.keySet()) {
+                    if (!plays(v, "stufen", level) || !plays(v, "gruppen", group)) {
+                        continue;   // Tor 12 s2: a variant only on its own levels/groups
+                    }
                     for (Run r : cell) {
                         all.add(new Run(v, r.level(), r.group(), r.mix(), r.index(), r.subs()));
                     }
@@ -490,6 +517,7 @@ public final class TeamSim {
                         phase = Phase.FIGHT;
                         fightStart = now;
                         runArc = m.nightArcForTest();
+                        runLoop = m.outerLoopFactor();
                         for (Map.Entry<UUID, TeamBrain> e : brains.entrySet()) {
                             ServerPlayer bot = server.getPlayerList().getPlayer(e.getKey());
                             if (bot != null) {
@@ -553,6 +581,8 @@ public final class TeamSim {
         applyConfig(m, common);
         applyConfig(m, variants.getOrDefault(run.variant(), Map.of()));
         m.simChapter = simChapter(run.variant());   // Tor 11: "kapitel=3" plays the chapter's step and boss group
+        String loop = variants.getOrDefault(run.variant(), Map.of()).get("schleife");
+        m.simOuterLoop = loop == null || loop.isBlank() ? Double.NaN : Double.parseDouble(loop);   // Tor 12 J.3
         clearField(m);
         // The bots: as many as the group, "Bot01" to "BotNN" every time, the NN-th playing the NN-th subclass.
         // Picked by name, not by place in the list (31.10.): a bot that died after the night was missing from
@@ -585,7 +615,8 @@ public final class TeamSim {
             }
             // Tor 10 (K3): in a war leader's round the defenders play the free pick, level 20 with the recommended
             // build and its crates; the round itself fights at L (warLevel 25).
-            int back = fullTree || warMode || i >= behind.size() ? 0 : Math.max(0, behind.get(i));   // Tor 12 I
+            List<Integer> behindHere = behindOf(run.variant());
+            int back = fullTree || warMode || i >= behindHere.size() ? 0 : Math.max(0, behindHere.get(i));   // Tor 12 I
             PlayerSkills skills = fullTree
                     ? MeleeSim.build(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1])
                     : MeleeSim.buildBudget(m.skillTree(), SkillClass.valueOf(sub[0]), sub[1],
@@ -740,8 +771,8 @@ public final class TeamSim {
         System.out.println(line);
         NightSiegeMod.LOGGER.info(line);
         // The side of the night (0 north … 7 north-west, -1 fixed arc), to tell its spread from the seed's.
-        System.out.println(String.format(Locale.ROOT, "[Night Siege sim] RICHTUNG;%s;%d;%d;%s;%d;%d;%d",
-                run.variant(), run.level(), run.group(), run.mix(), run.index(), runArc, won ? 1 : 0));
+        System.out.println(String.format(Locale.ROOT, "[Night Siege sim] RICHTUNG;%s;%d;%d;%s;%d;%d;%d;%.3f",
+                run.variant(), run.level(), run.group(), run.mix(), run.index(), runArc, won ? 1 : 0, runLoop));
         runArc = -1;
         for (Map.Entry<String, double[]> e : bySub.entrySet()) {
             double[] v = e.getValue();
@@ -1032,7 +1063,8 @@ public final class TeamSim {
         for (Map.Entry<String, String> e : over.entrySet()) {
             String key = e.getKey();
             String value = e.getValue();
-            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur") || key.equals("kapitel")) {
+            if (key.startsWith("koennen") || key.startsWith("wagemut") || key.equals("mit") || key.equals("nur") || key.equals("kapitel")
+                    || key.equals("rueck") || key.equals("stufen") || key.equals("gruppen") || key.equals("schleife")) {
                 continue;   // the bots' knobs, not config values
             }
             try {
